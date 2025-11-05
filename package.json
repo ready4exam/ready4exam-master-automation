@@ -1,0 +1,13 @@
+{
+  "name": "ready4exam-master-automation",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "test": "node --version"
+  },
+  "dependencies": {
+    "@octokit/rest": "^19.0.0",
+    "mustache": "^4.2.0",
+    "node-fetch": "^3.3.1"
+  }
+}
