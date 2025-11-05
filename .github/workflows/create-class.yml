@@ -1,20 +1,12 @@
-name: 🧱 Create or Update Class Repo (Front-End Builder)
+name: "Create or Update Class Repo (Front-End Builder)"
 
 on:
   workflow_dispatch:
     inputs:
       class:
-        description: "Select the class (5–12)"
+        description: "Enter class number (5–12)"
         required: true
         default: "11"
-      stream:
-        description: "Select stream (only for class 11/12)"
-        required: false
-        default: ""
-      target_repo:
-        description: "Target GitHub repo name (default: ready4exam-test)"
-        required: false
-        default: "ready4exam-test"
 
 jobs:
   build-repo:
@@ -24,36 +16,20 @@ jobs:
       - name: 🧩 Checkout master automation repo
         uses: actions/checkout@v4
 
-      - name: 🟢 Set up Node.js
+      - name: 🧠 Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "18"
+          node-version: 18
 
       - name: 📦 Install dependencies
         run: npm install
 
-      - name: 🗝️ Export environment variables
-        run: |
-          echo "GITHUB_OWNER=ready4exam" >> $GITHUB_ENV
-          echo "TARGET_REPO=${{ github.event.inputs.target_repo }}" >> $GITHUB_ENV
-          echo "CLASS=${{ github.event.inputs.class }}" >> $GITHUB_ENV
-          echo "STREAM=${{ github.event.inputs.stream }}" >> $GITHUB_ENV
-
-      - name: 🚀 Run Class Repo Builder Script
+      - name: ⚙️ Run Class Repo Builder Script
         env:
-           GITHUB_OWNER: ready4exam
-           CLASS: ${{ github.event.inputs.class }}
-           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-           PERSONAL_ACCESS_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
-           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-           FIREBASE_API_KEY_1112: ${{ secrets.FIREBASE_API_KEY_1112 }}
-           FIREBASE_APP_ID_1112: ${{ secrets.FIREBASE_APP_ID_1112 }}
-           FIREBASE_PROJECT_ID_1112: ${{ secrets.FIREBASE_PROJECT_ID_1112 }}
-           FIREBASE_AUTH_DOMAIN_1112: ${{ secrets.FIREBASE_AUTH_DOMAIN_1112 }}
-           FIREBASE_MEASUREMENT_ID_1112: ${{ secrets.FIREBASE_MEASUREMENT_ID_1112 }}
-           FIREBASE_ADMIN_JSON_1112: ${{ secrets.FIREBASE_ADMIN_JSON_1112 }}
+          GITHUB_OWNER: ready4exam
+          CLASS: ${{ github.event.inputs.class }}
+          PERSONAL_ACCESS_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
-          echo "⚙️ Running createClassRepo.js for class=${{ github.event.inputs.class }} stream=${{ github.event.inputs.stream }}"
+          echo "⚙️ Running createClassRepo.js for class=${{ github.event.inputs.class }}"
           node scripts/createClassRepo.js
