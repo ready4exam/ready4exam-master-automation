@@ -41,17 +41,19 @@ jobs:
 
       - name: 🚀 Run Class Repo Builder Script
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PERSONAL_ACCESS_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          FIREBASE_API_KEY_1112: ${{ secrets.FIREBASE_API_KEY_1112 }}
-          FIREBASE_APP_ID_1112: ${{ secrets.FIREBASE_APP_ID_1112 }}
-          FIREBASE_PROJECT_ID_1112: ${{ secrets.FIREBASE_PROJECT_ID_1112 }}
-          FIREBASE_AUTH_DOMAIN_1112: ${{ secrets.FIREBASE_AUTH_DOMAIN_1112 }}
-          FIREBASE_MEASUREMENT_ID_1112: ${{ secrets.FIREBASE_MEASUREMENT_ID_1112 }}
-          FIREBASE_ADMIN_JSON_1112: ${{ secrets.FIREBASE_ADMIN_JSON_1112 }}
+           GITHUB_OWNER: ready4exam
+           CLASS: ${{ github.event.inputs.class }}
+           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+           PERSONAL_ACCESS_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+           FIREBASE_API_KEY_1112: ${{ secrets.FIREBASE_API_KEY_1112 }}
+           FIREBASE_APP_ID_1112: ${{ secrets.FIREBASE_APP_ID_1112 }}
+           FIREBASE_PROJECT_ID_1112: ${{ secrets.FIREBASE_PROJECT_ID_1112 }}
+           FIREBASE_AUTH_DOMAIN_1112: ${{ secrets.FIREBASE_AUTH_DOMAIN_1112 }}
+           FIREBASE_MEASUREMENT_ID_1112: ${{ secrets.FIREBASE_MEASUREMENT_ID_1112 }}
+           FIREBASE_ADMIN_JSON_1112: ${{ secrets.FIREBASE_ADMIN_JSON_1112 }}
         run: |
           echo "⚙️ Running createClassRepo.js for class=${{ github.event.inputs.class }} stream=${{ github.event.inputs.stream }}"
           node scripts/createClassRepo.js
