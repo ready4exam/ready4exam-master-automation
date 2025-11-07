@@ -1,14 +1,17 @@
 // scripts/generateCurriculum.js
 import fetch from "node-fetch";
 
+// Utility function to pause execution for a given number of milliseconds
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 /**
  * Generates the complete NCERT curriculum for a given class using the Gemini API.
  * @param {number} cls - The class number (e.g., 11).
  * @returns {Promise<object>} The curriculum data as a parsed JSON object.
  */
 export async function generateCurriculumForClass(cls) {
-  // Ensure 'node-fetch' is available in your environment if running outside a browser context
-  // and make sure the API key is set in your environment variables.
   const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
   if (!GEMINI_API_KEY) throw new Error("❌ Missing GEMINI_API_KEY in environment variables.");
 
@@ -35,6 +38,7 @@ Ensure the output:
   const models = ["gemini-2.5-flash", "gemini-2.5-pro"];
   let attempt = 0;
   let successfulResult = null;
+  const DELAY_MS = 3000; // 3-second delay between attempts
 
   for (const model of models) {
     attempt = 0; // Reset attempt count for the new model
@@ -49,11 +53,10 @@ Ensure the output:
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               contents: [{ parts: [{ text: prompt }] }],
-              // ⭐️ CORRECT KEY: Must be 'generationConfig' for the REST API
+              // Correct configuration key for the REST API
               generationConfig: {
                 temperature: 0.5,
                 maxOutputTokens: 4096,
-                // Guarantees clean, parsable JSON output
                 responseMimeType: "application/json", 
               },
             }),
@@ -69,12 +72,12 @@ Ensure the output:
             const parsed = JSON.parse(text); 
             console.log(`✅ Successfully parsed JSON (attempt ${attempt}, model ${model})`);
             successfulResult = parsed;
-            break; // Exit the inner loop on success
+            break; // Success! Exit the inner loop
           } catch (parseErr) {
             console.error(`⚠️ JSON parse error on model ${model}:`, parseErr.message, "Raw Text:", text.slice(0, 120) + "...");
           }
         } else {
-          // Log API-level errors (e.g., 400 or 500 status codes)
+          // Log API-level errors (e.g., 400, 500, or empty 200 responses)
           const errorMsg = data.error?.message || `Status: ${response.status} ${response.statusText}`;
           console.warn(`⚠️ API error or invalid response from ${model}:`, errorMsg);
         }
@@ -82,6 +85,9 @@ Ensure the output:
         // Log network errors
         console.error(`❌ Network error using ${model} (attempt ${attempt}):`, err.message);
       }
+      
+      // ⏳ Pause before the next attempt to allow the model to recover/become available
+      await sleep(DELAY_MS); 
     }
     if (successfulResult !== null) break; // Exit the model loop on success
   }
