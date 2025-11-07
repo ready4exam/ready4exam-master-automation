@@ -3,111 +3,78 @@ import fetch from "node-fetch";
 
 /**
  * Generate NCERT curriculum for a given class using Gemini
- * - Strictly follows official NCERT syllabus (2024–25)
- * - Adds subject codes and chapter numbers
- * - Produces JSON ready for Supabase or frontend use
+ * • Classes 5–10 → simple subject→chapters JSON
+ * • Classes 11–12 → stream→subject→book→chapter JSON
  */
 export async function generateCurriculumForClass(cls) {
   const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-  if (!GEMINI_API_KEY) throw new Error("❌ Missing GEMINI_API_KEY in environment variables");
+  if (!GEMINI_API_KEY)
+    throw new Error("❌ Missing GEMINI_API_KEY in environment variables");
 
   console.log(`🧠 Generating NCERT curriculum for Class ${cls} via Gemini...`);
 
+  const isSenior = Number(cls) >= 11;
+  const streamNote = isSenior
+    ? `For Class ${cls}, group syllabus by streams — Science, Commerce, Humanities (Arts).
+Each stream must list subjects, each subject its NCERT books (Part I, II …), and each book its official chapter list.`
+    : `For Class ${cls}, generate normal subject→chapter JSON (no streams or books).`;
+
   const prompt = `
-You are an NCERT syllabus expert and data formatter.
+You are an NCERT syllabus expert.
 
-Generate a STRICT and COMPLETE JSON object listing all subjects and chapters 
-from the official NCERT syllabus for CBSE Class ${cls}, academic session 2024–25.
+Generate a STRICT and COMPLETE JSON listing all subjects, books, and chapters
+from the official NCERT syllabus for CBSE Class ${cls}, session 2024–25.
 
-✅ Rules:
-- Follow ONLY official NCERT textbook chapter names.
-- Include ALL chapters for each subject exactly as per NCERT.
-- DO NOT invent, rename, summarize, or skip any chapter.
-- Each subject must include chapter numbers and codes for database consistency.
-- Use this schema strictly:
+${streamNote}
 
+✅ Rules
+• Follow ONLY official NCERT textbook titles.
+• Include ALL books for subjects with Part I, Part II, etc.
+• Maintain exact chapter numbers and order.
+• Each subject must have subject_code, subject_name, and "books".
+• Each book has book_name and an array of chapters (chapter_no + chapter_name).
+
+✅ Example (for Class 11 Science)
 {
-  "subject_code": "unique short code for subject (like PHY, CHE, BIO, MAT, ENG)",
-  "subject_name": "string",
-  "chapters": [
+  "Science":[
     {
-      "chapter_no": "integer",
-      "chapter_name": "exact NCERT chapter title"
+      "subject_code":"PHY",
+      "subject_name":"Physics",
+      "books":[
+        {"book_name":"Physics Part I","chapters":[
+          {"chapter_no":1,"chapter_name":"Physical World"},
+          {"chapter_no":2,"chapter_name":"Units and Measurements"}]},
+        {"book_name":"Physics Part II","chapters":[
+          {"chapter_no":9,"chapter_name":"Mechanical Properties of Solids"},
+          {"chapter_no":10,"chapter_name":"Mechanical Properties of Fluids"}]}
+      ]
     }
   ]
 }
 
-✅ Example Output Format:
-[
-  {
-    "subject_code": "PHY",
-    "subject_name": "Physics",
-    "chapters": [
-      { "chapter_no": 1, "chapter_name": "Physical World" },
-      { "chapter_no": 2, "chapter_name": "Units and Measurements" }
-    ]
-  },
-  {
-    "subject_code": "CHE",
-    "subject_name": "Chemistry",
-    "chapters": [
-      { "chapter_no": 1, "chapter_name": "Some Basic Concepts of Chemistry" }
-    ]
-  }
-]
-
-Return ONLY valid JSON without markdown, commentary, or code fences.
+Return ONLY valid JSON (no markdown fences or commentary).
   `;
 
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+    }
+  );
+
+  const data = await res.json();
+  const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
+  const cleaned = raw.replace(/```json/g, "").replace(/```/g, "").trim();
+
   try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }]
-        })
-      }
-    );
-
-    const data = await response.json();
-    const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
-
-    // 🧹 Clean Gemini output (remove markdown fences, trim)
-    const cleaned = rawText
-      .replace(/```json/g, "")
-      .replace(/```/g, "")
-      .trim();
-
-    // 🧾 Parse JSON
-    let parsed;
-    try {
-      parsed = JSON.parse(cleaned);
-      console.log("✅ Curriculum generated successfully");
-    } catch (err) {
-      console.error("❌ Gemini output parsing error:", err);
-      console.log("Raw Gemini text was:", cleaned.slice(0, 500));
-      throw new Error("Gemini returned invalid JSON");
-    }
-
-    // 🧩 Optional validation for expected fields
-    if (!Array.isArray(parsed)) {
-      console.warn("⚠️ Gemini output is not an array, wrapping for consistency...");
-      return [parsed];
-    }
-
-    // Add consistency check: ensure every subject has code, name, and chapters
-    for (const subj of parsed) {
-      if (!subj.subject_code || !subj.subject_name || !Array.isArray(subj.chapters)) {
-        console.warn(`⚠️ Incomplete data in subject entry: ${JSON.stringify(subj).slice(0, 100)}`);
-      }
-    }
-
-    // ✅ Return ready-to-use structured curriculum
+    const parsed = JSON.parse(cleaned);
+    console.log("✅ Curriculum generated successfully");
     return parsed;
-  } catch (err) {
-    console.error("❌ Error while generating curriculum from Gemini:", err.message);
-    throw err;
+  } catch (e) {
+    console.error("❌ Gemini output parse error:", e);
+    console.log("Raw text sample:", cleaned.slice(0, 400));
+    throw new Error("Gemini returned invalid JSON");
   }
 }
