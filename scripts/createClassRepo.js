@@ -1,6 +1,6 @@
 /**
  * Automation Tool 1 — Full Front-End and Curriculum Generator
- * Updated for GitHub Organization + Fine-Grained Token Compatibility
+ * Version: Personal account compatible (no organization required)
  */
 
 import fs from "fs";
@@ -32,12 +32,12 @@ async function main() {
     await octokit.repos.get({ owner: OWNER, repo: repoName });
     repoExists = true;
     console.log(`✅ Repository already exists: ${fullRepoName}`);
-  } catch (error) {
-    console.log(`🆕 Repository does not exist — creating: ${fullRepoName}`);
+  } catch {
+    console.log(`🆕 Repository does not exist — creating under personal account: ${fullRepoName}`);
 
     try {
-      // Use organization-level endpoint (works for both user & org with proper scopes)
-      await octokit.request("POST /orgs/{org}/repos", {
+      // ✅ Use /user/repos instead of /orgs/{org}/repos (for personal accounts)
+      await octokit.request("POST /user/repos", {
         name: repoName,
         private: false,
         description: `Ready4Exam Frontend for Class ${CLASS}`,
@@ -45,7 +45,7 @@ async function main() {
       console.log(`✅ Successfully created repo: ${fullRepoName}`);
     } catch (createErr) {
       console.error("❌ Failed to create repository. Check PAT permissions:", createErr.message);
-      console.error("Required scopes: repo, admin:repo_hook, workflow, read:org");
+      console.error("Required scopes: repo, admin:repo_hook, workflow");
       throw createErr;
     }
   }
