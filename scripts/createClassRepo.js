@@ -48,7 +48,7 @@ async function main() {
 
   // 2️⃣ Prepare temporary folder
   const sourceDir = path.join(process.cwd(), "template");
-  const tempDir = path.join(process.cwd(), "scripts", "temp_repo");
+  const tempDir = path.join(process.cwd(), "temp_repo");
   fs.rmSync(tempDir, { recursive: true, force: true });
   fs.mkdirSync(tempDir, { recursive: true });
   execSync(`cp -r "${sourceDir}/." "${tempDir}/"`);
