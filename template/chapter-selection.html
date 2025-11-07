@@ -91,7 +91,6 @@
 
   <script type="module">
     import { curriculum } from './js/curriculum.js';
-
     const dynamicContainer = document.getElementById('dynamic-container');
     const difficultyContainer = document.getElementById('difficulty-container');
     const startQuizBtn = document.getElementById('start-quiz-btn');
@@ -101,13 +100,12 @@
     const difficultyBtns = document.querySelectorAll('.difficulty-btn');
 
     let selectedClass = localStorage.getItem('selectedClass') || '9';
-    let selectedStream = localStorage.getItem('selectedStream');
+    let selectedStream = localStorage.getItem('selectedStream') || null;
     let selectedSubject = null;
     let selectedBook = null;
     let selectedChapter = null;
     let selectedDifficulty = null;
 
-    // 📘 CLASS <= 10 HANDLER — uses classic Class 9 flow
     function renderClassicSubjects() {
       dynamicContainer.innerHTML = '';
       pageTitle.textContent = `Select Subject for Class ${selectedClass}`;
@@ -116,7 +114,6 @@
         dynamicContainer.innerHTML = '<p class="text-red-500">No subjects found.</p>';
         return;
       }
-
       subjects.forEach(subject => {
         const btn = document.createElement('button');
         btn.textContent = subject.replace(/_/g, ' ');
@@ -128,7 +125,7 @@
 
     function renderClassicChapters(subject) {
       dynamicContainer.innerHTML = '';
-      pageTitle.textContent = `${subject.replace(/_/g,' ')} - Select Chapter`;
+      pageTitle.textContent = `${subject.replace(/_/g, ' ')} - Select Chapter`;
       const chapters = curriculum[selectedClass]?.[subject] || [];
       if (!chapters.length) {
         dynamicContainer.innerHTML = '<p class="text-gray-500">No chapters available.</p>';
@@ -144,60 +141,59 @@
       lucide.createIcons();
     }
 
-    // 📗 CLASS 11–12 HANDLER — Stream → Subject → Book → Chapter
+    // 🌟 Class 11–12: Handle object structure
     function renderStreamSubjects() {
       dynamicContainer.innerHTML = '';
-      const streamData = curriculum[selectedStream];
-      if (!streamData) {
-        dynamicContainer.innerHTML = '<p class="text-red-500">No data found for this stream.</p>';
-        return;
-      }
-      pageTitle.textContent = `Select Subject (${selectedStream})`;
-      streamData.forEach(subj => {
+      pageTitle.textContent = `Select Subject (${selectedStream || 'Stream'})`;
+
+      const streamData = curriculum[selectedStream] || curriculum;
+      const subjects = Object.keys(streamData);
+
+      subjects.forEach(subject => {
         const btn = document.createElement('button');
-        btn.textContent = subj.subject_name;
+        btn.textContent = subject;
         btn.className = 'bg-blue-500 text-white font-semibold px-6 py-3 rounded-xl shadow hover:bg-blue-600 m-2';
-        btn.onclick = () => renderBooks(subj);
+        btn.onclick = () => renderBooks(streamData[subject], subject);
         dynamicContainer.appendChild(btn);
       });
     }
 
-    function renderBooks(subject) {
-      selectedSubject = subject;
+    function renderBooks(subjectObj, subjectName) {
+      selectedSubject = subjectName;
       dynamicContainer.innerHTML = '';
-      pageTitle.textContent = `Select Book (${subject.subject_name})`;
-      if (!subject.books?.length) {
+      pageTitle.textContent = `Select Book (${subjectName})`;
+      const books = Object.keys(subjectObj || {});
+      if (!books.length) {
         dynamicContainer.innerHTML = '<p>No books found.</p>';
         return;
       }
-      subject.books.forEach(book => {
+      books.forEach(book => {
         const btn = document.createElement('button');
-        btn.textContent = book.book_name;
+        btn.textContent = book;
         btn.className = 'bg-green-500 text-white font-semibold px-6 py-3 rounded-xl shadow hover:bg-green-600 m-2';
-        btn.onclick = () => renderChapters(book);
+        btn.onclick = () => renderChapters(subjectObj[book], book);
         dynamicContainer.appendChild(btn);
       });
     }
 
-    function renderChapters(book) {
-      selectedBook = book;
+    function renderChapters(chapterList, bookName) {
+      selectedBook = bookName;
       dynamicContainer.innerHTML = '';
-      pageTitle.textContent = `Select Chapter (${book.book_name})`;
-      if (!book.chapters?.length) {
+      pageTitle.textContent = `Select Chapter (${bookName})`;
+      if (!chapterList?.length) {
         dynamicContainer.innerHTML = '<p>No chapters found.</p>';
         return;
       }
-      book.chapters.forEach(ch => {
+      chapterList.forEach(chapter => {
         const btn = document.createElement('button');
-        btn.textContent = ch.chapter_name || ch.title;
+        btn.textContent = chapter;
         btn.className = 'topic-btn w-full text-left';
-        btn.onclick = (e) => selectChapter(ch.chapter_name || ch.title, e.currentTarget);
+        btn.onclick = (e) => selectChapter(chapter, e.currentTarget);
         dynamicContainer.appendChild(btn);
       });
       lucide.createIcons();
     }
 
-    // ✅ Shared Chapter + Difficulty + Start Quiz Logic
     function selectChapter(chapterName, element) {
       selectedChapter = chapterName;
       selectedChapterDisplay.textContent = `Selected Chapter: ${chapterName}`;
@@ -225,12 +221,11 @@
       }
       localStorage.setItem('selectedChapter', selectedChapter);
       localStorage.setItem('selectedDifficulty', selectedDifficulty);
-      localStorage.setItem('selectedSubject', selectedSubject?.subject_name || '');
-      localStorage.setItem('selectedBook', selectedBook?.book_name || '');
+      localStorage.setItem('selectedSubject', selectedSubject || '');
+      localStorage.setItem('selectedBook', selectedBook || '');
       window.location.href = 'quiz-engine.html';
     };
 
-    // 🧩 INIT
     document.addEventListener('DOMContentLoaded', () => {
       if (Number(selectedClass) >= 11) renderStreamSubjects();
       else renderClassicSubjects();
