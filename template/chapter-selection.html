@@ -1,171 +1,262 @@
-<script type="module">
-  import { curriculum } from './js/curriculum.js';
-  const dynamicContainer = document.getElementById('dynamic-container');
-  const difficultyContainer = document.getElementById('difficulty-container');
-  const startQuizBtn = document.getElementById('start-quiz-btn');
-  const selectedChapterDisplay = document.getElementById('selected-chapter-display');
-  const errorMessageEl = document.getElementById('error-message');
-  const pageTitle = document.getElementById('page-title');
-  const difficultyBtns = document.querySelectorAll('.difficulty-btn');
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Select Chapter & Difficulty</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            serif: ['Merriweather', 'serif'],
+          },
+          colors: {
+            'cbse-blue': '#1a3e6a',
+            'cbse-light': '#f5f7fa',
+            'accent-gold': '#ffb703',
+            'heading': '#0f172a',
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+    body { font-family: 'Inter', sans-serif; }
+    .card { background: white; padding: 1.5rem; border-radius: .75rem; box-shadow: 0 8px 20px rgba(2,6,23,0.06); border: 1px solid #e5e7eb; }
+    .topic-btn { display:flex; align-items:center; justify-content:space-between; padding:1rem; background:white; border:1px solid #d1d5db; border-radius:.5rem; box-shadow: 0 2px 6px rgba(2,6,23,0.04); cursor:pointer; transition: all .18s; }
+    .topic-btn:hover { background: #f5f7fa; }
+    .topic-btn.selected { border-color:#1a3e6a; background:#eff6ff; box-shadow:0 6px 18px rgba(2,6,23,0.06); }
+    .difficulty-btn { padding:.6rem 1.25rem; border-radius: .75rem; font-weight:600; transition: all .15s; border:2px solid transparent; cursor:pointer; }
+    .difficulty-btn.selected { box-shadow: 0 6px 18px rgba(26,62,106,0.14); outline: none; }
+  </style>
+</head>
 
-  let selectedClass = localStorage.getItem('selectedClass') || '9';
-  let selectedStream = localStorage.getItem('selectedStream') || null;
-  let selectedSubject = null;
-  let selectedBook = null;
-  let selectedChapter = null;
-  let selectedDifficulty = null;
+<body class="bg-cbse-light min-h-screen flex flex-col">
+  <header class="bg-cbse-blue shadow-lg">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
+      <h1 class="text-2xl font-extrabold text-accent-gold tracking-wider">
+        Ready4<span class="text-white">Exam</span> Portal
+      </h1>
+      <nav id="auth-nav-container">
+        <button id="login-btn" class="px-4 py-2 text-sm font-semibold rounded-lg bg-white text-cbse-blue hover:bg-gray-100 transition">
+          Sign In
+        </button>
+      </nav>
+    </div>
+  </header>
 
-  /*** CLASS <= 10 — Classic flow (no changes) ***/
-  function renderClassicSubjects() {
-    dynamicContainer.innerHTML = '';
-    pageTitle.textContent = `Select Subject for Class ${selectedClass}`;
-    const subjects = Object.keys(curriculum[selectedClass] || {});
-    if (!subjects.length) {
-      dynamicContainer.innerHTML = '<p class="text-red-500">No subjects found.</p>';
-      return;
+  <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <div class="max-w-4xl mx-auto">
+      <h2 id="page-title" class="text-3xl font-extrabold text-heading mb-6 text-center">
+        Select Chapter & Difficulty
+      </h2>
+
+      <!-- Unified dynamic container -->
+      <div id="dynamic-container" class="space-y-6 mb-8"></div>
+
+      <!-- Difficulty Selection -->
+      <div id="difficulty-container" class="space-y-6 mb-10 hidden">
+        <h3 class="text-2xl font-bold text-gray-800 border-b pb-2">Select Quiz Difficulty</h3>
+        <p id="selected-chapter-display" class="text-center text-cbse-blue font-semibold mb-4 hidden"></p>
+        <div id="difficulty-selection" class="flex flex-wrap justify-center gap-4">
+          <button data-difficulty="simple" class="difficulty-btn" style="background:#16a34a;color:white;">Simple (Easy)</button>
+          <button data-difficulty="medium" class="difficulty-btn" style="background:#f59e0b;color:white;">Medium</button>
+          <button data-difficulty="advanced" class="difficulty-btn" style="background:#ef4444;color:white;">Advanced (Hard)</button>
+        </div>
+      </div>
+
+      <p id="error-message" class="text-red-500 font-semibold text-center hidden mb-6">
+        Please select both a Topic and a Difficulty level to start the quiz.
+      </p>
+
+      <div class="text-center">
+        <button id="start-quiz-btn" class="px-10 py-4 bg-cbse-blue text-white rounded-xl font-bold text-lg hover:bg-blue-700 transition shadow-xl disabled:opacity-50" disabled>
+          Start Quiz
+        </button>
+      </div>
+    </div>
+  </main>
+
+  <footer class="bg-cbse-blue mt-16 py-8">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-white">
+      <small class="text-sm opacity-70 block mt-2">© 2025 Ready4Exam Academic Portal. All Rights Reserved.</small>
+    </div>
+  </footer>
+
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <script type="module">
+    import { curriculum } from './js/curriculum.js';
+    const dynamicContainer = document.getElementById('dynamic-container');
+    const difficultyContainer = document.getElementById('difficulty-container');
+    const startQuizBtn = document.getElementById('start-quiz-btn');
+    const selectedChapterDisplay = document.getElementById('selected-chapter-display');
+    const errorMessageEl = document.getElementById('error-message');
+    const pageTitle = document.getElementById('page-title');
+    const difficultyBtns = document.querySelectorAll('.difficulty-btn');
+
+    let selectedClass = localStorage.getItem('selectedClass') || '9';
+    let selectedStream = localStorage.getItem('selectedStream') || null;
+    let selectedSubject = null;
+    let selectedBook = null;
+    let selectedChapter = null;
+    let selectedDifficulty = null;
+
+    /*** CLASS <= 10 — Classic flow ***/
+    function renderClassicSubjects() {
+      dynamicContainer.innerHTML = '';
+      pageTitle.textContent = `Select Subject for Class ${selectedClass}`;
+      const subjects = Object.keys(curriculum[selectedClass] || {});
+      if (!subjects.length) {
+        dynamicContainer.innerHTML = '<p class="text-red-500">No subjects found.</p>';
+        return;
+      }
+
+      subjects.forEach(subject => {
+        const btn = document.createElement('button');
+        btn.textContent = subject.replace(/_/g, ' ');
+        btn.className = 'bg-blue-500 text-white font-semibold px-6 py-3 rounded-xl shadow hover:bg-blue-600 m-2';
+        btn.onclick = () => renderClassicChapters(subject);
+        dynamicContainer.appendChild(btn);
+      });
     }
 
-    subjects.forEach(subject => {
-      const btn = document.createElement('button');
-      btn.textContent = subject.replace(/_/g, ' ');
-      btn.className = 'bg-blue-500 text-white font-semibold px-6 py-3 rounded-xl shadow hover:bg-blue-600 m-2';
-      btn.onclick = () => renderClassicChapters(subject);
-      dynamicContainer.appendChild(btn);
-    });
-  }
-
-  function renderClassicChapters(subject) {
-    dynamicContainer.innerHTML = '';
-    pageTitle.textContent = `${subject.replace(/_/g, ' ')} - Select Chapter`;
-    const chapters = curriculum[selectedClass]?.[subject] || [];
-    if (!chapters.length) {
-      dynamicContainer.innerHTML = '<p class="text-gray-500">No chapters available.</p>';
-      return;
+    function renderClassicChapters(subject) {
+      dynamicContainer.innerHTML = '';
+      pageTitle.textContent = `${subject.replace(/_/g, ' ')} - Select Chapter`;
+      const chapters = curriculum[selectedClass]?.[subject] || [];
+      if (!chapters.length) {
+        dynamicContainer.innerHTML = '<p class="text-gray-500">No chapters available.</p>';
+        return;
+      }
+      chapters.forEach(ch => {
+        const btn = document.createElement('button');
+        btn.className = 'topic-btn w-full text-left';
+        btn.innerHTML = `<span>${ch.title || ch}</span><i data-lucide="chevron-right" class="w-5 h-5 text-cbse-blue"></i>`;
+        btn.onclick = (e) => selectChapter(ch.title || ch, e.currentTarget);
+        dynamicContainer.appendChild(btn);
+      });
+      lucide.createIcons();
     }
-    chapters.forEach(ch => {
-      const btn = document.createElement('button');
-      btn.className = 'topic-btn w-full text-left';
-      btn.innerHTML = `<span>${ch.title || ch}</span><i data-lucide="chevron-right" class="w-5 h-5 text-cbse-blue"></i>`;
-      btn.onclick = (e) => selectChapter(ch.title || ch, e.currentTarget);
-      dynamicContainer.appendChild(btn);
+
+    /*** CLASS 11–12 — Stream-based flow ***/
+    function renderStreamSubjects() {
+      dynamicContainer.innerHTML = '';
+      pageTitle.textContent = `Select Subject (${selectedStream})`;
+
+      const STREAM_SUBJECTS = {
+        Science: ['Physics', 'Chemistry', 'Biology', 'Mathematics'],
+        Commerce: ['Accountancy', 'Business Studies', 'Economics', 'Mathematics'],
+        Humanities: [
+          'History',
+          'Geography',
+          'Political Science',
+          'Sociology',
+          'Psychology',
+          'Economics',
+          'English'
+        ]
+      };
+
+      const allowedSubjects = STREAM_SUBJECTS[selectedStream] || [];
+      const allSubjects = Object.keys(curriculum);
+      const streamSubjects = allSubjects.filter(s => allowedSubjects.includes(s));
+
+      if (!streamSubjects.length) {
+        dynamicContainer.innerHTML = `<p class="text-red-500 text-center">No subjects found for ${selectedStream}.</p>`;
+        return;
+      }
+
+      streamSubjects.forEach(subject => {
+        const btn = document.createElement('button');
+        btn.textContent = subject;
+        btn.className = 'bg-blue-500 text-white font-semibold px-6 py-3 rounded-xl shadow hover:bg-blue-600 m-2';
+        btn.onclick = () => renderBooks(curriculum[subject], subject);
+        dynamicContainer.appendChild(btn);
+      });
+    }
+
+    function renderBooks(subjectObj, subjectName) {
+      selectedSubject = subjectName;
+      dynamicContainer.innerHTML = '';
+      pageTitle.textContent = `Select Book (${subjectName})`;
+      const books = Object.keys(subjectObj || {});
+      if (!books.length) {
+        dynamicContainer.innerHTML = '<p>No books found.</p>';
+        return;
+      }
+      books.forEach(book => {
+        const btn = document.createElement('button');
+        btn.textContent = book;
+        btn.className = 'bg-green-500 text-white font-semibold px-6 py-3 rounded-xl shadow hover:bg-green-600 m-2';
+        btn.onclick = () => renderChapters(subjectObj[book], book);
+        dynamicContainer.appendChild(btn);
+      });
+    }
+
+    function renderChapters(chapterList, bookName) {
+      selectedBook = bookName;
+      dynamicContainer.innerHTML = '';
+      pageTitle.textContent = `Select Chapter (${bookName})`;
+      if (!chapterList?.length) {
+        dynamicContainer.innerHTML = '<p>No chapters found.</p>';
+        return;
+      }
+      chapterList.forEach(chapter => {
+        const btn = document.createElement('button');
+        btn.textContent = chapter;
+        btn.className = 'topic-btn w-full text-left';
+        btn.onclick = (e) => selectChapter(chapter, e.currentTarget);
+        dynamicContainer.appendChild(btn);
+      });
+      lucide.createIcons();
+    }
+
+    /*** Shared selection logic ***/
+    function selectChapter(chapterName, element) {
+      selectedChapter = chapterName;
+      selectedChapterDisplay.textContent = `Selected Chapter: ${chapterName}`;
+      selectedChapterDisplay.classList.remove('hidden');
+      difficultyContainer.classList.remove('hidden');
+      startQuizBtn.disabled = true;
+      errorMessageEl.classList.add('hidden');
+      document.querySelectorAll('.topic-btn').forEach(b => b.classList.remove('selected'));
+      element.classList.add('selected');
+    }
+
+    difficultyBtns.forEach(btn => {
+      btn.addEventListener('click', e => {
+        selectedDifficulty = e.target.dataset.difficulty;
+        difficultyBtns.forEach(b => b.classList.remove('selected'));
+        e.target.classList.add('selected');
+        startQuizBtn.disabled = !selectedChapter;
+      });
     });
-    lucide.createIcons();
-  }
 
-  /*** CLASS 11–12 — Stream-based subjects ***/
-  function renderStreamSubjects() {
-    dynamicContainer.innerHTML = '';
-    pageTitle.textContent = `Select Subject (${selectedStream})`;
-
-    // 🎯 Stream-wise subject mapping
-    const STREAM_SUBJECTS = {
-      Science: ['Physics', 'Chemistry', 'Biology', 'Mathematics'],
-      Commerce: ['Accountancy', 'Business Studies', 'Economics', 'Mathematics'],
-      Humanities: [
-        'History',
-        'Geography',
-        'Political Science',
-        'Sociology',
-        'Psychology',
-        'Economics',
-        'English'
-      ]
+    startQuizBtn.onclick = () => {
+      if (!selectedChapter || !selectedDifficulty) {
+        errorMessageEl.classList.remove('hidden');
+        return;
+      }
+      localStorage.setItem('selectedChapter', selectedChapter);
+      localStorage.setItem('selectedDifficulty', selectedDifficulty);
+      localStorage.setItem('selectedSubject', selectedSubject || '');
+      localStorage.setItem('selectedBook', selectedBook || '');
+      window.location.href = 'quiz-engine.html';
     };
 
-    const allowedSubjects = STREAM_SUBJECTS[selectedStream] || [];
-    const allSubjects = Object.keys(curriculum);
-
-    const streamSubjects = allSubjects.filter(s => allowedSubjects.includes(s));
-
-    if (!streamSubjects.length) {
-      dynamicContainer.innerHTML = `<p class="text-red-500 text-center">No subjects found for ${selectedStream}.</p>`;
-      return;
-    }
-
-    streamSubjects.forEach(subject => {
-      const btn = document.createElement('button');
-      btn.textContent = subject;
-      btn.className = 'bg-blue-500 text-white font-semibold px-6 py-3 rounded-xl shadow hover:bg-blue-600 m-2';
-      btn.onclick = () => renderBooks(curriculum[subject], subject);
-      dynamicContainer.appendChild(btn);
+    /*** INIT ***/
+    document.addEventListener('DOMContentLoaded', () => {
+      if (Number(selectedClass) >= 11) {
+        renderStreamSubjects();
+      } else {
+        renderClassicSubjects();
+      }
     });
-  }
-
-  function renderBooks(subjectObj, subjectName) {
-    selectedSubject = subjectName;
-    dynamicContainer.innerHTML = '';
-    pageTitle.textContent = `Select Book (${subjectName})`;
-    const books = Object.keys(subjectObj || {});
-    if (!books.length) {
-      dynamicContainer.innerHTML = '<p>No books found.</p>';
-      return;
-    }
-    books.forEach(book => {
-      const btn = document.createElement('button');
-      btn.textContent = book;
-      btn.className = 'bg-green-500 text-white font-semibold px-6 py-3 rounded-xl shadow hover:bg-green-600 m-2';
-      btn.onclick = () => renderChapters(subjectObj[book], book);
-      dynamicContainer.appendChild(btn);
-    });
-  }
-
-  function renderChapters(chapterList, bookName) {
-    selectedBook = bookName;
-    dynamicContainer.innerHTML = '';
-    pageTitle.textContent = `Select Chapter (${bookName})`;
-    if (!chapterList?.length) {
-      dynamicContainer.innerHTML = '<p>No chapters found.</p>';
-      return;
-    }
-    chapterList.forEach(chapter => {
-      const btn = document.createElement('button');
-      btn.textContent = chapter;
-      btn.className = 'topic-btn w-full text-left';
-      btn.onclick = (e) => selectChapter(chapter, e.currentTarget);
-      dynamicContainer.appendChild(btn);
-    });
-    lucide.createIcons();
-  }
-
-  /*** Shared chapter + difficulty logic ***/
-  function selectChapter(chapterName, element) {
-    selectedChapter = chapterName;
-    selectedChapterDisplay.textContent = `Selected Chapter: ${chapterName}`;
-    selectedChapterDisplay.classList.remove('hidden');
-    difficultyContainer.classList.remove('hidden');
-    startQuizBtn.disabled = true;
-    errorMessageEl.classList.add('hidden');
-    document.querySelectorAll('.topic-btn').forEach(b => b.classList.remove('selected'));
-    element.classList.add('selected');
-  }
-
-  difficultyBtns.forEach(btn => {
-    btn.addEventListener('click', e => {
-      selectedDifficulty = e.target.dataset.difficulty;
-      difficultyBtns.forEach(b => b.classList.remove('selected'));
-      e.target.classList.add('selected');
-      startQuizBtn.disabled = !selectedChapter;
-    });
-  });
-
-  startQuizBtn.onclick = () => {
-    if (!selectedChapter || !selectedDifficulty) {
-      errorMessageEl.classList.remove('hidden');
-      return;
-    }
-    localStorage.setItem('selectedChapter', selectedChapter);
-    localStorage.setItem('selectedDifficulty', selectedDifficulty);
-    localStorage.setItem('selectedSubject', selectedSubject || '');
-    localStorage.setItem('selectedBook', selectedBook || '');
-    window.location.href = 'quiz-engine.html';
-  };
-
-  /*** INIT ***/
-  document.addEventListener('DOMContentLoaded', () => {
-    if (Number(selectedClass) >= 11) {
-      renderStreamSubjects();
-    } else {
-      renderClassicSubjects();
-    }
-  });
-</script>
+  </script>
+</body>
+</html>
