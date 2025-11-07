@@ -2,7 +2,8 @@
   "name": "ready4exam-master-automation",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "dependencies": {
-    "@vercel/node": "latest"
+    "@google/generative-ai": "^0.3.0"
   }
 }
