@@ -34,22 +34,25 @@ export async function generateCurriculumForClass(cls) {
 
   const prompt = `
 You are an NCERT academic expert.
-Generate a **valid JSON** representing the official CBSE NCERT syllabus for **Class ${cls}**, including all streams (Science, Commerce, Humanities).
+Generate a **strictly valid JSON** representing the official CBSE NCERT syllabus for **Class ${cls}** across all streams (Science, Commerce, Humanities).
 
-FORMAT:
+STRUCTURE FORMAT:
 {
-  "Subject": {
+  "Subject Name": {
     "Book Name": [
       { "chapter_title": "Exact Chapter Name", "table_id": "", "section": "" }
     ]
-  }
+  },
+  "Subject Name 2": [
+    { "chapter_title": "Exact Chapter Name", "table_id": "", "section": "" }
+  ]
 }
 
 RULES:
-- Use official NCERT textbook titles.
-- Include both parts where applicable (e.g., Physics Part I, Part II).
-- If single-book subject, directly return array under subject.
-- Return only JSON (no text commentary or markdown).
+- Use official NCERT book and chapter titles for Class ${cls}.
+- If a subject has multiple parts, show each part (e.g. "Physics Part I", "Physics Part II").
+- Include all subjects for all streams.
+- Return only **pure JSON**. No markdown, explanations, or extra commentary.
 `;
 
   const models = ["gemini-2.5-pro", "gemini-2.5-flash"];
@@ -70,10 +73,8 @@ RULES:
               generationConfig: {
                 temperature: 0.3,
                 topP: 0.8,
-                maxOutputTokens: 12288
-              },
-              response_schema: {
-                type: "application/json"
+                maxOutputTokens: 12288,
+                responseMimeType: "application/json"
               }
             }),
           }
@@ -89,15 +90,21 @@ RULES:
             successfulResult = parsed;
             break;
           } catch (err) {
-            console.error(`⚠️ JSON parse error on ${model}: ${err.message}`);
-            console.log("🔍 Raw Gemini output snippet:", text.slice(0, 300) + "...");
+            console.warn(`⚠️ JSON parse error: ${err.message}`);
+            const repaired = attemptRepairJSON(text);
+            if (repaired) {
+              console.log("🧩 Partial JSON repaired successfully.");
+              successfulResult = repaired;
+              break;
+            }
+            console.log("🔍 Raw Gemini output snippet:", text.slice(0, 200) + "...");
           }
         } else {
           const errMsg = data.error?.message || `Status: ${response.status} ${response.statusText}`;
           console.warn(`⚠️ Invalid or empty response from ${model}: ${errMsg}`);
         }
       } catch (err) {
-        console.error(`❌ Network/API error on ${model} (Attempt ${attempt}):`, err.message);
+        console.error(`❌ Network/API error using ${model} (Attempt ${attempt}):`, err.message);
       }
       await sleep(DELAY_MS);
     }
@@ -117,4 +124,28 @@ RULES:
 
   console.log(`✅ curriculum.js written successfully for Class ${cls} (frozen).`);
   return successfulResult;
+}
+
+/**
+ * 🧩 Repair incomplete JSON returned by Gemini (e.g., truncated or missing braces)
+ */
+function attemptRepairJSON(text) {
+  try {
+    // Remove any extra backticks or markdown
+    text = text.replace(/```json|```/g, "").trim();
+
+    // If missing closing braces, attempt to close them
+    const openCurly = (text.match(/{/g) || []).length;
+    const closeCurly = (text.match(/}/g) || []).length;
+    const openSquare = (text.match(/\[/g) || []).length;
+    const closeSquare = (text.match(/]/g) || []).length;
+
+    let repaired = text;
+    repaired += "}".repeat(openCurly - closeCurly);
+    repaired += "]".repeat(openSquare - closeSquare);
+
+    return JSON.parse(repaired);
+  } catch {
+    return null;
+  }
 }
