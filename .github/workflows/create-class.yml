@@ -1,5 +1,5 @@
 name: "Create or Update Class Repo (Front-End Builder)"
- 
+
 on:
   workflow_dispatch:
     inputs:
@@ -20,10 +20,10 @@ jobs:
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
     steps:
-      - name: 🧩 Checkout master automation repo
+      - name: 🧩 Checkout repository
         uses: actions/checkout@v4
 
-      - name: 🧠 Set up Node.js
+      - name: 🧠 Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 18
@@ -31,8 +31,8 @@ jobs:
       - name: 📦 Install dependencies
         run: npm install
 
-      - name: ⚙️ Run Class Repo Builder Script
-        working-directory: ./scripts    # ✅ ensures correct folder context
+      - name: ⚙️ Run Class Repo Builder
+        working-directory: ./scripts
         run: |
           echo "⚙️ Running createClassRepo.js for class=${{ github.event.inputs.class }}"
           node createClassRepo.js
