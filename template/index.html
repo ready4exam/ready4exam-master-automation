@@ -3,174 +3,123 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>CBSE Class Portal — Ready4Exam</title>
+  <title>Ready4Exam – Class Portal</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
       theme: {
         extend: {
-          fontFamily: {
-            sans: ['Inter', 'sans-serif'],
-            serif: ['Merriweather', 'serif'],
-          },
+          fontFamily: { sans: ['Inter', 'sans-serif'] },
           colors: {
-            'cbse-blue': '#1a3e6a', 
-            'cbse-light': '#f5f7fa',
+            'cbse-blue': '#1a3e6a',
             'accent-gold': '#ffb703',
-            'heading': '#0f172a',
+            'cbse-light': '#f5f7fa'
           }
         }
       }
     };
   </script>
-  <script src="https://unpkg.com/lucide@latest"></script>
-
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Merriweather:wght@400;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
     body { font-family: 'Inter', sans-serif; }
-    .subject-card { @apply block p-6 rounded-xl bg-white border border-gray-200 shadow-lg transition-all duration-300 relative overflow-hidden; }
-    .subject-card:hover { transform: translateY(-5px); @apply shadow-2xl border-cbse-blue/50; }
-    .card-header { @apply flex items-center space-x-4 mb-4; }
-    .card-title { @apply text-xl font-extrabold text-heading; }
-    .card-description { @apply text-gray-600 text-sm; }
-    .card-button { @apply px-4 py-2 text-sm font-semibold rounded-lg transition-colors duration-200; }
-    .science { @apply bg-green-600 hover:bg-green-700 text-white; }
-    .social { @apply bg-red-600 hover:bg-red-700 text-white; }
-    .math { @apply bg-purple-600 hover:bg-purple-700 text-white; }
+    .card { background:white; border-radius:1rem; box-shadow:0 8px 24px rgba(2,6,23,0.08); transition:all .2s; }
+    .card:hover { transform:translateY(-4px); box-shadow:0 12px 28px rgba(2,6,23,0.12); }
   </style>
 </head>
 
 <body class="bg-cbse-light min-h-screen flex flex-col">
-
-  <!-- HEADER -->
+  <!-- Header -->
   <header class="bg-cbse-blue shadow-lg">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-      <h1 class="text-2xl font-extrabold text-accent-gold tracking-wider">
-        Ready4<span class="text-white">Exam</span> Portal
+    <div class="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
+      <h1 class="text-2xl font-extrabold text-accent-gold tracking-wide">
+        Ready4<span class="text-white">Exam</span>
       </h1>
-      <nav id="auth-nav-container">
-        <button id="login-btn" class="px-4 py-2 text-sm font-semibold rounded-lg bg-white text-cbse-blue hover:bg-gray-100 transition">
-          Sign In
-        </button>
+      <nav>
+        <button class="px-4 py-2 bg-white text-cbse-blue rounded-lg font-semibold hover:bg-gray-100">Sign In</button>
       </nav>
     </div>
   </header>
 
-  <!-- MAIN -->
-  <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-    <header class="text-center mb-12">
-      <h2 id="page-heading" class="text-4xl font-extrabold text-heading mb-2">CBSE Class Syllabus</h2>
-      <p id="page-subtext" class="text-lg text-gray-600">Select a Subject to begin your chapter-wise practice quizzes.</p>
-    </header>
+  <!-- Hero Section -->
+  <section class="max-w-5xl mx-auto text-center mt-16 mb-10 px-4">
+    <h2 id="page-heading" class="text-4xl font-extrabold text-cbse-blue mb-4">
+      Explore CBSE Class Portal
+    </h2>
+    <p class="text-gray-700 max-w-3xl mx-auto text-lg">
+      Ready4Exam helps students excel in CBSE exams through structured NCERT-based learning paths. 
+      Select your class stream below to begin your journey.
+    </p>
+  </section>
 
-    <!-- Stream Selector for Class 11/12 -->
-    <div id="stream-section" class="hidden text-center mb-10">
-      <h3 class="text-2xl font-bold mb-4 text-heading">Select Your Stream</h3>
-      <div class="flex flex-wrap justify-center gap-6">
-        <button class="stream-btn bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-xl" data-stream="Science">Science</button>
-        <button class="stream-btn bg-green-500 hover:bg-green-600 text-white px-6 py-3 rounded-xl" data-stream="Commerce">Commerce</button>
-        <button class="stream-btn bg-purple-500 hover:bg-purple-600 text-white px-6 py-3 rounded-xl" data-stream="Humanities">Humanities</button>
-      </div>
-    </div>
-
-    <!-- Subject Cards -->
-    <div id="subject-grid" class="grid grid-cols-1 md:grid-cols-3 gap-8">
-
-      <a href="chapter-selection.html?class=9&subject=Science" class="subject-card" data-subject="Science">
-        <div class="card-header">
-          <i data-lucide="flask-conical" class="text-green-700 h-8 w-8"></i>
-          <h3 class="card-title">Science</h3>
-        </div>
-        <p class="card-description">Physics, Chemistry, and Biology — Core concepts from Motion to Sound, and the structure of life.</p>
-        <div class="mt-6 text-center">
-          <button class="card-button science">Start Learning</button>
-        </div>
-      </a>
-
-      <a href="chapter-selection.html?class=9&subject=Social_Science" class="subject-card" data-subject="Social_Science">
-        <div class="card-header">
-          <i data-lucide="landmark" class="text-red-700 h-8 w-8"></i>
-          <h3 class="card-title">Social Science</h3>
-        </div>
-        <p class="card-description">History, Geography, Political Science, and Economics — Comprehending our nation and physical features of India.</p>
-        <div class="mt-6 text-center">
-          <button class="card-button social">Start Learning</button>
-        </div>
-      </a>
-
-      <a href="chapter-selection.html?class=9&subject=Mathematics" class="subject-card" data-subject="Mathematics">
-        <div class="card-header">
-          <i data-lucide="atom" class="text-purple-700 h-8 w-8"></i>
-          <h3 class="card-title">Mathematics</h3>
-        </div>
-        <p class="card-description">Detailed study of Number Systems, Polynomials, Geometry, and Heron’s Formula for foundational clarity.</p>
-        <div class="mt-6 text-center">
-          <button class="card-button math">Start Learning</button>
-        </div>
-      </a>
-
-      <a href="chapter-selection.html?class=9&subject=Hindi" class="subject-card" data-subject="Hindi">
-        <div class="card-header">
-          <i data-lucide="book-open" class="text-blue-700 h-8 w-8"></i>
-          <h3 class="card-title">Hindi / Sanskrit</h3>
-        </div>
-        <p class="card-description">Literature and Grammar practice for Hindi A/B or Sanskrit (placeholder).</p>
-        <div class="mt-6 text-center">
-          <button class="card-button" style="background-color:#0077b6;color:white;">Start Learning</button>
-        </div>
-      </a>
-
-      <a href="chapter-selection.html?class=9&subject=English" class="subject-card" data-subject="English">
-        <div class="card-header">
-          <i data-lucide="globe" class="text-yellow-700 h-8 w-8"></i>
-          <h3 class="card-title">English Language & Lit</h3>
-        </div>
-        <p class="card-description">Practice for Literature, Grammar, and Composition topics (placeholder).</p>
-        <div class="mt-6 text-center">
-          <button class="card-button" style="background-color:#ffc300;color:#1a3e6a;">Start Learning</button>
-        </div>
-      </a>
-    </div>
+  <!-- Main Dynamic Container -->
+  <main class="flex-grow max-w-6xl mx-auto px-4 pb-20">
+    <div id="dynamic-container" class="grid sm:grid-cols-2 lg:grid-cols-3 gap-8 justify-center"></div>
   </main>
 
-  <footer class="bg-cbse-blue mt-16 py-8">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-white">
-      <small class="text-sm opacity-70 block mt-2">© 2025 Ready4Exam Academic Portal. All Rights Reserved.</small>
-    </div>
+  <footer class="bg-cbse-blue py-6 mt-auto text-center text-white text-sm">
+    © 2025 Ready4Exam – Empowering NCERT Learning
   </footer>
 
-  <script>
-    document.addEventListener("DOMContentLoaded", () => {
-      lucide.createIcons();
+  <script type="module">
+    import { curriculum } from './js/curriculum.js';
 
-      // 🧠 Detect class number from repo or domain
-      const match = window.location.href.match(/ready4exam[-/]?(\d{1,2})/i);
-      if (match) {
-        const classNum = match[1];
-        localStorage.setItem('selectedClass', classNum);
-        console.log('📘 Class detected and stored:', classNum);
+    const container = document.getElementById('dynamic-container');
+    const heading = document.getElementById('page-heading');
+    const selectedClass = localStorage.getItem('selectedClass') || '11';
+    localStorage.setItem('selectedClass', selectedClass);
 
-        // Update heading dynamically
-        document.title = `CBSE Class ${classNum} — Academic Study Portal`;
-        document.getElementById('page-heading').textContent = `CBSE Class ${classNum} Syllabus`;
-      }
+    // Define streams and mapping
+    const streams = {
+      Science: ['Physics','Chemistry','Biology','Mathematics','English','Computer Science'],
+      Commerce: ['Accountancy','Business Studies','Economics','Mathematics','English'],
+      Humanities: ['History','Geography','Political Science','Sociology','Psychology','English']
+    };
 
-      // 💡 Show Stream Selector only for 11 & 12
-      const cls = localStorage.getItem('selectedClass');
-      if (cls === '11' || cls === '12') {
-        document.getElementById('subject-grid').classList.add('hidden');
-        document.getElementById('stream-section').classList.remove('hidden');
-      }
-
-      // 🎓 Stream selection logic
-      document.querySelectorAll('.stream-btn').forEach(btn => {
-        btn.addEventListener('click', e => {
-          const stream = e.target.dataset.stream;
-          localStorage.setItem('selectedStream', stream);
-          console.log('🎯 Stream selected:', stream);
-          window.location.href = 'chapter-selection.html';
-        });
+    function renderStreams() {
+      heading.textContent = `Select Your Stream – Class ${selectedClass}`;
+      container.innerHTML = '';
+      Object.keys(streams).forEach(stream => {
+        const card = document.createElement('div');
+        card.className = 'card p-6 text-center cursor-pointer border-t-4 border-cbse-blue';
+        card.innerHTML = `
+          <h3 class="text-2xl font-bold text-cbse-blue mb-2">${stream}</h3>
+          <p class="text-gray-600 mb-4">Explore NCERT subjects in the ${stream} stream.</p>
+          <button class="px-4 py-2 bg-cbse-blue text-white rounded-lg font-semibold hover:bg-blue-800">View Subjects</button>
+        `;
+        card.onclick = () => renderSubjects(stream);
+        container.appendChild(card);
       });
+    }
+
+    function renderSubjects(stream) {
+      heading.textContent = `${stream} Subjects – Class ${selectedClass}`;
+      container.innerHTML = '';
+      const subjects = streams[stream];
+      subjects.forEach(sub => {
+        if (curriculum[sub]) {
+          const card = document.createElement('div');
+          card.className = 'card p-6 cursor-pointer text-center';
+          card.innerHTML = `
+            <h3 class="text-xl font-semibold text-cbse-blue mb-2">${sub}</h3>
+            <p class="text-gray-600 text-sm mb-3">${Object.keys(curriculum[sub]).length} Book(s) Available</p>
+            <button class="px-3 py-2 bg-accent-gold text-cbse-blue font-semibold rounded-lg hover:bg-yellow-400">Select</button>
+          `;
+          card.onclick = () => {
+            localStorage.setItem('selectedStream', stream);
+            localStorage.setItem('selectedSubject', sub);
+            window.location.href = 'chapter-selection.html';
+          };
+          container.appendChild(card);
+        }
+      });
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      if (parseInt(selectedClass) >= 11) renderStreams();
+      else {
+        heading.textContent = `Welcome to Class ${selectedClass}`;
+        container.innerHTML = '<p class="text-center text-gray-700 text-lg">Please select a chapter to begin from the curriculum.</p>';
+      }
     });
   </script>
 </body>
