@@ -1,56 +1,43 @@
 // scripts/generateCurriculum.js
 import fetch from "node-fetch";
 
+/**
+ * Generates the complete NCERT curriculum for a given class using the Gemini API.
+ * Uses responseMimeType for reliable JSON output.
+ * @param {number} cls - The class number (e.g., 11).
+ * @returns {Promise<object>} The curriculum data as a parsed JSON object.
+ */
 export async function generateCurriculumForClass(cls) {
   const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-  if (!GEMINI_API_KEY)
-    throw new Error("❌ Missing GEMINI_API_KEY in environment variables.");
+  if (!GEMINI_API_KEY) throw new Error("❌ Missing GEMINI_API_KEY in environment variables.");
 
   console.log(`🧠 Generating NCERT-based curriculum for Class ${cls} via Gemini...`);
 
+  // --- 1. Prompt Definition ---
+
   const prompt = `
-You are an expert in NCERT CBSE education content design.
+You are an expert academic planner for the CBSE NCERT syllabus.
+Generate a **strictly valid JSON object** describing the complete Class ${cls} curriculum
+as per the latest NCERT books.
 
-Generate a detailed structured JSON strictly following the *official NCERT syllabus for Class ${cls}*.
-Include all subjects, their books (like Physics Part 1, Part 2), and their chapters.
+The JSON should use **Subject Name** as the top-level key.
+The value for each Subject must be an object where the **Book Name** (e.g., 'Physics Part I', 'Biology (Single Book)') is the key, and the value is a **list of chapter titles** exactly as they appear in the NCERT book.
 
-⚠️ Important:
-- Return only **valid JSON** (no markdown, commentary, or code blocks).
-- Include all major streams (Science, Commerce, Humanities/Arts) if applicable.
-- Each subject should contain all books and all chapters in correct NCERT order.
-- Chapter names must match official NCERT textbook names.
-
-Example format:
-{
-  "Science": {
-    "Physics": {
-      "Part 1": ["Chapter 1: Physical World", "Chapter 2: Units and Measurements"],
-      "Part 2": ["Chapter 9: Mechanical Properties of Solids"]
-    },
-    "Chemistry": {
-      "Part 1": ["Chapter 1: Some Basic Concepts of Chemistry"],
-      "Part 2": ["Chapter 9: The s-Block Elements"]
-    },
-    "Biology": ["Chapter 1: The Living World", "Chapter 2: Biological Classification"]
-  },
-  "Commerce": {
-    "Accountancy": ["Chapter 1: Introduction to Accounting"],
-    "Business Studies": ["Chapter 1: Nature and Purpose of Business"],
-    "Economics": ["Chapter 1: Introduction to Microeconomics"]
-  },
-  "Humanities": {
-    "History": ["Chapter 1: Writing and City Life"],
-    "Political Science": ["Chapter 1: Constitution - Why and How?"],
-    "Geography": ["Chapter 1: Geography as a Discipline"]
-  }
-}
+Ensure the output:
+- Is **pure, raw JSON only** (do not wrap in markdown or comments).
+- Accurately reflects official NCERT book structure and naming.
+- Includes all streams (Science, Commerce, Humanities/Arts).
 `;
+
+  // --- 2. API Call and Retry Logic ---
 
   const models = ["gemini-2.5-flash", "gemini-2.5-pro"];
   let attempt = 0;
+  let successfulResult = null;
 
   for (const model of models) {
-    while (attempt < 3) {
+    attempt = 0; // Reset attempt count for the new model
+    while (attempt < 3 && successfulResult === null) {
       attempt++;
       console.log(`🔁 Attempt ${attempt} using ${model}...`);
       try {
@@ -61,40 +48,47 @@ Example format:
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               contents: [{ parts: [{ text: prompt }] }],
-              generationConfig: {
-                temperature: 0.6,
+              config: {
+                temperature: 0.5,
                 maxOutputTokens: 4096,
+                // KEY FIX: Instructs the model to return valid JSON
+                responseMimeType: "application/json", 
+                // Removed the complex 'responseSchema' to prevent validation errors.
               },
             }),
           }
         );
 
         const data = await response.json();
-
-        if (data?.error) {
-          console.warn(`⚠️ API error or invalid response from ${model}: ${data.error.message}`);
-          break; // move to next model
-        }
-
         const text = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "";
 
-        if (text && text.startsWith("{") && text.endsWith("}")) {
+        if (response.ok && text) {
           try {
-            const parsed = JSON.parse(text);
-            console.log(`✅ Successfully parsed NCERT curriculum JSON (attempt ${attempt})`);
-            return parsed;
+            // Because responseMimeType is set, the output should be clean JSON.
+            const parsed = JSON.parse(text); 
+            console.log(`✅ Successfully parsed JSON (attempt ${attempt}, model ${model})`);
+            successfulResult = parsed;
+            break; // Exit the while loop on success
           } catch (parseErr) {
-            console.error("⚠️ JSON parsing failed. Retrying...");
+            console.error(`⚠️ JSON parse error on model ${model}:`, parseErr.message, "Raw Text:", text.slice(0, 120) + "...");
           }
         } else {
-          console.warn("⚠️ No valid text in Gemini response:", text.slice(0, 200));
+          // Check for API-level errors
+          const errorMsg = data.error?.message || `Status: ${response.status} ${response.statusText}`;
+          console.warn(`⚠️ API error or invalid response from ${model}:`, errorMsg);
         }
       } catch (err) {
-        console.error(`❌ Gemini fetch error (attempt ${attempt}):`, err.message);
+        console.error(`❌ Network error using ${model} (attempt ${attempt}):`, err.message);
       }
     }
+    if (successfulResult !== null) break; // Exit the model loop on success
   }
 
-  console.error("🚨 All attempts failed. Returning empty curriculum object.");
-  return {};
+  // --- 3. Final Result Handling ---
+  if (successfulResult !== null) {
+    return successfulResult;
+  } else {
+    console.error("🚨 All attempts failed. Returning empty curriculum object.");
+    return {};
+  }
 }
