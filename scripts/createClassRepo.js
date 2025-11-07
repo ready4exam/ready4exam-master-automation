@@ -1,5 +1,5 @@
 /**
- * Automation Tool 1 — Full Front-End and Curriculum Generator
+ * Automation Tool 1 — Full Front-End and Curriculum Generator 
  * Version: Personal account compatible (no organization required)
  */
 
