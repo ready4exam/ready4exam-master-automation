@@ -8,16 +8,18 @@ export async function generateCurriculumForClass(cls) {
   console.log(`🧠 Generating NCERT-based curriculum for Class ${cls} via Gemini...`);
 
   const prompt = `
-You are an expert academic planner for CBSE NCERT syllabus.
+You are an expert academic planner for the CBSE NCERT syllabus.
 
-Generate a detailed structured JSON strictly following the *latest NCERT syllabus for Class ${cls}*.
-Group subjects into major streams (Science, Commerce, Arts/Humanities) where applicable.
+Generate a **strictly valid JSON** object describing the complete Class ${cls} curriculum
+as per the latest NCERT books. Include all subjects, their books (e.g., Physics Part 1, Part 2),
+and the chapters under each book.
 
-For each subject:
-- Include all books under that subject (for example, Physics Part 1 and Physics Part 2).
-- Under each book, list all chapters in correct NCERT order.
+Ensure the output:
+- Is *pure JSON only* (no text, comments, or markdown).
+- Accurately reflects official NCERT book structure and naming.
+- Includes all streams (Science, Commerce, Humanities/Arts) if applicable.
 
-Output Format Example:
+Format example:
 {
   "Science": {
     "Physics": {
@@ -28,54 +30,66 @@ Output Format Example:
       "Part 1": ["Chapter 1: Some Basic Concepts of Chemistry"],
       "Part 2": ["Chapter 9: The s-Block Elements"]
     },
-    "Biology": ["Chapter 1: The Living World", "Chapter 2: Biological Classification"],
-    "Mathematics": ["Chapter 1: Sets", "Chapter 2: Relations and Functions"]
+    "Biology": ["Chapter 1: The Living World", "Chapter 2: Biological Classification"]
   },
   "Commerce": {
-    "Accountancy": ["Chapter 1: Introduction to Accounting", "Chapter 2: Theory Base of Accounting"],
+    "Accountancy": ["Chapter 1: Introduction to Accounting"],
     "Business Studies": ["Chapter 1: Nature and Purpose of Business"],
     "Economics": ["Chapter 1: Introduction to Microeconomics"]
   },
-  "Arts": {
+  "Humanities": {
     "History": ["Chapter 1: Writing and City Life"],
     "Political Science": ["Chapter 1: Constitution - Why and How?"],
-    "Sociology": ["Chapter 1: Sociology and Society"],
     "Geography": ["Chapter 1: Geography as a Discipline"]
   }
 }
 
-Output only valid JSON — no explanations, no markdown.
-  `;
+Return only the JSON — nothing else.
+`;
 
- const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+  const models = ["gemini-2.5-flash", "gemini-2.5-pro"];
+  let attempt = 0;
 
-  try {
-    const response = await fetch(GEMINI_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-      }),
-    });
+  for (const model of models) {
+    while (attempt < 3) {
+      attempt++;
+      console.log(`🔁 Attempt ${attempt} using ${model}...`);
+      try {
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: prompt }] }],
+              generationConfig: {
+                temperature: 0.7,
+                maxOutputTokens: 4096,
+              },
+            }),
+          }
+        );
 
-    const data = await response.json();
+        const data = await response.json();
+        const text = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "";
 
-    // Debug output
-    console.log("🧩 Gemini raw response keys:", Object.keys(data));
-    console.log("📦 Full Gemini response snippet:", JSON.stringify(data, null, 2).slice(0, 600));
-
-    const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "{}";
-
-    try {
-      const parsed = JSON.parse(rawText);
-      console.log("✅ Gemini returned valid structured data.");
-      return parsed;
-    } catch (err) {
-      console.error("⚠️ Could not parse JSON. Raw text output:\n", rawText);
-      return {};
+        if (text && text.startsWith("{") && text.endsWith("}")) {
+          try {
+            const parsed = JSON.parse(text);
+            console.log(`✅ Successfully parsed JSON (attempt ${attempt}, model ${model})`);
+            return parsed;
+          } catch (parseErr) {
+            console.error("⚠️ JSON parse error, retrying...");
+          }
+        } else {
+          console.warn(`⚠️ Empty or invalid response from ${model}:`, text.slice(0, 120));
+        }
+      } catch (err) {
+        console.error(`❌ Error using ${model} (attempt ${attempt}):`, err.message);
+      }
     }
-  } catch (error) {
-    console.error("❌ Gemini API fetch failed:", error);
-    return {};
   }
+
+  console.error("🚨 All attempts failed. Returning empty curriculum object.");
+  return {};
 }
