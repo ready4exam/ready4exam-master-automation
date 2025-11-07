@@ -12,17 +12,11 @@ jobs:
   build-repo:
     runs-on: ubuntu-latest
 
-    # --- GLOBAL ENVIRONMENT VARIABLES ---
-    # These variables are accessible to all steps in this job.
     env:
-      # Non-secret, static configuration value
-      OWNER: ready4exam 
-      
-      # Workflow Input
+      GITHUB_OWNER: ready4exam
       CLASS: ${{ github.event.inputs.class }}
-
-      # Secrets accessed via the ${{ secrets.<NAME> }} context
       PERSONAL_ACCESS_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+      GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
     steps:
@@ -38,7 +32,7 @@ jobs:
         run: npm install
 
       - name: ⚙️ Run Class Repo Builder Script
+        working-directory: ./scripts    # ✅ ensures correct folder context
         run: |
           echo "⚙️ Running createClassRepo.js for class=${{ github.event.inputs.class }}"
-          # Note: The script uses 'OWNER' from env, which is set to 'ready4exam' above.
           node createClassRepo.js
