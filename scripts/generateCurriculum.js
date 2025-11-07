@@ -1,80 +1,74 @@
 // scripts/generateCurriculum.js
 import fetch from "node-fetch";
 
-/**
- * Generate NCERT curriculum for a given class using Gemini
- * • Classes 5–10 → simple subject→chapters JSON
- * • Classes 11–12 → stream→subject→book→chapter JSON
- */
 export async function generateCurriculumForClass(cls) {
   const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-  if (!GEMINI_API_KEY)
-    throw new Error("❌ Missing GEMINI_API_KEY in environment variables");
+  if (!GEMINI_API_KEY) throw new Error("❌ Missing GEMINI_API_KEY in environment variables.");
 
-  console.log(`🧠 Generating NCERT curriculum for Class ${cls} via Gemini...`);
-
-  const isSenior = Number(cls) >= 11;
-  const streamNote = isSenior
-    ? `For Class ${cls}, group syllabus by streams — Science, Commerce, Humanities (Arts).
-Each stream must list subjects, each subject its NCERT books (Part I, II …), and each book its official chapter list.`
-    : `For Class ${cls}, generate normal subject→chapter JSON (no streams or books).`;
+  console.log(`🧠 Generating NCERT-based curriculum for Class ${cls} via Gemini...`);
 
   const prompt = `
-You are an NCERT syllabus expert.
+You are an expert academic planner for CBSE NCERT curriculum design.
 
-Generate a STRICT and COMPLETE JSON listing all subjects, books, and chapters
-from the official NCERT syllabus for CBSE Class ${cls}, session 2024–25.
+Generate a detailed structured JSON strictly following the *latest NCERT syllabus for Class ${cls}*.
+Group subjects into major streams (Science, Commerce, Arts/Humanities) where applicable.
 
-${streamNote}
+For each subject:
+- Include all books under that subject (for example, Physics Part 1 and Physics Part 2).
+- Under each book, list all chapters in correct NCERT order.
 
-✅ Rules
-• Follow ONLY official NCERT textbook titles.
-• Include ALL books for subjects with Part I, Part II, etc.
-• Maintain exact chapter numbers and order.
-• Each subject must have subject_code, subject_name, and "books".
-• Each book has book_name and an array of chapters (chapter_no + chapter_name).
-
-✅ Example (for Class 11 Science)
+Output Format Example:
 {
-  "Science":[
-    {
-      "subject_code":"PHY",
-      "subject_name":"Physics",
-      "books":[
-        {"book_name":"Physics Part I","chapters":[
-          {"chapter_no":1,"chapter_name":"Physical World"},
-          {"chapter_no":2,"chapter_name":"Units and Measurements"}]},
-        {"book_name":"Physics Part II","chapters":[
-          {"chapter_no":9,"chapter_name":"Mechanical Properties of Solids"},
-          {"chapter_no":10,"chapter_name":"Mechanical Properties of Fluids"}]}
-      ]
-    }
-  ]
+  "Science": {
+    "Physics": {
+      "Part 1": ["Chapter 1: Physical World", "Chapter 2: Units and Measurements"],
+      "Part 2": ["Chapter 9: Mechanical Properties of Solids"]
+    },
+    "Chemistry": {
+      "Part 1": ["Chapter 1: Some Basic Concepts of Chemistry"],
+      "Part 2": ["Chapter 9: The s-Block Elements"]
+    },
+    "Biology": ["Chapter 1: The Living World", "Chapter 2: Biological Classification"],
+    "Mathematics": ["Chapter 1: Sets", "Chapter 2: Relations and Functions"]
+  },
+  "Commerce": {
+    "Accountancy": ["Chapter 1: Introduction to Accounting", "Chapter 2: Theory Base of Accounting"],
+    "Business Studies": ["Chapter 1: Nature and Purpose of Business"],
+    "Economics": ["Chapter 1: Introduction to Microeconomics"]
+  },
+  "Arts": {
+    "History": ["Chapter 1: Writing and City Life"],
+    "Political Science": ["Chapter 1: Constitution - Why and How?"],
+    "Sociology": ["Chapter 1: Sociology and Society"],
+    "Geography": ["Chapter 1: Geography as a Discipline"]
+  }
 }
 
-Return ONLY valid JSON (no markdown fences or commentary).
+Output only valid JSON — no explanations, no markdown.
   `;
 
-  const res = await fetch(
+  const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+      }),
     }
   );
 
-  const data = await res.json();
-  const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
-  const cleaned = raw.replace(/```json/g, "").replace(/```/g, "").trim();
+  const data = await response.json();
+
+  const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "{}";
 
   try {
-    const parsed = JSON.parse(cleaned);
-    console.log("✅ Curriculum generated successfully");
+    const parsed = JSON.parse(rawText);
+    console.log("✅ Gemini API returned structured curriculum data.");
     return parsed;
-  } catch (e) {
-    console.error("❌ Gemini output parse error:", e);
-    console.log("Raw text sample:", cleaned.slice(0, 400));
-    throw new Error("Gemini returned invalid JSON");
+  } catch (err) {
+    console.error("❌ Parsing error — Gemini did not return clean JSON.");
+    console.log("🧩 Raw API Output:\n", rawText);
+    return {};
   }
 }
