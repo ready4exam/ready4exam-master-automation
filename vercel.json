@@ -1,5 +1,4 @@
 {
-  "//": "Force redeploy commit",
   "version": 2,
   "functions": {
     "api/**/*.js": {
