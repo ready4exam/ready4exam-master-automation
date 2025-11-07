@@ -38,7 +38,6 @@ async function main() {
     try {
       // Use organization-level endpoint (works for both user & org with proper scopes)
       await octokit.request("POST /orgs/{org}/repos", {
-        org: OWNER,
         name: repoName,
         private: false,
         description: `Ready4Exam Frontend for Class ${CLASS}`,
