@@ -3,11 +3,12 @@ import fetch from "node-fetch";
 
 /**
  * Generates the complete NCERT curriculum for a given class using the Gemini API.
- * Uses responseMimeType for reliable JSON output.
  * @param {number} cls - The class number (e.g., 11).
  * @returns {Promise<object>} The curriculum data as a parsed JSON object.
  */
 export async function generateCurriculumForClass(cls) {
+  // Ensure 'node-fetch' is available in your environment if running outside a browser context
+  // and make sure the API key is set in your environment variables.
   const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
   if (!GEMINI_API_KEY) throw new Error("❌ Missing GEMINI_API_KEY in environment variables.");
 
@@ -48,12 +49,12 @@ Ensure the output:
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               contents: [{ parts: [{ text: prompt }] }],
-              config: {
+              // ⭐️ CORRECT KEY: Must be 'generationConfig' for the REST API
+              generationConfig: {
                 temperature: 0.5,
                 maxOutputTokens: 4096,
-                // KEY FIX: Instructs the model to return valid JSON
+                // Guarantees clean, parsable JSON output
                 responseMimeType: "application/json", 
-                // Removed the complex 'responseSchema' to prevent validation errors.
               },
             }),
           }
@@ -64,20 +65,21 @@ Ensure the output:
 
         if (response.ok && text) {
           try {
-            // Because responseMimeType is set, the output should be clean JSON.
+            // Parse the output guaranteed to be JSON
             const parsed = JSON.parse(text); 
             console.log(`✅ Successfully parsed JSON (attempt ${attempt}, model ${model})`);
             successfulResult = parsed;
-            break; // Exit the while loop on success
+            break; // Exit the inner loop on success
           } catch (parseErr) {
             console.error(`⚠️ JSON parse error on model ${model}:`, parseErr.message, "Raw Text:", text.slice(0, 120) + "...");
           }
         } else {
-          // Check for API-level errors
+          // Log API-level errors (e.g., 400 or 500 status codes)
           const errorMsg = data.error?.message || `Status: ${response.status} ${response.statusText}`;
           console.warn(`⚠️ API error or invalid response from ${model}:`, errorMsg);
         }
       } catch (err) {
+        // Log network errors
         console.error(`❌ Network error using ${model} (attempt ${attempt}):`, err.message);
       }
     }
