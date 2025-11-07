@@ -1,129 +1,149 @@
-// js/chapter-selection.js
-import { curriculum } from "./curriculum.js";
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Select Chapter & Difficulty</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            serif: ['Merriweather', 'serif'],
+          },
+          colors: {
+            'cbse-blue': '#1a3e6a',
+            'cbse-light': '#f5f7fa',
+            'accent-gold': '#ffb703',
+            'heading': '#0f172a',
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+    body { font-family: 'Inter', sans-serif; }
+    .card { background: white; padding: 1.5rem; border-radius: .75rem; box-shadow: 0 8px 20px rgba(2,6,23,0.06); border: 1px solid #e5e7eb; }
+    .topic-btn { display:flex; align-items:center; justify-content:space-between; padding:1rem; background:white; border:1px solid #d1d5db; border-radius:.5rem; box-shadow: 0 2px 6px rgba(2,6,23,0.04); cursor:pointer; transition: all .18s; }
+    .topic-btn:hover { background: #f5f7fa; }
+    .topic-btn.selected { border-color:#1a3e6a; background:#eff6ff; box-shadow:0 6px 18px rgba(2,6,23,0.06); }
+    .difficulty-btn { padding:.6rem 1.25rem; border-radius: .75rem; font-weight:600; transition: all .15s; border:2px solid transparent; cursor:pointer; }
+    .difficulty-btn.selected { box-shadow: 0 6px 18px rgba(26,62,106,0.14); outline: none; }
+  </style>
+</head>
 
-// Detect class and selected stream (for 11/12)
-const selectedClass = localStorage.getItem("selectedClass") || "9";
-const selectedStream = localStorage.getItem("selectedStream");
-const subjectContainer = document.getElementById("subject-list");
-const chapterContainer = document.getElementById("chapter-list");
-const title = document.getElementById("page-title");
+<body class="bg-cbse-light min-h-screen flex flex-col">
+  <header class="bg-cbse-blue shadow-lg">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
+      <h1 class="text-2xl font-extrabold text-accent-gold tracking-wider">
+        Ready4<span class="text-white">Exam</span> Portal
+      </h1>
+      <nav id="auth-nav-container">
+        <button id="login-btn" class="px-4 py-2 text-sm font-semibold rounded-lg bg-white text-cbse-blue hover:bg-gray-100 transition">
+          Sign In
+        </button>
+      </nav>
+    </div>
+  </header>
 
-// Utility: clear sections
-function clearSection(section) {
-  section.innerHTML = "";
-}
+  <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <div class="max-w-4xl mx-auto">
+      <h2 id="page-title" class="text-3xl font-extrabold text-heading mb-6 text-center">
+        Select Chapter & Difficulty
+      </h2>
 
-// 🧩 Render subjects (5–10) or streams (11–12)
-function renderSubjects() {
-  clearSection(subjectContainer);
-  clearSection(chapterContainer);
+      <!-- Dynamic container for stream/subject/book/chapters -->
+      <div id="dynamic-container" class="space-y-6 mb-8 text-center"></div>
 
-  if (Number(selectedClass) < 11) {
-    // Simple case: list subjects directly from curriculum object
-    Object.keys(curriculum).forEach((subjectName) => {
-      const btn = document.createElement("button");
-      btn.textContent = subjectName;
-      btn.className =
-        "subject-btn bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 m-2 rounded-lg";
-      btn.addEventListener("click", () => renderChapters(subjectName));
-      subjectContainer.appendChild(btn);
-    });
-    title.textContent = `Select Subject for Class ${selectedClass}`;
-  } else {
-    // Stream-based: Science / Commerce / Humanities
-    const streamData = curriculum[selectedStream];
-    if (!streamData) {
-      subjectContainer.innerHTML = `<p class="text-red-500">⚠️ Stream data not found for ${selectedStream}</p>`;
-      return;
+      <!-- Difficulty selection -->
+      <div id="difficulty-container" class="space-y-6 mb-10 hidden">
+        <h3 class="text-2xl font-bold text-gray-800 border-b pb-2">Select Quiz Difficulty</h3>
+        <p id="selected-chapter-display" class="text-center text-cbse-blue font-semibold mb-4 hidden"></p>
+        <div id="difficulty-selection" class="flex flex-wrap justify-center gap-4">
+          <button data-difficulty="simple" class="difficulty-btn" style="background:#16a34a;color:white;">Simple (Easy)</button>
+          <button data-difficulty="medium" class="difficulty-btn" style="background:#f59e0b;color:white;">Medium</button>
+          <button data-difficulty="advanced" class="difficulty-btn" style="background:#ef4444;color:white;">Advanced (Hard)</button>
+        </div>
+      </div>
+
+      <p id="error-message" class="text-red-500 font-semibold text-center hidden mb-6">
+        Please select both a Topic and a Difficulty level to start the quiz.
+      </p>
+
+      <div class="text-center">
+        <button id="start-quiz-btn" class="px-10 py-4 bg-cbse-blue text-white rounded-xl font-bold text-lg hover:bg-blue-700 transition shadow-xl disabled:opacity-50" disabled>
+          Start Quiz
+        </button>
+      </div>
+    </div>
+  </main>
+
+  <footer class="bg-cbse-blue mt-16 py-8">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-white">
+      <small class="text-sm opacity-70 block mt-2">© 2025 Ready4Exam Academic Portal. All Rights Reserved.</small>
+    </div>
+  </footer>
+
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <script type="module">
+    import { curriculum } from './js/curriculum.js';
+
+    const dynamicContainer = document.getElementById('dynamic-container');
+    const difficultyContainer = document.getElementById('difficulty-container');
+    const difficultyButtons = document.querySelectorAll('.difficulty-btn');
+    const startQuizBtn = document.getElementById('start-quiz-btn');
+    const selectedChapterDisplay = document.getElementById('selected-chapter-display');
+    const pageTitle = document.getElementById('page-title');
+    const errorMessageEl = document.getElementById('error-message');
+
+    let selectedClass = localStorage.getItem('selectedClass') || '9';
+    let selectedStream = localStorage.getItem('selectedStream');
+    let selectedSubject = null;
+    let selectedBook = null;
+    let selectedChapter = null;
+    let selectedDifficulty = null;
+
+    // 💡 Render functions
+    function renderSubjects() {
+      dynamicContainer.innerHTML = '';
+      const streamData = curriculum[selectedStream];
+      if (!streamData) {
+        dynamicContainer.innerHTML = '<p class="text-red-500">No data found for this stream.</p>';
+        return;
+      }
+      pageTitle.textContent = `Select Subject (${selectedStream})`;
+      streamData.forEach(subj => {
+        const btn = document.createElement('button');
+        btn.textContent = subj.subject_name;
+        btn.className = 'bg-blue-500 text-white font-semibold px-6 py-3 rounded-xl shadow hover:bg-blue-600 m-2';
+        btn.onclick = () => renderBooks(subj);
+        dynamicContainer.appendChild(btn);
+      });
     }
 
-    title.textContent = `Select Subject for Class ${selectedClass} (${selectedStream})`;
+    function renderBooks(subject) {
+      selectedSubject = subject;
+      dynamicContainer.innerHTML = '';
+      pageTitle.textContent = `Select Book (${subject.subject_name})`;
+      if (!subject.books || subject.books.length === 0) {
+        dynamicContainer.innerHTML = '<p>No books found for this subject.</p>';
+        return;
+      }
+      subject.books.forEach(book => {
+        const btn = document.createElement('button');
+        btn.textContent = book.book_name;
+        btn.className = 'bg-green-500 text-white font-semibold px-6 py-3 rounded-xl shadow hover:bg-green-600 m-2';
+        btn.onclick = () => renderChapters(book);
+        dynamicContainer.appendChild(btn);
+      });
+    }
 
-    streamData.forEach((subject) => {
-      const btn = document.createElement("button");
-      btn.textContent = subject.subject_name;
-      btn.className =
-        "subject-btn bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 m-2 rounded-lg";
-      btn.addEventListener("click", () => renderBooks(subject));
-      subjectContainer.appendChild(btn);
-    });
-  }
-}
-
-// 📚 Render books (for Class 11/12)
-function renderBooks(subject) {
-  clearSection(chapterContainer);
-  title.textContent = `Select Book for ${subject.subject_name}`;
-
-  if (!subject.books || subject.books.length === 0) {
-    chapterContainer.innerHTML = "<p>No books found for this subject.</p>";
-    return;
-  }
-
-  subject.books.forEach((book) => {
-    const bookBtn = document.createElement("button");
-    bookBtn.textContent = book.book_name;
-    bookBtn.className =
-      "book-btn bg-green-500 hover:bg-green-600 text-white px-4 py-2 m-2 rounded-lg";
-    bookBtn.addEventListener("click", () =>
-      renderChapters(book.chapters, subject.subject_name, book.book_name)
-    );
-    chapterContainer.appendChild(bookBtn);
-  });
-}
-
-// 📖 Render chapters (unified for both flows)
-function renderChapters(chaptersOrSubject, subjectName = null, bookName = null) {
-  clearSection(subjectContainer);
-  clearSection(chapterContainer);
-
-  const isArray = Array.isArray(chaptersOrSubject);
-  let chapters = [];
-
-  if (isArray) {
-    // Case: 11/12 — from book
-    chapters = chaptersOrSubject;
-  } else {
-    // Case: ≤10 — from curriculum[subject]
-    chapters =
-      curriculum[chaptersOrSubject]?.chapters ||
-      curriculum[chaptersOrSubject] ||
-      [];
-  }
-
-  if (!chapters.length) {
-    chapterContainer.innerHTML =
-      "<p class='text-gray-500'>No chapters found for this selection.</p>";
-    return;
-  }
-
-  title.textContent = `Select Chapter ${
-    subjectName ? `(${subjectName}${bookName ? " - " + bookName : ""})` : ""
-  }`;
-
-  chapters.forEach((ch) => {
-    const btn = document.createElement("button");
-    const name = ch.chapter_name || ch; // handle both {chapter_name} and string
-    btn.textContent = name;
-    btn.className =
-      "chapter-btn bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 m-2 rounded-lg";
-    btn.addEventListener("click", () => selectDifficulty(name));
-    chapterContainer.appendChild(btn);
-  });
-}
-
-// 🎯 Difficulty popup → launch quiz
-function selectDifficulty(chapterName) {
-  const difficulty = prompt(
-    `Select difficulty for "${chapterName}" (easy / medium / hard):`,
-    "easy"
-  );
-  if (!difficulty) return;
-
-  localStorage.setItem("selectedChapter", chapterName);
-  localStorage.setItem("selectedDifficulty", difficulty);
-  window.location.href = "quiz-engine.html";
-}
-
-// Run
-document.addEventListener("DOMContentLoaded", renderSubjects);
+    function renderChapters(book) {
+      selectedBook = book;
+      dynamicContainer.innerHTML = '';
+      pageTitle.textContent = `Select Chapter (${book.book_name})`;
+      if (!book.chapters || bo
