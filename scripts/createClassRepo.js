@@ -46,13 +46,20 @@ async function main() {
     }
   }
 
-  // 2️⃣ Prepare temporary folder
-  const sourceDir = path.join(process.cwd(), "template");
-  const tempDir = path.join(process.cwd(), "temp_repo");
-  fs.rmSync(tempDir, { recursive: true, force: true });
-  fs.mkdirSync(tempDir, { recursive: true });
-  execSync(`cp -r "${sourceDir}/." "${tempDir}/"`);
+// 2️⃣ Prepare temporary folder
+const sourceDir = path.join(process.cwd(), "template");
+const tempDir = path.join(process.cwd(), "temp_repo");
 
+if (!fs.existsSync(sourceDir)) {
+  console.error(`❌ Template folder not found at ${sourceDir}`);
+  process.exit(1);
+}
+
+fs.rmSync(tempDir, { recursive: true, force: true });
+fs.mkdirSync(tempDir, { recursive: true });
+execSync(`cp -r ${sourceDir}/. ${tempDir}/`);
+console.log("✅ Template copied successfully.");
+  
   // 3️⃣ Update index.html dynamically
   const indexPath = path.join(tempDir, "index.html");
   if (fs.existsSync(indexPath)) {
