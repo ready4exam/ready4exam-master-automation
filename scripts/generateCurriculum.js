@@ -1,13 +1,20 @@
 // scripts/generateCurriculum.js
 import fetch from "node-fetch";
 
+/**
+ * Generates the complete NCERT curriculum for a given class using the Gemini API.
+ * It uses responseMimeType and a schema for reliable JSON output.
+ * @param {number} cls - The class number (e.g., 11).
+ * @returns {Promise<object>} The curriculum data as a parsed JSON object.
+ */
 export async function generateCurriculumForClass(cls) {
   const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
   if (!GEMINI_API_KEY) throw new Error("❌ Missing GEMINI_API_KEY in environment variables.");
 
   console.log(`🧠 Generating NCERT-based curriculum for Class ${cls} via Gemini...`);
 
-  // --- 1. Simplified Prompt for Reliability ---
+  // --- 1. Prompt and Schema Definitions ---
+
   const prompt = `
 You are an expert academic planner for the CBSE NCERT syllabus.
 Generate a **strictly valid JSON object** describing the complete Class ${cls} curriculum
@@ -22,32 +29,41 @@ Ensure the output:
 - Includes all streams (Science, Commerce, Humanities/Arts).
 `;
 
-  // --- 2. Define a Response Schema (Optional but recommended for robust JSON) ---
+  // Define a simple schema structure to guide the model's output.
   const responseSchema = {
     type: "OBJECT",
     properties: {
       Physics: {
         type: "OBJECT",
-        description: "Science stream subject.",
+        description: "Science stream subject structure.",
         properties: {
           "Physics Part I": { type: "ARRAY", items: { type: "STRING" } },
           "Physics Part II": { type: "ARRAY", items: { type: "STRING" } }
         }
       },
       Chemistry: { type: "OBJECT" },
-      // ... include schemas for other top-level subjects (Accountancy, History, etc.)
+      Mathematics: { type: "OBJECT" },
+      Biology: { type: "OBJECT" },
+      Accountancy: { type: "OBJECT" },
+      "Business Studies": { type: "OBJECT" },
+      Economics: { type: "OBJECT" },
+      History: { type: "OBJECT" },
+      "Political Science": { type: "OBJECT" },
+      Sociology: { type: "OBJECT" },
+      // The model can include other subjects not explicitly listed here.
     },
-    // Allows the model to include other subjects not explicitly listed above
-    additionalProperties: true
+    // The previous error was caused by including additionalProperties: true here.
   };
 
   const models = ["gemini-2.5-flash", "gemini-2.5-pro"];
   let attempt = 0;
+  let successfulResult = null;
+
+  // --- 2. API Call and Retry Logic ---
 
   for (const model of models) {
-    // Reset attempt count for the new model
-    attempt = 0; 
-    while (attempt < 3) {
+    attempt = 0; // Reset attempt count for the new model
+    while (attempt < 3 && successfulResult === null) {
       attempt++;
       console.log(`🔁 Attempt ${attempt} using ${model}...`);
       try {
@@ -58,10 +74,10 @@ Ensure the output:
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               contents: [{ parts: [{ text: prompt }] }],
-              generationConfig: {
+              config: { // Use 'config' instead of 'generationConfig' for clarity/modern structure, though both often work.
                 temperature: 0.5, // Lower temperature for factual data
                 maxOutputTokens: 4096,
-                // --- 3. Key Fix: Ensure JSON Output ---
+                // Key Fix: Instruct the model to return valid JSON
                 responseMimeType: "application/json", 
                 responseSchema: responseSchema,
               },
@@ -74,15 +90,16 @@ Ensure the output:
 
         if (response.ok && text) {
           try {
-            // Because we set responseMimeType, the output should be clean JSON.
+            // Because responseMimeType is set, the output should be clean JSON.
             const parsed = JSON.parse(text); 
             console.log(`✅ Successfully parsed JSON (attempt ${attempt}, model ${model})`);
-            return parsed;
+            successfulResult = parsed;
+            break; // Exit the while loop on success
           } catch (parseErr) {
             console.error(`⚠️ JSON parse error on model ${model}:`, parseErr.message, "Raw Text:", text.slice(0, 120) + "...");
           }
         } else {
-          // Check for API-level errors
+          // Check for API-level errors, including the "Invalid JSON payload" error
           const errorMsg = data.error?.message || `Status: ${response.status} ${response.statusText}`;
           console.warn(`⚠️ API error or invalid response from ${model}:`, errorMsg);
         }
@@ -90,11 +107,14 @@ Ensure the output:
         console.error(`❌ Network error using ${model} (attempt ${attempt}):`, err.message);
       }
     }
+    if (successfulResult !== null) break; // Exit the model loop on success
   }
 
-  console.error("🚨 All attempts failed. Returning empty curriculum object.");
-  return {};
+  // --- 3. Final Result Handling ---
+  if (successfulResult !== null) {
+    return successfulResult;
+  } else {
+    console.error("🚨 All attempts failed. Returning empty curriculum object.");
+    return {};
+  }
 }
-
-// Ensure you have 'node-fetch' installed: npm install node-fetch
-// And set your API key: export GEMINI_API_KEY='your_key_here'
