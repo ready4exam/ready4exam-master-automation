@@ -1,20 +1,18 @@
 /**
- * Automation Tool 1 — Full Front-End and Curriculum Generator 
- * Version: Personal account compatible (no organization required)
+ * Automation Tool 1 — Full Front-End and Curriculum Generator
+ * Version: Stable with Dynamic Class Injection + Gemini Curriculum Update
  */
 
 import fs from "fs";
 import path from "path";
+import { fileURLToPath } from "url";
 import { execSync } from "child_process";
 import { Octokit } from "@octokit/rest";
 import { generateCurriculumForClass } from "./generateCurriculum.js";
 
-// --- START: Update 1 ---
-// Changed GITHUB_OWNER to OWNER to match the YAML environment variable name
+// Environment setup
 const CLASS = process.env.CLASS || "11";
-const OWNER = process.env.OWNER || "ready4exam"; // <-- Updated variable name
-// --- END: Update 1 ---
-
+const OWNER = process.env.GITHUB_OWNER || "ready4exam";
 const TOKEN =
   process.env.PERSONAL_ACCESS_TOKEN || process.env.GITHUB_TOKEN;
 
@@ -23,7 +21,16 @@ if (!TOKEN) {
   process.exit(2);
 }
 
+// Initialize Octokit
 const octokit = new Octokit({ auth: TOKEN });
+
+// Path setup
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// ✅ Correct root-level template resolution
+const sourceDir = path.resolve(__dirname, "../template");
+const tempDir = path.resolve(__dirname, "temp_repo");
 
 async function main() {
   console.log(`🚀 Starting automation for Class ${CLASS}`);
@@ -40,7 +47,6 @@ async function main() {
     console.log(`🆕 Repository does not exist — creating under personal account: ${fullRepoName}`);
 
     try {
-      // ✅ Use /user/repos instead of /orgs/{org}/repos (for personal accounts)
       await octokit.request("POST /user/repos", {
         name: repoName,
         private: false,
@@ -55,12 +61,11 @@ async function main() {
   }
 
   // 2️⃣ Prepare temporary folder
-  // ✅ fix: make sure we use the root-level 'template' directory
-  const sourceDir = path.join(process.cwd(), "../template");
-  const tempDir = path.join(process.cwd(), "temp_repo");
+  console.log("📁 Preparing temporary working directory...");
   fs.rmSync(tempDir, { recursive: true, force: true });
   fs.mkdirSync(tempDir);
   execSync(`cp -r "${sourceDir}/." "${tempDir}/"`);
+  console.log("✅ Template copied successfully");
 
   // 3️⃣ Generate curriculum via Gemini
   console.log("🧠 Generating curriculum for class via Gemini...");
@@ -75,7 +80,27 @@ async function main() {
   fs.writeFileSync(curriculumFile, curriculumContent);
   console.log("✅ curriculum.js created successfully");
 
-  // 5️⃣ Commit and push changes
+  // 5️⃣ Inject Class name into index.html
+  const indexFile = path.join(tempDir, "index.html");
+  if (fs.existsSync(indexFile)) {
+    let html = fs.readFileSync(indexFile, "utf8");
+
+    // Replace any previous Class reference (e.g., "Class 9")
+    html = html.replace(/Class\s\d+/gi, `Class ${CLASS}`);
+
+    // Add metadata comment for clarity
+    html = html.replace(
+      /<head>/i,
+      `<head>\n  <!-- Auto-generated for Class ${CLASS} on ${new Date().toISOString()} -->`
+    );
+
+    fs.writeFileSync(indexFile, html, "utf8");
+    console.log("✅ index.html updated for Class " + CLASS);
+  } else {
+    console.warn("⚠️ index.html not found in template directory!");
+  }
+
+  // 6️⃣ Commit and push to GitHub
   process.chdir(tempDir);
   execSync("git init");
   execSync('git config user.name "ready4exam-bot"');
@@ -83,8 +108,7 @@ async function main() {
   execSync("git add .");
   execSync(`git commit -m "Auto-generated frontend and curriculum for Class ${CLASS}"`);
 
-  // Use the OWNER and TOKEN variables for the push URL
-  const repoUrl = `https://${TOKEN}@github.com/${OWNER}/${repoName}.git`; // <-- Updated path to use OWNER
+  const repoUrl = `https://${TOKEN}@github.com/${fullRepoName}.git`;
   execSync(`git remote add origin "${repoUrl}"`);
   execSync("git branch -M main");
   execSync("git push -u origin main --force");
@@ -92,6 +116,7 @@ async function main() {
   console.log(`🎉 Successfully created/updated: https://github.com/${fullRepoName}`);
 }
 
+// Main runner
 main().catch((err) => {
   console.error("❌ Error in createClassRepo.js:", err.message);
   process.exit(1);
