@@ -26,46 +26,33 @@
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
     body { font-family: 'Inter', sans-serif; }
-    .card { background: white; padding: 1.5rem; border-radius: .75rem; box-shadow: 0 8px 20px rgba(2,6,23,0.06); border: 1px solid #e5e7eb; }
-    .topic-btn { display:flex; align-items:center; justify-content:space-between; padding:1rem; background:white; border:1px solid #d1d5db; border-radius:.5rem; box-shadow: 0 2px 6px rgba(2,6,23,0.04); cursor:pointer; transition: all .18s; }
+    .topic-btn { display:flex; align-items:center; justify-content:space-between; padding:1rem; background:white; border:1px solid #d1d5db; border-radius:.5rem; cursor:pointer; transition: all .18s; }
     .topic-btn:hover { background: #f5f7fa; }
-    .topic-btn.selected { border-color:#1a3e6a; background:#eff6ff; box-shadow:0 6px 18px rgba(2,6,23,0.06); }
-    .difficulty-btn { padding:.6rem 1.25rem; border-radius: .75rem; font-weight:600; transition: all .15s; border:2px solid transparent; cursor:pointer; }
-    .difficulty-btn.selected { box-shadow: 0 6px 18px rgba(26,62,106,0.14); outline: none; }
+    .topic-btn.selected { border-color:#1a3e6a; background:#eff6ff; }
+    .difficulty-btn { padding:.6rem 1.25rem; border-radius:.75rem; font-weight:600; border:2px solid transparent; cursor:pointer; }
+    .difficulty-btn.selected { box-shadow:0 0 0 2px #1a3e6a; }
   </style>
 </head>
 
 <body class="bg-cbse-light min-h-screen flex flex-col">
   <header class="bg-cbse-blue shadow-lg">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-      <h1 class="text-2xl font-extrabold text-accent-gold tracking-wider">
-        Ready4<span class="text-white">Exam</span> Portal
-      </h1>
-      <nav id="auth-nav-container">
-        <button id="login-btn" class="px-4 py-2 text-sm font-semibold rounded-lg bg-white text-cbse-blue hover:bg-gray-100 transition">
-          Sign In
-        </button>
-      </nav>
+    <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+      <h1 class="text-2xl font-extrabold text-accent-gold">Ready4<span class="text-white">Exam</span></h1>
     </div>
   </header>
 
-  <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+  <main class="flex-grow max-w-7xl mx-auto px-4 py-12">
     <div class="max-w-4xl mx-auto">
-      <h2 id="page-title" class="text-3xl font-extrabold text-heading mb-6 text-center">
-        Select Chapter & Difficulty
-      </h2>
-
-      <!-- Unified dynamic container -->
+      <h2 id="page-title" class="text-3xl font-extrabold text-heading mb-6 text-center">Select Chapter & Difficulty</h2>
       <div id="dynamic-container" class="space-y-6 mb-8"></div>
 
-      <!-- Difficulty Selection -->
       <div id="difficulty-container" class="space-y-6 mb-10 hidden">
         <h3 class="text-2xl font-bold text-gray-800 border-b pb-2">Select Quiz Difficulty</h3>
         <p id="selected-chapter-display" class="text-center text-cbse-blue font-semibold mb-4 hidden"></p>
         <div id="difficulty-selection" class="flex flex-wrap justify-center gap-4">
-          <button data-difficulty="simple" class="difficulty-btn" style="background:#16a34a;color:white;">Simple (Easy)</button>
-          <button data-difficulty="medium" class="difficulty-btn" style="background:#f59e0b;color:white;">Medium</button>
-          <button data-difficulty="advanced" class="difficulty-btn" style="background:#ef4444;color:white;">Advanced (Hard)</button>
+          <button data-difficulty="simple" class="difficulty-btn bg-green-600 text-white">Simple (Easy)</button>
+          <button data-difficulty="medium" class="difficulty-btn bg-yellow-500 text-white">Medium</button>
+          <button data-difficulty="advanced" class="difficulty-btn bg-red-600 text-white">Advanced (Hard)</button>
         </div>
       </div>
 
@@ -74,23 +61,22 @@
       </p>
 
       <div class="text-center">
-        <button id="start-quiz-btn" class="px-10 py-4 bg-cbse-blue text-white rounded-xl font-bold text-lg hover:bg-blue-700 transition shadow-xl disabled:opacity-50" disabled>
+        <button id="start-quiz-btn" class="px-10 py-4 bg-cbse-blue text-white rounded-xl font-bold text-lg hover:bg-blue-700 transition disabled:opacity-50" disabled>
           Start Quiz
         </button>
       </div>
     </div>
   </main>
 
-  <footer class="bg-cbse-blue mt-16 py-8">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-white">
-      <small class="text-sm opacity-70 block mt-2">© 2025 Ready4Exam Academic Portal. All Rights Reserved.</small>
-    </div>
+  <footer class="bg-cbse-blue mt-16 py-8 text-center text-white text-sm opacity-70">
+    © 2025 Ready4Exam Academic Portal
   </footer>
 
   <script src="https://unpkg.com/lucide@latest"></script>
 
   <script type="module">
     import { curriculum } from './js/curriculum.js';
+
     const dynamicContainer = document.getElementById('dynamic-container');
     const difficultyContainer = document.getElementById('difficulty-container');
     const startQuizBtn = document.getElementById('start-quiz-btn');
@@ -100,26 +86,19 @@
     const difficultyBtns = document.querySelectorAll('.difficulty-btn');
 
     let selectedClass = localStorage.getItem('selectedClass') || '9';
-    let selectedStream = localStorage.getItem('selectedStream') || null;
-    let selectedSubject = null;
-    let selectedBook = null;
-    let selectedChapter = null;
-    let selectedDifficulty = null;
+    let selectedStream = localStorage.getItem('selectedStream');
+    let selectedSubject = null, selectedBook = null, selectedChapter = null, selectedDifficulty = null;
 
-    /*** CLASS <= 10 — Classic flow ***/
+    // ✅ CLASS <=10 (Classic Flow)
     function renderClassicSubjects() {
       dynamicContainer.innerHTML = '';
       pageTitle.textContent = `Select Subject for Class ${selectedClass}`;
       const subjects = Object.keys(curriculum[selectedClass] || {});
-      if (!subjects.length) {
-        dynamicContainer.innerHTML = '<p class="text-red-500">No subjects found.</p>';
-        return;
-      }
-
+      if (!subjects.length) return dynamicContainer.innerHTML = '<p>No subjects found.</p>';
       subjects.forEach(subject => {
         const btn = document.createElement('button');
-        btn.textContent = subject.replace(/_/g, ' ');
-        btn.className = 'bg-blue-500 text-white font-semibold px-6 py-3 rounded-xl shadow hover:bg-blue-600 m-2';
+        btn.textContent = subject;
+        btn.className = 'bg-blue-500 text-white px-6 py-3 rounded-xl shadow hover:bg-blue-600 m-2';
         btn.onclick = () => renderClassicChapters(subject);
         dynamicContainer.appendChild(btn);
       });
@@ -127,72 +106,55 @@
 
     function renderClassicChapters(subject) {
       dynamicContainer.innerHTML = '';
-      pageTitle.textContent = `${subject.replace(/_/g, ' ')} - Select Chapter`;
+      pageTitle.textContent = `${subject} - Select Chapter`;
       const chapters = curriculum[selectedClass]?.[subject] || [];
-      if (!chapters.length) {
-        dynamicContainer.innerHTML = '<p class="text-gray-500">No chapters available.</p>';
-        return;
-      }
       chapters.forEach(ch => {
         const btn = document.createElement('button');
         btn.className = 'topic-btn w-full text-left';
-        btn.innerHTML = `<span>${ch.title || ch}</span><i data-lucide="chevron-right" class="w-5 h-5 text-cbse-blue"></i>`;
-        btn.onclick = (e) => selectChapter(ch.title || ch, e.currentTarget);
+        btn.innerHTML = `<span>${ch.chapter_title || ch}</span>`;
+        btn.onclick = (e) => selectChapter(ch.chapter_title || ch, e.currentTarget);
         dynamicContainer.appendChild(btn);
       });
-      lucide.createIcons();
     }
 
-    /*** CLASS 11–12 — Stream-based flow ***/
+    // ✅ CLASS 11–12 Stream Flow
+    const STREAM_SUBJECTS = {
+      Science: ['Physics','Chemistry','Biology','Mathematics'],
+      Commerce: ['Accountancy','Business Studies','Economics','Mathematics'],
+      Humanities: ['History','Geography','Political Science','Sociology','Psychology','Economics','English']
+    };
+
     function renderStreamSubjects() {
       dynamicContainer.innerHTML = '';
       pageTitle.textContent = `Select Subject (${selectedStream})`;
-
-      const STREAM_SUBJECTS = {
-        Science: ['Physics', 'Chemistry', 'Biology', 'Mathematics'],
-        Commerce: ['Accountancy', 'Business Studies', 'Economics', 'Mathematics'],
-        Humanities: [
-          'History',
-          'Geography',
-          'Political Science',
-          'Sociology',
-          'Psychology',
-          'Economics',
-          'English'
-        ]
-      };
-
-      const allowedSubjects = STREAM_SUBJECTS[selectedStream] || [];
-      const allSubjects = Object.keys(curriculum);
-      const streamSubjects = allSubjects.filter(s => allowedSubjects.includes(s));
-
-      if (!streamSubjects.length) {
-        dynamicContainer.innerHTML = `<p class="text-red-500 text-center">No subjects found for ${selectedStream}.</p>`;
-        return;
-      }
-
+      const streamSubjects = STREAM_SUBJECTS[selectedStream] || [];
       streamSubjects.forEach(subject => {
+        if (!curriculum[subject]) return;
         const btn = document.createElement('button');
         btn.textContent = subject;
-        btn.className = 'bg-blue-500 text-white font-semibold px-6 py-3 rounded-xl shadow hover:bg-blue-600 m-2';
-        btn.onclick = () => renderBooks(curriculum[subject], subject);
+        btn.className = 'bg-blue-500 text-white px-6 py-3 rounded-xl shadow hover:bg-blue-600 m-2';
+        btn.onclick = () => renderBooksOrChapters(curriculum[subject], subject);
         dynamicContainer.appendChild(btn);
       });
     }
 
-    function renderBooks(subjectObj, subjectName) {
+    function renderBooksOrChapters(subjectObj, subjectName) {
       selectedSubject = subjectName;
       dynamicContainer.innerHTML = '';
+      if (Array.isArray(subjectObj)) {
+        renderChapters(subjectObj, subjectName);
+      } else {
+        renderBooks(subjectObj, subjectName);
+      }
+    }
+
+    function renderBooks(subjectObj, subjectName) {
       pageTitle.textContent = `Select Book (${subjectName})`;
       const books = Object.keys(subjectObj || {});
-      if (!books.length) {
-        dynamicContainer.innerHTML = '<p>No books found.</p>';
-        return;
-      }
       books.forEach(book => {
         const btn = document.createElement('button');
         btn.textContent = book;
-        btn.className = 'bg-green-500 text-white font-semibold px-6 py-3 rounded-xl shadow hover:bg-green-600 m-2';
+        btn.className = 'bg-green-500 text-white px-6 py-3 rounded-xl shadow hover:bg-green-600 m-2';
         btn.onclick = () => renderChapters(subjectObj[book], book);
         dynamicContainer.appendChild(btn);
       });
@@ -202,22 +164,18 @@
       selectedBook = bookName;
       dynamicContainer.innerHTML = '';
       pageTitle.textContent = `Select Chapter (${bookName})`;
-      if (!chapterList?.length) {
-        dynamicContainer.innerHTML = '<p>No chapters found.</p>';
-        return;
-      }
-      chapterList.forEach(chapter => {
+      (chapterList || []).forEach(ch => {
+        const chapterName = ch.chapter_title || ch;
         const btn = document.createElement('button');
-        btn.textContent = chapter;
         btn.className = 'topic-btn w-full text-left';
-        btn.onclick = (e) => selectChapter(chapter, e.currentTarget);
+        btn.innerHTML = `<span>${chapterName}</span>`;
+        btn.onclick = (e) => selectChapter(chapterName, e.currentTarget);
         dynamicContainer.appendChild(btn);
       });
-      lucide.createIcons();
     }
 
-    /*** Shared selection logic ***/
-    function selectChapter(chapterName, element) {
+    // ✅ Difficulty + Start Quiz
+    function selectChapter(chapterName, el) {
       selectedChapter = chapterName;
       selectedChapterDisplay.textContent = `Selected Chapter: ${chapterName}`;
       selectedChapterDisplay.classList.remove('hidden');
@@ -225,7 +183,7 @@
       startQuizBtn.disabled = true;
       errorMessageEl.classList.add('hidden');
       document.querySelectorAll('.topic-btn').forEach(b => b.classList.remove('selected'));
-      element.classList.add('selected');
+      el.classList.add('selected');
     }
 
     difficultyBtns.forEach(btn => {
@@ -238,24 +196,17 @@
     });
 
     startQuizBtn.onclick = () => {
-      if (!selectedChapter || !selectedDifficulty) {
-        errorMessageEl.classList.remove('hidden');
-        return;
-      }
+      if (!selectedChapter || !selectedDifficulty) return errorMessageEl.classList.remove('hidden');
       localStorage.setItem('selectedChapter', selectedChapter);
       localStorage.setItem('selectedDifficulty', selectedDifficulty);
-      localStorage.setItem('selectedSubject', selectedSubject || '');
-      localStorage.setItem('selectedBook', selectedBook || '');
+      localStorage.setItem('selectedSubject', selectedSubject);
+      localStorage.setItem('selectedBook', selectedBook);
       window.location.href = 'quiz-engine.html';
     };
 
-    /*** INIT ***/
     document.addEventListener('DOMContentLoaded', () => {
-      if (Number(selectedClass) >= 11) {
-        renderStreamSubjects();
-      } else {
-        renderClassicSubjects();
-      }
+      if (Number(selectedClass) >= 11) renderStreamSubjects();
+      else renderClassicSubjects();
     });
   </script>
 </body>
