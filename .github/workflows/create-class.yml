@@ -12,27 +12,43 @@ jobs:
   build-repo:
     runs-on: ubuntu-latest
 
-    env:
-      GITHUB_OWNER: ready4exam
-      CLASS: ${{ github.event.inputs.class }}
-      PERSONAL_ACCESS_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
-      GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
-      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-
     steps:
-      - name: 🧩 Checkout repository
+      # 🧩 Ensure we always get the latest main branch code (no cache)
+      - name: 🧩 Checkout latest automation repo
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          clean: true
 
-      - name: 🧠 Setup Node.js
+      # 🧠 Setup Node.js environment
+      - name: 🧠 Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 18
 
+      # 📦 Install all dependencies
       - name: 📦 Install dependencies
-        run: npm install
+        run: |
+          echo "Installing project dependencies..."
+          npm install
 
-      - name: ⚙️ Run Class Repo Builder
-        working-directory: ./scripts
+      # ⚙️ Execute the Class Repo Builder Script
+      - name: ⚙️ Run Class Repo Builder Script
+        env:
+          CLASS: ${{ github.event.inputs.class }}
+          GITHUB_OWNER: ready4exam
+          PERSONAL_ACCESS_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           echo "⚙️ Running createClassRepo.js for class=${{ github.event.inputs.class }}"
-          node createClassRepo.js
+          node scripts/createClassRepo.js
+
+      # 🧾 Optional Debug Confirmation (helps verify which commit is running)
+      - name: 🧾 Confirm current commit and folder state
+        run: |
+          echo "📦 Current Commit SHA: $GITHUB_SHA"
+          echo "📂 Current Directory:"
+          pwd
+          echo "📁 Files in Repository Root:"
+          ls -la
