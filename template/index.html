@@ -1,9 +1,11 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>CBSE Class 11 — Academic Study Portal</title>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>CBSE Class 11 Streams — Ready4Exam</title>
+
+  <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -17,17 +19,20 @@
             'cbse-blue': '#1a3e6a',
             'cbse-light': '#f5f7fa',
             'accent-gold': '#ffb703',
-            'heading': '#0f172a',
+            'heading': '#0f172a'
           }
         }
       }
     }
   </script>
+
+  <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest"></script>
 
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Merriweather:wght@400;700&display=swap');
     body { font-family: 'Inter', sans-serif; background-color: #f5f7fa; }
+
     .subject-card {
       @apply block p-6 rounded-xl bg-white border border-gray-200 shadow-lg transition-all duration-300 relative overflow-hidden;
     }
@@ -35,16 +40,27 @@
       transform: translateY(-5px);
       @apply shadow-2xl border-cbse-blue/50;
     }
-    .card-title { @apply text-xl font-extrabold text-heading; }
-    .card-description { @apply text-gray-600 text-sm; }
-    .back-btn {
-      @apply text-cbse-blue underline cursor-pointer font-semibold text-sm mb-6 block;
+    .card-header {
+      @apply flex items-center space-x-4 mb-4;
     }
+    .card-title {
+      @apply text-xl font-extrabold text-heading;
+    }
+    .card-description {
+      @apply text-gray-600 text-sm;
+    }
+    .card-button {
+      @apply px-4 py-2 text-sm font-semibold rounded-lg transition-colors duration-200;
+    }
+    .science { @apply bg-green-600 hover:bg-green-700 text-white; }
+    .commerce { @apply bg-blue-600 hover:bg-blue-700 text-white; }
+    .arts { @apply bg-purple-600 hover:bg-purple-700 text-white; }
   </style>
 </head>
 
 <body class="bg-cbse-light min-h-screen flex flex-col">
 
+  <!-- Header -->
   <header class="bg-cbse-blue shadow-lg">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
       <h1 class="text-2xl font-extrabold text-accent-gold tracking-wider">
@@ -53,119 +69,137 @@
     </div>
   </header>
 
+  <!-- Main Section -->
   <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-
-    <header id="page-header" class="text-center mb-12">
+    <header class="text-center mb-12">
       <h2 class="text-4xl font-extrabold text-heading mb-2">CBSE Class 11 Streams</h2>
-      <p class="text-lg text-gray-600">Select your stream to explore subjects and begin your chapter-wise practice quizzes.</p>
+      <p class="text-lg text-gray-600">Select your stream to explore subjects and start your chapter-wise quizzes.</p>
     </header>
 
     <!-- Stream Cards -->
-    <div id="stream-container" class="grid grid-cols-1 md:grid-cols-3 gap-8"></div>
+    <div id="stream-section" class="grid grid-cols-1 md:grid-cols-3 gap-8">
 
-    <!-- Subject Cards -->
-    <div id="subject-container" class="grid grid-cols-1 md:grid-cols-3 gap-8 hidden"></div>
+      <div onclick="showSubjects('Science')" class="subject-card cursor-pointer">
+        <div class="card-header">
+          <i data-lucide="flask-conical" class="text-green-700 h-8 w-8"></i>
+          <h3 class="card-title">Science Stream</h3>
+        </div>
+        <p class="card-description">
+          Physics, Chemistry, Biology, and Mathematics — explore the foundation of modern science and innovation.
+        </p>
+        <div class="mt-6 text-center">
+          <button class="card-button science">Explore Subjects</button>
+        </div>
+      </div>
 
+      <div onclick="showSubjects('Commerce')" class="subject-card cursor-pointer">
+        <div class="card-header">
+          <i data-lucide="briefcase" class="text-blue-700 h-8 w-8"></i>
+          <h3 class="card-title">Commerce Stream</h3>
+        </div>
+        <p class="card-description">
+          Accountancy, Business Studies, and Economics — master trade, finance, and global business concepts.
+        </p>
+        <div class="mt-6 text-center">
+          <button class="card-button commerce">Explore Subjects</button>
+        </div>
+      </div>
+
+      <div onclick="showSubjects('Humanities')" class="subject-card cursor-pointer">
+        <div class="card-header">
+          <i data-lucide="landmark" class="text-purple-700 h-8 w-8"></i>
+          <h3 class="card-title">Humanities (Arts) Stream</h3>
+        </div>
+        <p class="card-description">
+          History, Political Science, Geography, and Economics — explore human civilization, governance, and society.
+        </p>
+        <div class="mt-6 text-center">
+          <button class="card-button arts">Explore Subjects</button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Subjects Section (hidden by default) -->
+    <div id="subject-section" class="hidden">
+      <button onclick="backToStreams()" class="mb-6 px-4 py-2 bg-cbse-blue text-white rounded-lg hover:bg-blue-800">
+        ← Back to Streams
+      </button>
+
+      <h3 id="selected-stream-title" class="text-3xl font-extrabold text-cbse-blue mb-8 text-center"></h3>
+      <div id="subject-grid" class="grid grid-cols-1 md:grid-cols-3 gap-8"></div>
+    </div>
   </main>
 
+  <!-- Footer -->
   <footer class="bg-cbse-blue mt-16 py-8">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-white">
       <small class="text-sm opacity-70 block mt-2">© 2025 Ready4Exam Academic Portal. All Rights Reserved.</small>
     </div>
   </footer>
 
+  <!-- JS Logic -->
   <script type="module">
     import { curriculum } from "./js/curriculum.js";
 
-    const streamContainer = document.getElementById("stream-container");
-    const subjectContainer = document.getElementById("subject-container");
-    const header = document.getElementById("page-header");
+    const streamSection = document.getElementById("stream-section");
+    const subjectSection = document.getElementById("subject-section");
+    const subjectGrid = document.getElementById("subject-grid");
+    const streamTitle = document.getElementById("selected-stream-title");
 
-    // Define streams & subject mappings
-    const streams = {
-      Science: ["Physics", "Chemistry", "Biology", "Mathematics"],
-      Commerce: ["Accountancy", "Business Studies", "Economics", "Mathematics"],
-      Humanities: ["History", "Political Science", "Geography", "Economics"]
-    };
+    // Show subjects based on selected stream
+    window.showSubjects = function(stream) {
+      streamSection.classList.add("hidden");
+      subjectSection.classList.remove("hidden");
+      streamTitle.textContent = `${stream} Stream — Subjects`;
 
-    const streamDescriptions = {
-      Science: "Explore Physics, Chemistry, Biology, and Mathematics — the foundation for engineering, medical, and scientific careers.",
-      Commerce: "Dive into Accountancy, Business Studies, and Economics — building strong fundamentals for finance and management.",
-      Humanities: "Understand History, Political Science, and Geography — developing insight into society, governance, and human evolution."
-    };
+      const subjects = Object.keys(curriculum);
+      subjectGrid.innerHTML = "";
 
-    const subjectDescriptions = {
-      Physics: "Study laws of motion, energy, and the universe's structure.",
-      Chemistry: "Learn molecular behavior and reactions that shape matter.",
-      Biology: "Discover life processes, evolution, and biological systems.",
-      Mathematics: "Develop logical reasoning and analytical problem-solving skills.",
-      Accountancy: "Master the principles of accounting and financial reporting.",
-      "Business Studies": "Understand business operations, ethics, and entrepreneurship.",
-      Economics: "Analyze growth, development, and market forces shaping the economy.",
-      History: "Explore civilizations, revolutions, and historical transformations.",
-      "Political Science": "Learn how constitutions, rights, and governments work.",
-      Geography: "Understand earth’s structure, environment, and human geography."
-    };
+      const filteredSubjects = subjects.filter(subj => {
+        const subjData = curriculum[subj];
+        for (const book in subjData) {
+          const chapters = subjData[book];
+          if (Array.isArray(chapters) && chapters.some(ch => ch.section.includes(stream))) {
+            return true;
+          }
+        }
+        return false;
+      });
 
-    // Render stream cards
-    Object.keys(streams).forEach(stream => {
-      const card = document.createElement("div");
-      card.className = "subject-card cursor-pointer";
-      card.innerHTML = `
-        <div class="flex items-center space-x-4 mb-3">
-          <i data-lucide="layers" class="h-7 w-7 text-cbse-blue"></i>
-          <h3 class="card-title">${stream}</h3>
-        </div>
-        <p class="card-description">${streamDescriptions[stream]}</p>
-      `;
-      card.onclick = () => renderSubjects(stream);
-      streamContainer.appendChild(card);
-    });
-    lucide.createIcons();
-
-    // Render subjects for selected stream
-    function renderSubjects(stream) {
-      streamContainer.classList.add("hidden");
-      subjectContainer.classList.remove("hidden");
-      subjectContainer.innerHTML = "";
-
-      header.querySelector("h2").textContent = `${stream} Stream Subjects`;
-      header.querySelector("p").textContent = `Select a subject to explore its books and chapters.`;
-
-      // Back button
-      const backBtn = document.createElement("span");
-      backBtn.textContent = "← Back to Streams";
-      backBtn.className = "back-btn";
-      backBtn.onclick = () => {
-        subjectContainer.classList.add("hidden");
-        streamContainer.classList.remove("hidden");
-        header.querySelector("h2").textContent = "CBSE Class 11 Streams";
-        header.querySelector("p").textContent = "Select your stream to explore subjects and begin your chapter-wise practice quizzes.";
-      };
-      subjectContainer.before(backBtn);
-
-      // Filter subjects that belong to this stream
-      const streamSubjects = streams[stream].filter(sub => curriculum[sub]);
-      if (!streamSubjects.length) {
-        subjectContainer.innerHTML = `<p class="text-center text-gray-600 col-span-3">No subjects found for this stream.</p>`;
+      if (filteredSubjects.length === 0) {
+        subjectGrid.innerHTML = `<p class='text-gray-600 text-center col-span-3'>No subjects found for ${stream}.</p>`;
         return;
       }
 
-      streamSubjects.forEach(subject => {
+      filteredSubjects.forEach(subj => {
         const card = document.createElement("a");
-        card.href = `chapter-selection.html?subject=${encodeURIComponent(subject)}`;
+        card.href = `chapter-selection.html?subject=${encodeURIComponent(subj)}`;
         card.className = "subject-card";
         card.innerHTML = `
-          <div class="flex items-center space-x-4 mb-3">
-            <i data-lucide="book-open" class="h-7 w-7 text-cbse-blue"></i>
-            <h3 class="card-title">${subject}</h3>
+          <div class="card-header">
+            <i data-lucide="book-open" class="text-cbse-blue h-8 w-8"></i>
+            <h3 class="card-title">${subj}</h3>
           </div>
-          <p class="card-description">${subjectDescriptions[subject] || "Explore the chapters and quizzes for this subject."}</p>
+          <p class="card-description">Explore all books and chapters for ${subj}.</p>
+          <div class="mt-6 text-center">
+            <button class="card-button bg-cbse-blue hover:bg-blue-800 text-white">View Chapters</button>
+          </div>
         `;
-        subjectContainer.appendChild(card);
+        subjectGrid.appendChild(card);
       });
+
       lucide.createIcons();
-    }
+    };
+
+    // Back to stream view
+    window.backToStreams = function() {
+      subjectSection.classList.add("hidden");
+      streamSection.classList.remove("hidden");
+    };
+
+    // Initialize Lucide
+    lucide.createIcons();
   </script>
 </body>
 </html>
