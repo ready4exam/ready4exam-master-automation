@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       class:
-        description: "Class number to generate (e.g., 9, 11)"
+        description: "Class number to generate (e.g., 9, 11, 12)"
         required: true
 
 jobs:
@@ -23,12 +23,14 @@ jobs:
       - name: 📦 Install dependencies
         run: npm install
 
-      # 🆕 STEP ADDED — Always regenerate curriculum.js files before class creation
+      # 🧠 STEP 1 — Convert curriculum JSON → JS (before class repo generation)
       - name: 🧠 Generate curriculum.js from JSON
         run: node scripts/generateCurriculumJS.js
 
+      # 🚀 STEP 2 — Create class repository using the specified class input
       - name: 🚀 Run Class Automation
         env:
+          CLASS: ${{ github.event.inputs.class }} # ✅ pass the selected class as env var
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           FIREBASE_API_KEY_1112: ${{ secrets.FIREBASE_API_KEY_1112 }}
@@ -36,7 +38,8 @@ jobs:
           FIREBASE_PROJECT_ID_1112: ${{ secrets.FIREBASE_PROJECT_ID_1112 }}
           FIREBASE_AUTH_DOMAIN_1112: ${{ secrets.FIREBASE_AUTH_DOMAIN_1112 }}
           GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
-        run: node scripts/createClassRepo.js ${{ github.event.inputs.class }}
+        run: node scripts/createClassRepo.js
 
+      # ✅ STEP 3 — Confirm success
       - name: ✅ Workflow Complete
         run: echo "🎉 Class repository automation complete for Class ${{ github.event.inputs.class }}"
