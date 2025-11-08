@@ -1,4 +1,9 @@
 // scripts/createClassRepo.js
+// -----------------------------------------------------------------------------
+// Builds and pushes a new class repository from the /template folder
+// Copies the correct curriculum.js for the selected class before packaging
+// -----------------------------------------------------------------------------
+
 import fs from "fs";
 import path from "path";
 import { execSync } from "child_process";
@@ -14,22 +19,33 @@ console.log(`⚙️ Running createClassRepo.js for class=${cls}`);
 const baseDir = process.cwd();
 const templateDir = path.join(baseDir, "template");
 const tempRepoDir = path.join(baseDir, "temp_repo", `class${cls}`);
-const curriculumFile = path.join(templateDir, "js", "curriculum.js");
 
-// --- Step 1. Verify curriculum exists ---
-if (!fs.existsSync(curriculumFile)) {
-  console.error(`❌ Missing curriculum.js at ${curriculumFile}.`);
+// -----------------------------------------------------------------------------
+// STEP 1 — Copy correct curriculum for this class
+// -----------------------------------------------------------------------------
+const sourceCurriculum = path.join(baseDir, "static_curriculum", `class${cls}`, "curriculum.js");
+const targetCurriculum = path.join(templateDir, "js", "curriculum.js");
+
+console.log(`[Curriculum] Preparing curriculum for class${cls}`);
+if (!fs.existsSync(sourceCurriculum)) {
+  console.error(`❌ Missing source curriculum: ${sourceCurriculum}`);
   process.exit(1);
 }
 
-// --- Step 2. Prepare repo folder ---
+fs.copyFileSync(sourceCurriculum, targetCurriculum);
+console.log(`[Curriculum] Copied ${sourceCurriculum} → ${targetCurriculum}`);
+
+// -----------------------------------------------------------------------------
+// STEP 2 — Prepare temp repo folder
+// -----------------------------------------------------------------------------
 if (fs.existsSync(tempRepoDir)) fs.rmSync(tempRepoDir, { recursive: true, force: true });
 fs.mkdirSync(tempRepoDir, { recursive: true });
 fs.cpSync(templateDir, tempRepoDir, { recursive: true });
-
 console.log(`✅ Template copied successfully.`);
 
-// --- Step 3. Update index.html with class reference ---
+// -----------------------------------------------------------------------------
+// STEP 3 — Update index.html with class reference
+// -----------------------------------------------------------------------------
 const indexPath = path.join(tempRepoDir, "index.html");
 if (fs.existsSync(indexPath)) {
   let html = fs.readFileSync(indexPath, "utf8");
@@ -38,7 +54,9 @@ if (fs.existsSync(indexPath)) {
   console.log(`✅ Updated index.html with correct class name.`);
 }
 
-// --- Step 4. Commit & Push ---
+// -----------------------------------------------------------------------------
+// STEP 4 — Commit & push to GitHub
+// -----------------------------------------------------------------------------
 try {
   execSync(`git init`, { cwd: tempRepoDir });
   execSync(`git config user.email "automation@ready4exam.org"`, { cwd: tempRepoDir });
@@ -50,7 +68,10 @@ try {
   const repoUrl = `https://github.com/ready4exam/ready4exam-${cls}.git`;
   execSync(`git remote add origin ${repoUrl}`, { cwd: tempRepoDir });
   execSync(`git branch -M main`, { cwd: tempRepoDir });
-  execSync(`git push -f https://x-access-token:${process.env.GITHUB_TOKEN}@github.com/ready4exam/ready4exam-${cls}.git main`, { cwd: tempRepoDir });
+  execSync(
+    `git push -f https://x-access-token:${process.env.GITHUB_TOKEN}@github.com/ready4exam/ready4exam-${cls}.git main`,
+    { cwd: tempRepoDir }
+  );
 
   console.log(`🎉 Successfully pushed Class ${cls} repo to GitHub.`);
 } catch (err) {
