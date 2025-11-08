@@ -1,56 +1,215 @@
 {
-  "Physics": {
-    "Physics Part I": [
-      { "chapter_title": "Electric Charges and Fields", "table_id": "Ch 1", "section": "Science" },
-      { "chapter_title": "Electrostatic Potential and Capacitance", "table_id": "Ch 2", "section": "Science" },
-      { "chapter_title": "Current Electricity", "table_id": "Ch 3", "section": "Science" },
-      { "chapter_title": "Moving Charges and Magnetism", "table_id": "Ch 4", "section": "Science" },
-      { "chapter_title": "Magnetism and Matter", "table_id": "Ch 5", "section": "Science" },
-      { "chapter_title": "Electromagnetic Induction", "table_id": "Ch 6", "section": "Science" },
-      { "chapter_title": "Alternating Current", "table_id": "Ch 7", "section": "Science" },
-      { "chapter_title": "Electromagnetic Waves", "table_id": "Ch 8", "section": "Science" }
-    ],
-    "Physics Part II": [
-      { "chapter_title": "Ray Optics and Optical Instruments", "table_id": "Ch 9", "section": "Science" },
-      { "chapter_title": "Wave Optics", "table_id": "Ch 10", "section": "Science" },
-      { "chapter_title": "Dual Nature of Radiation and Matter", "table_id": "Ch 11", "section": "Science" },
-      { "chapter_title": "Atoms", "table_id": "Ch 12", "section": "Science" },
-      { "chapter_title": "Nuclei", "table_id": "Ch 13", "section": "Science" },
-      { "chapter_title": "Semiconductor Electronics: Materials, Devices and Simple Circuits", "table_id": "Ch 14", "section": "Science" }
-    ]
-  },
-  "Chemistry": {
-    "Chemistry Part I": [
-      { "chapter_title": "The Solid State", "table_id": "Ch 1", "section": "Science" },
-      { "chapter_title": "Solutions", "table_id": "Ch 2", "section": "Science" },
-      { "chapter_title": "Electrochemistry", "table_id": "Ch 3", "section": "Science" },
-      { "chapter_title": "Chemical Kinetics", "table_id": "Ch 4", "section": "Science" },
-      { "chapter_title": "Surface Chemistry", "table_id": "Ch 5", "section": "Science" },
-      { "chapter_title": "General Principles and Processes of Isolation of Elements", "table_id": "Ch 6", "section": "Science" },
-      { "chapter_title": "The p-Block Elements", "table_id": "Ch 7", "section": "Science" },
-      { "chapter_title": "The d- and f-Block Elements", "table_id": "Ch 8", "section": "Science" },
-      { "chapter_title": "Coordination Compounds", "table_id": "Ch 9", "section": "Science" }
-    ],
-    "Chemistry Part II": [
-      { "chapter_title": "Haloalkanes and Haloarenes", "table_id": "Ch 10", "section": "Science" },
-      { "chapter_title": "Alcohols, Phenols and Ethers", "table_id": "Ch 11", "section": "Science" },
-      { "chapter_title": "Aldehydes, Ketones and Carboxylic Acids", "table_id": "Ch 12", "section": "Science" },
-      { "chapter_title": "Amines", "table_id": "Ch 13", "section": "Science" },
-      { "chapter_title": "Biomolecules", "table_id": "Ch 14", "section": "Science" },
-      { "chapter_title": "Polymers", "table_id": "Ch 15", "section": "Science" },
-      { "chapter_title": "Chemistry in Everyday Life", "table_id": "Ch 16", "section": "Science" }
-    ]
-  },
-  "Mathematics": {
-    "Mathematics Part I": [
-      { "chapter_title": "Relations and Functions", "table_id": "Ch 1", "section": "Science/Commerce" },
-      { "chapter_title": "Inverse Trigonometric Functions", "table_id": "Ch 2", "section": "Science/Commerce" },
-      { "chapter_title": "Matrices", "table_id": "Ch 3", "section": "Science/Commerce" },
-      { "chapter_title": "Determinants", "table_id": "Ch 4", "section": "Science/Commerce" },
-      { "chapter_title": "Continuity and Differentiability", "table_id": "Ch 5", "section": "Science/Commerce" },
-      { "chapter_title": "Applications of Derivatives", "table_id": "Ch 6", "section": "Science/Commerce" }
-    ],
-    "Mathematics Part II": [
-      { "chapter_title": "Integrals", "table_id": "Ch 7", "section": "Science/Commerce" },
-      { "chapter_title": "Applications of the Integrals", "table_id": "Ch 8", "section": "Science/Commerce" },
-      { "chapter_title": "Differential Equations", "table_id": "Ch 9", "secti
+    "Physics": {
+        "Physics Part I": [
+            {
+                "chapter_title": "Electric Charges and Fields",
+                "table_id": "Ch 1",
+                "section": "Science"
+            },
+            {
+                "chapter_title": "Electrostatic Potential and Capacitance",
+                "table_id": "Ch 2",
+                "section": "Science"
+            },
+            {
+                "chapter_title": "Current Electricity",
+                "table_id": "Ch 3",
+                "section": "Science"
+            },
+            {
+                "chapter_title": "Moving Charges and Magnetism",
+                "table_id": "Ch 4",
+                "section": "Science"
+            },
+            {
+                "chapter_title": "Magnetism and Matter",
+                "table_id": "Ch 5",
+                "section": "Science"
+            },
+            {
+                "chapter_title": "Electromagnetic Induction",
+                "table_id": "Ch 6",
+                "section": "Science"
+            },
+            {
+                "chapter_title": "Alternating Current",
+                "table_id": "Ch 7",
+                "section": "Science"
+            },
+            {
+                "chapter_title": "Electromagnetic Waves",
+                "table_id": "Ch 8",
+                "section": "Science"
+            }
+        ],
+        "Physics Part II": [
+            {
+                "chapter_title": "Ray Optics and Optical Instruments",
+                "table_id": "Ch 9",
+                "section": "Science"
+            },
+            {
+                "chapter_title": "Wave Optics",
+                "table_id": "Ch 10",
+                "section": "Science"
+            },
+            {
+                "chapter_title": "Dual Nature of Radiation and Matter",
+                "table_id": "Ch 11",
+                "section": "Science"
+            },
+            {
+                "chapter_title": "Atoms",
+                "table_id": "Ch 12",
+                "section": "Science"
+            },
+            {
+                "chapter_title": "Nuclei",
+                "table_id": "Ch 13",
+                "section": "Science"
+            },
+            {
+                "chapter_title": "Semiconductor Electronics: Materials, Devices and Simple Circuits",
+                "table_id": "Ch 14",
+                "section": "Science"
+            }
+        ]
+    },
+    "Chemistry": {
+        "Chemistry Part I": [
+            {
+                "chapter_title": "The Solid State",
+                "table_id": "Ch 1",
+                "section": "Science"
+            },
+            {
+                "chapter_title": "Solutions",
+                "table_id": "Ch 2",
+                "section": "Science"
+            },
+            {
+                "chapter_title": "Electrochemistry",
+                "table_id": "Ch 3",
+                "section": "Science"
+            },
+            {
+                "chapter_title": "Chemical Kinetics",
+                "table_id": "Ch 4",
+                "section": "Science"
+            },
+            {
+                "chapter_title": "Surface Chemistry",
+                "table_id": "Ch 5",
+                "section": "Science"
+            },
+            {
+                "chapter_title": "General Principles and Processes of Isolation of Elements",
+                "table_id": "Ch 6",
+                "section": "Science"
+            },
+            {
+                "chapter_title": "The p-Block Elements",
+                "table_id": "Ch 7",
+                "section": "Science"
+            },
+            {
+                "chapter_title": "The d- and f-Block Elements",
+                "table_id": "Ch 8",
+                "section": "Science"
+            },
+            {
+                "chapter_title": "Coordination Compounds",
+                "table_id": "Ch 9",
+                "section": "Science"
+            }
+        ],
+        "Chemistry Part II": [
+            {
+                "chapter_title": "Haloalkanes and Haloarenes",
+                "table_id": "Ch 10",
+                "section": "Science"
+            },
+            {
+                "chapter_title": "Alcohols, Phenols and Ethers",
+                "table_id": "Ch 11",
+                "section": "Science"
+            },
+            {
+                "chapter_title": "Aldehydes, Ketones and Carboxylic Acids",
+                "table_id": "Ch 12",
+                "section": "Science"
+            },
+            {
+                "chapter_title": "Amines",
+                "table_id": "Ch 13",
+                "section": "Science"
+            },
+            {
+                "chapter_title": "Biomolecules",
+                "table_id": "Ch 14",
+                "section": "Science"
+            },
+            {
+                "chapter_title": "Polymers",
+                "table_id": "Ch 15",
+                "section": "Science"
+            },
+            {
+                "chapter_title": "Chemistry in Everyday Life",
+                "table_id": "Ch 16",
+                "section": "Science"
+            }
+        ]
+    },
+    "Mathematics": {
+        "Mathematics Part I": [
+            {
+                "chapter_title": "Relations and Functions",
+                "table_id": "Ch 1",
+                "section": "Science/Commerce"
+            },
+            {
+                "chapter_title": "Inverse Trigonometric Functions",
+                "table_id": "Ch 2",
+                "section": "Science/Commerce"
+            },
+            {
+                "chapter_title": "Matrices",
+                "table_id": "Ch 3",
+                "section": "Science/Commerce"
+            },
+            {
+                "chapter_title": "Determinants",
+                "table_id": "Ch 4",
+                "section": "Science/Commerce"
+            },
+            {
+                "chapter_title": "Continuity and Differentiability",
+                "table_id": "Ch 5",
+                "section": "Science/Commerce"
+            },
+            {
+                "chapter_title": "Applications of Derivatives",
+                "table_id": "Ch 6",
+                "section": "Science/Commerce"
+            }
+        ],
+        "Mathematics Part II": [
+            {
+                "chapter_title": "Integrals",
+                "table_id": "Ch 7",
+                "section": "Science/Commerce"
+            },
+            {
+                "chapter_title": "Applications of the Integrals",
+                "table_id": "Ch 8",
+                "section": "Science/Commerce"
+            },
+            {
+                "chapter_title": "Differential Equations",
+                "table_id": "Ch 9",
+                "section": "Science/Commerce"
+            }
+        ]
+    }
+}
