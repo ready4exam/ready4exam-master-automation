@@ -1,19 +1,18 @@
-name: 🧠 Ready4Exam Single-Class Automation
+name: Create Class Repository
 
 on:
   workflow_dispatch:
     inputs:
-      CLASS:
-        description: "Enter class number (5–12)"
+      class:
+        description: "Class number to generate (e.g., 9, 11)"
         required: true
-        default: "11"
 
 jobs:
-  build-deploy:
+  create-class:
     runs-on: ubuntu-latest
 
     steps:
-      - name: 🧩 Checkout Repository
+      - name: ⬇️ Checkout repository
         uses: actions/checkout@v4
 
       - name: ⚙️ Setup Node.js
@@ -21,24 +20,23 @@ jobs:
         with:
           node-version: 20
 
-      - name: 🧹 Clean environment
-        run: |
-          rm -rf node_modules
-          npm cache clean --force
-
       - name: 📦 Install dependencies
         run: npm install
 
+      # 🆕 STEP ADDED — Always regenerate curriculum.js files before class creation
       - name: 🧠 Generate curriculum.js from JSON
-        run: node scripts/generateCurriculum.js
-        env:
-          CLASS: ${{ github.event.inputs.CLASS }}
+        run: node scripts/generateCurriculumJS.js
 
-      - name: 🚀 Create and Deploy Class Repo
+      - name: 🚀 Run Class Automation
         env:
-          CLASS: ${{ github.event.inputs.CLASS }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          FIREBASE_API_KEY_1112: ${{ secrets.FIREBASE_API_KEY_1112 }}
+          FIREBASE_APP_ID_1112: ${{ secrets.FIREBASE_APP_ID_1112 }}
+          FIREBASE_PROJECT_ID_1112: ${{ secrets.FIREBASE_PROJECT_ID_1112 }}
+          FIREBASE_AUTH_DOMAIN_1112: ${{ secrets.FIREBASE_AUTH_DOMAIN_1112 }}
           GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
-        run: node scripts/createClassRepo.js
+        run: node scripts/createClassRepo.js ${{ github.event.inputs.class }}
 
-      - name: ✅ Done
-        run: echo "🎉 Successfully built and deployed Class ${{ github.event.inputs.CLASS }} repo!"
+      - name: ✅ Workflow Complete
+        run: echo "🎉 Class repository automation complete for Class ${{ github.event.inputs.class }}"
