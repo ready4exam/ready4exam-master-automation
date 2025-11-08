@@ -1,13 +1,19 @@
-name: 🧠 Ready4Exam Multi-Class Automation
+name: 🧠 Ready4Exam Single-Class Automation
 
 on:
   workflow_dispatch:
+    inputs:
+      CLASS:
+        description: "Enter class number (5–12)"
+        required: true
+        default: "11"
 
 jobs:
   build-deploy:
     runs-on: ubuntu-latest
+
     steps:
-      - name: 🧩 Checkout repository
+      - name: 🧩 Checkout Repository
         uses: actions/checkout@v4
 
       - name: ⚙️ Setup Node.js
@@ -23,13 +29,16 @@ jobs:
       - name: 📦 Install dependencies
         run: npm install
 
-      - name: 🧠 Generate curriculum.js for all classes
+      - name: 🧠 Generate curriculum.js from JSON
         run: node scripts/generateCurriculumJS.js
-
-      - name: 🚀 Build & Push Repositories
         env:
+          CLASS: ${{ github.event.inputs.CLASS }}
+
+      - name: 🚀 Create and Deploy Class Repo
+        env:
+          CLASS: ${{ github.event.inputs.CLASS }}
           GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
         run: node scripts/createClassRepo.js
 
       - name: ✅ Done
-        run: echo "🎉 All class repositories updated successfully!"
+        run: echo "🎉 Successfully built and deployed Class ${{ github.event.inputs.CLASS }} repo!"
