@@ -9,21 +9,23 @@ import { getFirestore } from "https://www.gstatic.com/firebasejs/11.6.1/firebase
 
 const firebaseConfigs = {
   class9: {
-    apiKey: "FILL_CLASS9_API_KEY",
-    authDomain: "FILL_CLASS9_AUTH_DOMAIN",
-    projectId: "FILL_CLASS9_PROJECT_ID",
-    storageBucket: "FILL_CLASS9_STORAGE_BUCKET",
-    messagingSenderId: "FILL_CLASS9_MSG_ID",
-    appId: "FILL_CLASS9_APP_ID",
+    apiKey: "AIzaSyD_lVcPJMcj9p_p_I5RdJRqQzsi_-VL4Xk",
+    authDomain: "classnine-e8217.firebaseapp.com",
+    projectId: "classnine-e8217",
+    storageBucket: "classnine-e8217.firebasestorage.app",
+    messagingSenderId: "1001949713983",
+    appId: "1:1001949713983:web:92bb90dac63b9b4e2c8a8a",
+    measurementId: "G-4RKBW58LED"
   },
   class11: {
-    apiKey: "FILL_CLASS11_API_KEY",
-    authDomain: "FILL_CLASS11_AUTH_DOMAIN",
-    projectId: "FILL_CLASS11_PROJECT_ID",
-    storageBucket: "FILL_CLASS11_STORAGE_BUCKET",
-    messagingSenderId: "FILL_CLASS11_MSG_ID",
-    appId: "FILL_CLASS11_APP_ID",
-  },
+    apiKey: "AIzaSyCFkuTUao-HGQhX438cVOUvUiS3kT2m7Os",
+    authDomain: "eleventhexam-f0fab.firebaseapp.com",
+    projectId: "eleventhexam-f0fab",
+    storageBucket: "eleventhexam-f0fab.firebasestorage.app",
+    messagingSenderId: "192315627607",
+    appId: "1:192315627607:web:9f2e2794dc42aaa3352b12",
+    measurementId: "G-3GXX6VXYT1"
+  }
 };
 
 let currentClassId = "class9";
