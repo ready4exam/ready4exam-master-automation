@@ -1,4 +1,4 @@
-// -------------------- /api/_cors.js --------------------
+// -------------------- /api/_cors.js -------------------
 // ✅ Universal CORS helper for both Edge & Node runtimes
 // Fully Vercel-compatible (no runtime build errors)
 
