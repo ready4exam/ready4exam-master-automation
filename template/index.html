@@ -3,13 +3,13 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Ready4Exam — Class Portal</title>
+  <title>Ready4Exam — Academic Portal</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
       theme: {
         extend: {
-          fontFamily: { sans: ['Inter', 'sans-serif'] },
+          fontFamily: { sans: ['Inter', 'sans-serif'], serif: ['Merriweather', 'serif'] },
           colors: {
             'cbse-blue': '#1a3e6a',
             'cbse-light': '#f5f7fa',
@@ -38,66 +38,56 @@
     .btn-dyn { background:#1a3e6a; color:white; padding:.5rem 1rem; border-radius:.6rem; font-weight:600; }
   </style>
 </head>
-<body class="bg-cbse-light min-h-screen flex flex-col">
 
+<body class="bg-cbse-light min-h-screen flex flex-col">
   <header class="bg-cbse-blue shadow-lg">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
       <h1 class="text-2xl font-extrabold text-accent-gold tracking-wider">
         Ready4<span class="text-white">Exam</span> Portal
       </h1>
-      <nav id="auth-nav-container">
-        <button id="login-btn" class="px-4 py-2 text-sm font-semibold rounded-lg bg-white text-cbse-blue hover:bg-gray-100 transition">
-          Sign In
-        </button>
-      </nav>
+      <button id="signin-btn" class="px-4 py-2 text-sm font-semibold rounded-lg bg-white text-cbse-blue hover:bg-gray-100 transition">Sign In</button>
     </div>
   </header>
 
   <main id="main-area" class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-    
-    <!-- Classic Index for Class ≤10 -->
+
+    <!-- CLASSIC (5–10) -->
     <section id="classic-index">
       <header class="text-center mb-12">
         <h2 id="classic-title" class="text-4xl font-extrabold text-heading mb-2">CBSE Class 9 Syllabus</h2>
         <p class="text-lg text-gray-600">Select a Subject to begin your chapter-wise practice quizzes.</p>
       </header>
-
       <div id="classic-grid" class="grid grid-cols-1 md:grid-cols-3 gap-8">
-        <a href="chapter-selection.html?subject=Science" class="subject-card" data-subject="Science">
+        <a href="chapter-selection.html" data-subject="Science" class="subject-card">
           <div class="card-header"><i data-lucide="flask-conical" class="text-green-700 h-8 w-8"></i><h3 class="card-title">Science</h3></div>
           <p class="card-description">Physics, Chemistry, and Biology — Core concepts from Motion to Sound, and the structure of life.</p>
           <div class="mt-6 text-center"><button class="card-button science">Start Learning</button></div>
         </a>
-
-        <a href="chapter-selection.html?subject=Social_Science" class="subject-card" data-subject="Social_Science">
+        <a href="chapter-selection.html" data-subject="Social_Science" class="subject-card">
           <div class="card-header"><i data-lucide="landmark" class="text-red-700 h-8 w-8"></i><h3 class="card-title">Social Science</h3></div>
-          <p class="card-description">History, Geography, Political Science, and Economics — understanding our society and world.</p>
+          <p class="card-description">History, Geography, Political Science, and Economics — comprehending our world.</p>
           <div class="mt-6 text-center"><button class="card-button social">Start Learning</button></div>
         </a>
-
-        <a href="chapter-selection.html?subject=Mathematics" class="subject-card" data-subject="Mathematics">
+        <a href="chapter-selection.html" data-subject="Mathematics" class="subject-card">
           <div class="card-header"><i data-lucide="atom" class="text-purple-700 h-8 w-8"></i><h3 class="card-title">Mathematics</h3></div>
-          <p class="card-description">Number Systems, Polynomials, Geometry, and Heron's Formula — strong conceptual base.</p>
+          <p class="card-description">Number Systems, Polynomials, Geometry, and Heron’s Formula — a strong foundation.</p>
           <div class="mt-6 text-center"><button class="card-button math">Start Learning</button></div>
         </a>
-
-        <a href="chapter-selection.html?subject=English" class="subject-card" data-subject="English">
+        <a href="chapter-selection.html" data-subject="English" class="subject-card">
           <div class="card-header"><i data-lucide="book" class="text-yellow-700 h-8 w-8"></i><h3 class="card-title">English</h3></div>
-          <p class="card-description">Literature, Grammar, and Composition practice.</p>
+          <p class="card-description">Practice Literature, Grammar, and Composition topics.</p>
           <div class="mt-6 text-center"><button class="card-button" style="background:#ffc300;color:#1a3e6a;">Start Learning</button></div>
         </a>
       </div>
     </section>
 
-    <!-- Stream Index for Class ≥11 -->
+    <!-- STREAM (11–12) -->
     <section id="stream-index" class="hidden">
       <div class="text-center mb-10">
         <h2 class="text-4xl font-extrabold text-heading mb-2">CBSE Senior Secondary Streams</h2>
         <p class="text-lg text-gray-600">Select your stream to explore all subjects and NCERT books.</p>
       </div>
-
       <div id="stream-container" class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-10"></div>
-
       <div id="subject-container" class="hidden">
         <h3 id="subject-header" class="text-2xl font-bold text-cbse-blue mb-6 text-center"></h3>
         <div id="subject-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8"></div>
@@ -111,30 +101,34 @@
 
   <script type="module">
     import { curriculum } from "./js/curriculum.js";
-    const selectedClass = Number(localStorage.getItem("selectedClass") || 9);
+
+    // --- Detect class automatically ---
+    const match = window.location.hostname.match(/(\d{1,2})$/);
+    const classNum = match ? Number(match[1]) : 9;
 
     const classic = document.getElementById("classic-index");
-    const streamIndex = document.getElementById("stream-index");
+    const stream = document.getElementById("stream-index");
     const streamContainer = document.getElementById("stream-container");
     const subjectContainer = document.getElementById("subject-container");
     const subjectHeader = document.getElementById("subject-header");
     const subjectGrid = document.getElementById("subject-grid");
 
-    // Classic view for ≤10
-    if (selectedClass <= 10) {
+    if (classNum <= 10) {
       classic.classList.remove("hidden");
-      streamIndex.classList.add("hidden");
+      stream.classList.add("hidden");
       lucide.createIcons();
-      document.querySelectorAll(".subject-card").forEach(card => {
+
+      document.querySelectorAll("[data-subject]").forEach(card => {
         card.addEventListener("click", e => {
           const subject = card.getAttribute("data-subject");
-          localStorage.setItem("selectedSubject", subject);
-          localStorage.setItem("selectedClass", selectedClass);
+          sessionStorage.setItem("selectedClass", classNum);
+          sessionStorage.setItem("selectedSubject", subject);
         });
       });
+
     } else {
       classic.classList.add("hidden");
-      streamIndex.classList.remove("hidden");
+      stream.classList.remove("hidden");
       renderStreams();
     }
 
@@ -146,13 +140,13 @@
         { name: "Humanities", desc: "History, Geography, Political Science, Sociology, Psychology" }
       ];
       streams.forEach(s => {
-        const div = document.createElement("div");
-        div.className = "card-dyn";
-        div.innerHTML = `<h3 class='text-xl font-bold text-cbse-blue mb-2'>${s.name}</h3>
-                         <p class='text-gray-600 mb-4'>${s.desc}</p>
-                         <button class='btn-dyn'>Explore ${s.name}</button>`;
-        div.onclick = () => renderSubjects(s.name);
-        streamContainer.appendChild(div);
+        const card = document.createElement("div");
+        card.className = "card-dyn";
+        card.innerHTML = `<h3 class='text-xl font-bold text-cbse-blue mb-2'>${s.name}</h3>
+                          <p class='text-gray-600 mb-4'>${s.desc}</p>
+                          <button class='btn-dyn'>Explore ${s.name}</button>`;
+        card.onclick = () => renderSubjects(s.name);
+        streamContainer.appendChild(card);
       });
     }
 
@@ -168,17 +162,17 @@
 
       streamSubjects.forEach(sub => {
         if (!curriculum[sub]) return;
-        const card = document.createElement("div");
-        card.className = "subject-card cursor-pointer";
-        card.innerHTML = `<div class='card-header'><h3 class='card-title'>${sub}</h3></div>
-                          <p class='card-description'>Explore NCERT books and chapters for ${sub}.</p>`;
-        card.onclick = () => {
-          localStorage.setItem("selectedStream", stream);
-          localStorage.setItem("selectedSubject", sub);
-          localStorage.setItem("selectedClass", selectedClass);
+        const div = document.createElement("div");
+        div.className = "subject-card cursor-pointer";
+        div.innerHTML = `<div class='card-header'><h3 class='card-title'>${sub}</h3></div>
+                         <p class='card-description'>Explore NCERT books and chapters for ${sub}.</p>`;
+        div.onclick = () => {
+          sessionStorage.setItem("selectedStream", stream);
+          sessionStorage.setItem("selectedSubject", sub);
+          sessionStorage.setItem("selectedClass", classNum);
           window.location.href = "chapter-selection.html";
         };
-        subjectGrid.appendChild(card);
+        subjectGrid.appendChild(div);
       });
       subjectContainer.scrollIntoView({ behavior: "smooth" });
     }
