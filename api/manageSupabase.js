@@ -1,4 +1,4 @@
-// -------------------- /api/manageSupabase.js --------------------
+// -------------------- /api/manageSupabase.js -------------------
 import { createClient } from "@supabase/supabase-js";
 import { corsHeaders } from "./_cors.js";
 
