@@ -1,1 +1,240 @@
-//static_curriculum/class9/curriculum.js
+{
+  "Science": {
+    "Science Textbook for Class IX": [
+      {
+        "chapter_title": "Matter in Our Surroundings",
+        "table_id": "Ch 1",
+        "section": "Compulsory"
+      },
+      {
+        "chapter_title": "Is Matter Around Us Pure?",
+        "table_id": "Ch 2",
+        "section": "Compulsory"
+      },
+      {
+        "chapter_title": "Atoms and Molecules",
+        "table_id": "Ch 3",
+        "section": "Compulsory"
+      },
+      {
+        "chapter_title": "Structure of the Atom",
+        "table_id": "Ch 4",
+        "section": "Compulsory"
+      },
+      {
+        "chapter_title": "The Fundamental Unit of Life",
+        "table_id": "Ch 5",
+        "section": "Compulsory"
+      },
+      {
+        "chapter_title": "Tissues",
+        "table_id": "Ch 6",
+        "section": "Compulsory"
+      },
+      {
+        "chapter_title": "Motion",
+        "table_id": "Ch 7",
+        "section": "Compulsory"
+      },
+      {
+        "chapter_title": "Force and Laws of Motion",
+        "table_id": "Ch 8",
+        "section": "Compulsory"
+      },
+      {
+        "chapter_title": "Gravitation",
+        "table_id": "Ch 9",
+        "section": "Compulsory"
+      },
+      {
+        "chapter_title": "Work and Energy",
+        "table_id": "Ch 10",
+        "section": "Compulsory"
+      },
+      {
+        "chapter_title": "Sound",
+        "table_id": "Ch 11",
+        "section": "Compulsory"
+      },
+      {
+        "chapter_title": "Improvement in Food Resources",
+        "table_id": "Ch 12",
+        "section": "Compulsory"
+      }
+    ]
+  },
+  "Mathematics": {
+    "Mathematics Textbook for Class IX": [
+      {
+        "chapter_title": "Number Systems",
+        "table_id": "Ch 1",
+        "section": "Compulsory"
+      },
+      {
+        "chapter_title": "Polynomials",
+        "table_id": "Ch 2",
+        "section": "Compulsory"
+      },
+      {
+        "chapter_title": "Coordinate Geometry",
+        "table_id": "Ch 3",
+        "section": "Compulsory"
+      },
+      {
+        "chapter_title": "Linear Equations in Two Variables",
+        "table_id": "Ch 4",
+        "section": "Compulsory"
+      },
+      {
+        "chapter_title": "Lines and Angles",
+        "table_id": "Ch 5",
+        "section": "Compulsory"
+      },
+      {
+        "chapter_title": "Triangles",
+        "table_id": "Ch 6",
+        "section": "Compulsory"
+      },
+      {
+        "chapter_title": "Quadrilaterals",
+        "table_id": "Ch 7",
+        "section": "Compulsory"
+      },
+      {
+        "chapter_title": "Circles",
+        "table_id": "Ch 8",
+        "section": "Compulsory"
+      },
+      {
+        "chapter_title": "Constructions",
+        "table_id": "Ch 9",
+        "section": "Compulsory"
+      },
+      {
+        "chapter_title": "Heron's Formula",
+        "table_id": "Ch 10",
+        "section": "Compulsory"
+      },
+      {
+        "chapter_title": "Surface Areas and Volumes",
+        "table_id": "Ch 11",
+        "section": "Compulsory"
+      },
+      {
+        "chapter_title": "Statistics",
+        "table_id": "Ch 12",
+        "section": "Compulsory"
+      }
+    ]
+  },
+  "Social Science": {
+    "India and the Contemporary World - I (History)": [
+      {
+        "chapter_title": "The French Revolution",
+        "table_id": "Ch 1",
+        "section": "Compulsory"
+      },
+      {
+        "chapter_title": "Socialism in Europe and the Russian Revolution",
+        "table_id": "Ch 2",
+        "section": "Compulsory"
+      },
+      {
+        "chapter_title": "Nazism and the Rise of Hitler",
+        "table_id": "Ch 3",
+        "section": "Compulsory"
+      },
+      {
+        "chapter_title": "Forest Society and Colonialism",
+        "table_id": "Ch 4",
+        "section": "Compulsory"
+      },
+      {
+        "chapter_title": "Pastoralists in the Modern World",
+        "table_id": "Ch 5",
+        "section": "Compulsory"
+      }
+    ],
+    "Contemporary India - I (Geography)": [
+      {
+        "chapter_title": "India - Size and Location",
+        "table_id": "Ch 1",
+        "section": "Compulsory"
+      },
+      {
+        "chapter_title": "Physical Features of India",
+        "table_id": "Ch 2",
+        "section": "Compulsory"
+      },
+      {
+        "chapter_title": "Drainage",
+        "table_id": "Ch 3",
+        "section": "Compulsory"
+      },
+      {
+        "chapter_title": "Climate",
+        "table_id": "Ch 4",
+        "section": "Compulsory"
+      },
+      {
+        "chapter_title": "Natural Vegetation and Wild Life",
+        "table_id": "Ch 5",
+        "section": "Compulsory"
+      },
+      {
+        "chapter_title": "Population",
+        "table_id": "Ch 6",
+        "section": "Compulsory"
+      }
+    ],
+    "Democratic Politics - I (Political Science)": [
+      {
+        "chapter_title": "What is Democracy? Why Democracy?",
+        "table_id": "Ch 1",
+        "section": "Compulsory"
+      },
+      {
+        "chapter_title": "Constitutional Design",
+        "table_id": "Ch 2",
+        "section": "Compulsory"
+      },
+      {
+        "chapter_title": "Electoral Politics",
+        "table_id": "Ch 3",
+        "section": "Compulsory"
+      },
+      {
+        "chapter_title": "Working of Institutions",
+        "table_id": "Ch 4",
+        "section": "Compulsory"
+      },
+      {
+        "chapter_title": "Democratic Rights",
+        "table_id": "Ch 5",
+        "section": "Compulsory"
+      }
+    ],
+    "Economics (Economics)": [
+      {
+        "chapter_title": "The Story of Village Palampur",
+        "table_id": "Ch 1",
+        "section": "Compulsory"
+      },
+      {
+        "chapter_title": "People as Resource",
+        "table_id": "Ch 2",
+        "section": "Compulsory"
+      },
+      {
+        "chapter_title": "Poverty as a Challenge",
+        "table_id": "Ch 3",
+        "section": "Compulsory"
+      },
+      {
+        "chapter_title": "Food Security in India",
+        "table_id": "Ch 4",
+        "section": "Compulsory"
+      }
+    ]
+  }
+}
