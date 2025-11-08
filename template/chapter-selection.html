@@ -1,20 +1,21 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
-  <title>Select Chapter & Difficulty</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    body{font-family:'Inter',sans-serif;}
-    .topic-btn{display:block;width:100%;text-align:left;padding:1rem;border:1px solid #d1d5db;border-radius:.75rem;background:white;box-shadow:0 2px 6px rgba(2,6,23,.05);margin-bottom:.75rem;cursor:pointer;transition:.2s;}
-    .topic-btn:hover{background:#f5f7fa;}
-    .topic-btn.selected{border-color:#1a3e6a;background:#eff6ff;}
-  </style>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Select Book & Chapter</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+body{font-family:'Inter',sans-serif;}
+.topic-btn{display:block;width:100%;text-align:left;padding:1rem;border:1px solid #d1d5db;border-radius:.75rem;background:white;margin-bottom:.75rem;cursor:pointer;transition:.2s;}
+.topic-btn:hover{background:#f5f7fa;}
+.topic-btn.selected{border-color:#1a3e6a;background:#eff6ff;}
+</style>
 </head>
+
 <body class="bg-cbse-light min-h-screen flex flex-col">
 <header class="bg-cbse-blue shadow-lg">
-  <div class="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
+  <div class="max-w-6xl mx-auto px-6 py-4 flex justify-between items-center">
     <h1 class="text-2xl font-extrabold text-accent-gold">Ready4<span class="text-white">Exam</span></h1>
     <button onclick="window.location.href='index.html'" class="text-white text-sm underline">← Back</button>
   </div>
@@ -24,17 +25,15 @@
   <h2 id="page-title" class="text-3xl font-extrabold text-cbse-blue mb-8 text-center">Select Book / Chapter</h2>
   <div id="content" class="space-y-5 mb-10"></div>
 
-  <div id="difficulty-container" class="hidden mb-10 text-center">
-    <h3 class="text-2xl font-bold text-cbse-blue mb-4">Select Quiz Difficulty</h3>
-    <div class="flex flex-wrap justify-center gap-4">
-      <button data-diff="simple" class="difficulty-btn bg-green-600 text-white px-4 py-2 rounded-lg">Simple</button>
-      <button data-diff="medium" class="difficulty-btn bg-yellow-500 text-white px-4 py-2 rounded-lg">Medium</button>
-      <button data-diff="advanced" class="difficulty-btn bg-red-600 text-white px-4 py-2 rounded-lg">Advanced</button>
-    </div>
+  <div id="difficulty" class="hidden text-center">
+    <h3 class="text-2xl font-bold text-cbse-blue mb-4">Select Difficulty</h3>
+    <button data-diff="simple" class="bg-green-600 text-white px-4 py-2 rounded-lg m-2">Simple</button>
+    <button data-diff="medium" class="bg-yellow-500 text-white px-4 py-2 rounded-lg m-2">Medium</button>
+    <button data-diff="advanced" class="bg-red-600 text-white px-4 py-2 rounded-lg m-2">Advanced</button>
   </div>
 
-  <div class="text-center">
-    <button id="start-quiz" disabled class="px-8 py-3 bg-cbse-blue text-white rounded-lg font-bold hover:bg-blue-700 transition disabled:opacity-50">Start Quiz</button>
+  <div class="text-center mt-8">
+    <button id="start" disabled class="px-8 py-3 bg-cbse-blue text-white rounded-lg font-bold hover:bg-blue-700 transition disabled:opacity-50">Start Quiz</button>
   </div>
 </main>
 
@@ -45,36 +44,20 @@
 <script type="module">
 import { curriculum } from "./js/curriculum.js";
 
-const cls = Number(sessionStorage.getItem("selectedClass")) || 9;
-const subject = sessionStorage.getItem("selectedSubject");
-const stream = sessionStorage.getItem("selectedStream") || "";
-const content = document.getElementById("content");
-const diffContainer = document.getElementById("difficulty-container");
-const startBtn = document.getElementById("start-quiz");
+const subject=sessionStorage.getItem("selectedSubject");
+const content=document.getElementById("content");
+const diffBlock=document.getElementById("difficulty");
+const startBtn=document.getElementById("start");
 
-let selectedChapter=null, selectedBook=null, selectedDiff=null;
+let selectedBook=null,selectedChapter=null,selectedDiff=null;
 
-function renderClassic() {
-  const chapters = curriculum[cls]?.[subject] || curriculum[subject] || [];
-  content.innerHTML="";
-  if(!chapters.length){content.innerHTML=`<p class='text-gray-600'>No chapters found.</p>`;return;}
-  chapters.forEach(ch=>{
-    const name = ch.chapter_title||ch.title||ch;
-    const btn=document.createElement("button");
-    btn.className="topic-btn";
-    btn.textContent=name;
-    btn.onclick=e=>selectChapter(name,e.currentTarget);
-    content.appendChild(btn);
-  });
-}
-
-function renderBooks() {
-  const books = curriculum[subject];
-  if(!books || typeof books!=="object"){content.innerHTML=`<p>No books found.</p>`;return;}
+function renderBooks(){
+  const books=curriculum[subject];
+  if(!books){content.innerHTML="<p>No books found.</p>";return;}
   content.innerHTML="";
   Object.keys(books).forEach(book=>{
     const btn=document.createElement("button");
-    btn.className="topic-btn font-bold";
+    btn.className="topic-btn font-semibold";
     btn.textContent=book;
     btn.onclick=()=>renderChapters(book);
     content.appendChild(btn);
@@ -83,8 +66,8 @@ function renderBooks() {
 
 function renderChapters(book){
   selectedBook=book;
+  const chapters=curriculum[subject][book]||[];
   content.innerHTML="";
-  const chapters=curriculum[subject][book];
   chapters.forEach(ch=>{
     const name=ch.chapter_title||ch.title||ch;
     const btn=document.createElement("button");
@@ -95,17 +78,17 @@ function renderChapters(book){
   });
 }
 
-function selectChapter(ch,el){
+function selectChapter(name,el){
   document.querySelectorAll(".topic-btn").forEach(b=>b.classList.remove("selected"));
   el.classList.add("selected");
-  selectedChapter=ch;
-  diffContainer.classList.remove("hidden");
+  selectedChapter=name;
+  diffBlock.classList.remove("hidden");
   startBtn.disabled=true;
 }
 
-document.querySelectorAll(".difficulty-btn").forEach(btn=>{
-  btn.addEventListener("click",e=>{
-    document.querySelectorAll(".difficulty-btn").forEach(b=>b.classList.remove("selected"));
+document.querySelectorAll("[data-diff]").forEach(b=>{
+  b.addEventListener("click",e=>{
+    document.querySelectorAll("[data-diff]").forEach(x=>x.classList.remove("selected"));
     e.target.classList.add("selected");
     selectedDiff=e.target.dataset.diff;
     startBtn.disabled=!selectedChapter;
@@ -115,12 +98,12 @@ document.querySelectorAll(".difficulty-btn").forEach(btn=>{
 startBtn.onclick=()=>{
   if(!selectedChapter||!selectedDiff)return;
   sessionStorage.setItem("selectedChapter",selectedChapter);
+  sessionStorage.setItem("selectedBook",selectedBook);
   sessionStorage.setItem("selectedDifficulty",selectedDiff);
-  sessionStorage.setItem("selectedBook",selectedBook||"");
   window.location.href="quiz-engine.html";
 };
 
-if(cls<=10) renderClassic(); else renderBooks();
+renderBooks();
 </script>
 </body>
 </html>
