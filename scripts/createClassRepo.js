@@ -1,85 +1,56 @@
 // scripts/createClassRepo.js
 import fs from "fs";
 import path from "path";
-import { fileURLToPath } from "url";
-import simpleGit from "simple-git";
+import { execSync } from "child_process";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const baseDir = process.cwd();
+const classes = [5, 6, 7, 8, 9, 10, 11, 12];
+const templateDir = path.join(baseDir, "template");
+const tempRepoBase = path.join(baseDir, "temp_repo");
 
-const cls = process.env.CLASS || "11";
-const repoPath = path.join(__dirname, `../temp_repo/class${cls}`);
-const staticFile = path.join(process.cwd(), "static_curriculum", `class${cls}`, "curriculum.js`);
-const templatePath = path.join(process.cwd(), "template");
+console.log("⚙️ Starting Ready4Exam Automation for Classes 5–12...");
 
-console.log(`⚙️ Running createClassRepo.js for class=${cls}`);
-console.log(`📂 Repo Path: ${repoPath}`);
-console.log(`📘 Static Curriculum File: ${staticFile}`);
-console.log(`📁 Template Source: ${templatePath}`);
-
-// Step 1: Validation
-if (!fs.existsSync(staticFile)) {
-  console.error(`❌ curriculum.js not found at: ${staticFile}`);
-  process.exit(1);
-}
-if (!fs.existsSync(repoPath)) {
-  console.error(`❌ Repo not found: ${repoPath}`);
-  process.exit(1);
-}
-if (!fs.existsSync(templatePath)) {
-  console.error(`❌ Template folder missing in master-automation.`);
-  process.exit(1);
-}
-
-// Step 2: Copy the full template structure safely
-function copyRecursive(src, dest) {
-  if (!fs.existsSync(dest)) fs.mkdirSync(dest, { recursive: true });
-
-  for (const file of fs.readdirSync(src)) {
-    const srcPath = path.join(src, file);
-    const destPath = path.join(dest, file);
-    const stat = fs.statSync(srcPath);
-
-    if (stat.isDirectory()) {
-      copyRecursive(srcPath, destPath);
-    } else {
-      fs.copyFileSync(srcPath, destPath);
-    }
-  }
-}
-
-console.log("📦 Copying frontend template...");
-copyRecursive(templatePath, repoPath);
-
-// Step 3: Overwrite curriculum.js with static version
-const jsDir = path.join(repoPath, "js");
-if (!fs.existsSync(jsDir)) fs.mkdirSync(jsDir, { recursive: true });
-
-const targetFile = path.join(jsDir, "curriculum.js");
-fs.copyFileSync(staticFile, targetFile);
-console.log(`✅ curriculum.js successfully copied from static_curriculum/class${cls}/`);
-console.log(`📘 curriculum.js created at: ${targetFile}`);
-
-// Step 4: Update class name dynamically in index.html
-const indexFile = path.join(repoPath, "index.html");
-if (fs.existsSync(indexFile)) {
-  let html = fs.readFileSync(indexFile, "utf8");
-  html = html.replace(/Class\s+\d+/g, `Class ${cls}`);
-  fs.writeFileSync(indexFile, html, "utf8");
-  console.log(`📝 Updated index.html with Class ${cls}`);
-}
-
-// Step 5: Commit and Push
-const git = simpleGit(repoPath);
-
-(async () => {
+for (const cls of classes) {
   try {
-    await git.add(".");
-    await git.commit(`✨ Automated build for Class ${cls}`);
-    await git.push("origin", "main");
-    console.log(`🚀 Successfully deployed: ready4exam-${cls}`);
+    console.log(`\n🚀 Building repo for Class ${cls}`);
+
+    const tempRepoDir = path.join(tempRepoBase, `class${cls}`);
+    const jsDir = path.join(tempRepoDir, "js");
+    const curriculumSrc = path.join(baseDir, "temp_repo", `class${cls}`, "js", "curriculum.js");
+
+    if (!fs.existsSync(curriculumSrc)) {
+      console.warn(`⚠️ curriculum.js missing for Class ${cls}, skipping...`);
+      continue;
+    }
+
+    // Copy template to temp_repo
+    fs.cpSync(templateDir, tempRepoDir, { recursive: true });
+    fs.mkdirSync(jsDir, { recursive: true });
+
+    // Copy curriculum.js
+    fs.copyFileSync(curriculumSrc, path.join(jsDir, "curriculum.js"));
+    console.log(`✅ Template and curriculum.js prepared for Class ${cls}`);
+
+    // Initialize git repo and push
+    execSync(`git init`, { cwd: tempRepoDir });
+    execSync(`git config user.name "ready4exam-bot"`, { cwd: tempRepoDir });
+    execSync(`git config user.email "automation@ready4exam.org"`, { cwd: tempRepoDir });
+
+    execSync(`git add .`, { cwd: tempRepoDir });
+    execSync(`git commit -m "Auto-generated Ready4Exam Class ${cls}"`, { cwd: tempRepoDir });
+
+    const remoteUrl = `https://github.com/ready4exam/ready4exam-${cls}.git`;
+    execSync(`git remote add origin ${remoteUrl}`, { cwd: tempRepoDir });
+
+    try {
+      execSync(`git branch -M main`, { cwd: tempRepoDir });
+    } catch (e) {}
+
+    execSync(`git push -f origin main`, { cwd: tempRepoDir });
+    console.log(`✅ Successfully pushed Class ${cls} repository.`);
   } catch (err) {
-    console.error("⚠️ Git push failed:", err.message);
-    process.exit(1);
+    console.error(`❌ Error building Class ${cls}:`, err.message);
   }
-})();
+}
+
+console.log("🏁 All class repositories processed successfully!");
