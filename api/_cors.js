@@ -1,9 +1,7 @@
-// /api/_cors.js
-// ✅ Updated universal CORS handler
-// Works for both Automation 1 (Gemini) & Automation 2 (Supabase + Curriculum)
+// -------------------- /api/_cors.js --------------------
+// ✅ Universal CORS helper for both Edge & Node runtimes
 
-export default function handler(req, res) {
-  // --- Allow specific trusted origins ---
+export function getCorsHeaders(origin = "") {
   const allowedOrigins = [
     "https://tableautomation-5iuc.vercel.app",
     "https://ready4exam.github.io",
@@ -11,28 +9,22 @@ export default function handler(req, res) {
     "http://127.0.0.1:5500"
   ];
 
-  const origin = req.headers.origin;
-  if (allowedOrigins.includes(origin)) {
-    res.setHeader("Access-Control-Allow-Origin", origin);
-  } else {
-    // Default fallback — useful during early testing
-    res.setHeader("Access-Control-Allow-Origin", "*");
+  const allowOrigin = allowedOrigins.includes(origin) ? origin : "*";
+
+  return {
+    "Access-Control-Allow-Origin": allowOrigin,
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization"
+  };
+}
+
+// ✅ Optional: Node.js–style handler for manual testing or preflight debugging
+export default function handler(req, res) {
+  const origin = req.headers.origin || "*";
+  const headers = getCorsHeaders(origin);
+  for (const [key, value] of Object.entries(headers)) {
+    res.setHeader(key, value);
   }
-
-  // --- Allow required methods & headers ---
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
-
-  // --- Handle preflight (OPTIONS) requests immediately ---
-  if (req.method === "OPTIONS") {
-    res.status(200).end();
-    return;
-  }
-
-  // --- Response for direct access (optional debug) ---
-  res.status(200).json({
-    ok: true,
-    message: "✅ CORS preflight handled successfully.",
-    origin: origin || "unknown",
-  });
+  if (req.method === "OPTIONS") return res.status(200).end();
+  res.status(200).json({ ok: true, message: "CORS preflight handled." });
 }
