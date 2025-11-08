@@ -10,7 +10,7 @@ export function getCorsHeaders(origin = "") {
   ];
 
   const allowOrigin = allowedOrigins.includes(origin) ? origin : "*";
-
+ 
   return {
     "Access-Control-Allow-Origin": allowOrigin,
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
