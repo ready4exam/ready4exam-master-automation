@@ -1,71 +1,84 @@
-// class-switcher-wiring.js
-// Wires the class selector UI to your config + auth initialization
+// js/class-switcher-wiring.js
 // -----------------------------------------------------------------------------
-// Expects:
-// - initializeServices(classId) exported from js/config.js
-// - initializeAuthListener(callback) exported from js/auth-paywall.js
-// - An existing <select id="class-select"> in the DOM
+// Handles class switching and Firebase initialization across pages
+// Works with firebaseSwitcher.js and config.js
 // -----------------------------------------------------------------------------
 
 import { initializeServices } from "./config.js";
-import { initializeAuthListener } from "./auth-paywall.js";
+import { switchFirebaseProject } from "./firebaseSwitcher.js";
 
 const LOG = "[CLASS-SWITCHER]";
+let currentClass = null;
 
 /**
- * Initialize everything for the given classId:
- *  - initializeServices(classId) sets firebase (via switcher) and supabase
- *  - initializeAuthListener() attaches auth state listener for the selected firebase auth
+ * Initialize class switcher and load services.
  */
-async function initForClass(classId) {
+export async function initializeClassSwitcher() {
   try {
-    console.log(LOG, "Initializing services for", classId);
-    // initializeServices will switch firebase project when classId provided
-    await initializeServices(classId);
+    // ✅ Load saved class from localStorage or default to Class 11
+    const savedClass = localStorage.getItem("selectedClass") || "class11";
+    currentClass = savedClass;
 
-    // initializeAuthListener attaches onAuthStateChanged on the current auth instance
-    // pass a callback for optional local handling (we just re-dispatch the event)
-    await initializeAuthListener((user) => {
-      // auth-paywall already triggers auth change events; this callback is a hook if needed
-      window.dispatchEvent(new CustomEvent("r4e:auth-init", { detail: { user, classId } }));
-    });
+    console.log(`${LOG} Initializing services for ${currentClass}`);
+    await initializeServices(currentClass);
 
-    // Dispatch a class-changed event for other modules
-    window.dispatchEvent(new CustomEvent("r4e:class-changed", { detail: { classId } }));
-    console.log(LOG, "Initialization complete for", classId);
+    // ✅ Set dropdown default value if exists in DOM
+    const dropdown = document.getElementById("class-select-dropdown");
+    if (dropdown) {
+      dropdown.value = currentClass;
+      dropdown.addEventListener("change", (e) => {
+        handleClassChange(e.target.value);
+      });
+    }
+
+    console.log(`${LOG} Initialization complete for ${currentClass}`);
   } catch (err) {
-    console.error(LOG, "Failed to init for", classId, err);
+    console.error(`${LOG} Initialization failed:`, err);
   }
 }
 
-/* DOM wiring */
-function wireSelector() {
-  const classSelect = document.getElementById("class-select");
-  if (!classSelect) {
-    console.warn(LOG, "No #class-select element found in DOM. Skipping selector wiring.");
-    return;
-  }
+/**
+ * Handle class change via dropdown or UI selection
+ */
+export async function handleClassChange(newClassId) {
+  try {
+    if (newClassId === currentClass) return; // avoid redundant re-init
 
-  // On change: re-init services + auth listener
-  classSelect.addEventListener("change", async (ev) => {
-    const newClass = ev.target.value;
-    console.log(LOG, "Class changed to", newClass);
-    // initializeServices + auth listener for the new class
-    await initForClass(newClass);
-  });
+    console.log(`${LOG} Class changed to ${newClassId}`);
+    localStorage.setItem("selectedClass", newClassId);
+    currentClass = newClassId;
 
-  // Initialize for the currently selected option on load
-  const initial = classSelect.value || "class9";
-  // Defer to DOMContentLoaded completion if necessary
-  if (document.readyState === "loading") {
-    window.addEventListener("DOMContentLoaded", () => initForClass(initial));
-  } else {
-    initForClass(initial);
+    // ✅ Switch Firebase project context for the new class
+    switchFirebaseProject(newClassId);
+
+    // ✅ Reinitialize dependent services for the new class
+    await initializeServices(newClassId);
+
+    // ✅ Optionally reload page to fully refresh context (optional)
+    if (window.location.pathname.includes("quiz-engine.html")) {
+      // Stay on the quiz page but reload parameters to match new class
+      const params = new URLSearchParams(window.location.search);
+      params.set("class", newClassId);
+      window.location.search = params.toString();
+    } else {
+      // For other pages like chapter-selection, reload for safety
+      window.location.reload();
+    }
+  } catch (err) {
+    console.error(`${LOG} Class change failed:`, err);
   }
 }
 
-/* Auto-run wiring */
-wireSelector();
+/**
+ * Get currently active class (e.g., 'class9' or 'class11')
+ */
+export function getActiveClass() {
+  return currentClass || localStorage.getItem("selectedClass") || "class11";
+}
 
-/* Export for manual control if other modules want to call */
-export { initForClass };
+// -----------------------------------------------------------------------------
+// Auto-init when DOM is ready
+// -----------------------------------------------------------------------------
+document.addEventListener("DOMContentLoaded", () => {
+  initializeClassSwitcher();
+});
