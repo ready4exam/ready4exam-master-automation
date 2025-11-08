@@ -1,0 +1,338 @@
+{
+  "Mathematics": {
+    "Math-Magic (Mathematics)": [
+      {
+        "chapter_title": "The Fish Tale",
+        "table_id": "Ch 1",
+        "section": "Maths"
+      },
+      {
+        "chapter_title": "Shapes and Angles",
+        "table_id": "Ch 2",
+        "section": "Maths"
+      },
+      {
+        "chapter_title": "How Many Squares?",
+        "table_id": "Ch 3",
+        "section": "Maths"
+      },
+      {
+        "chapter_title": "Parts and Wholes",
+        "table_id": "Ch 4",
+        "section": "Maths"
+      },
+      {
+        "chapter_title": "Does it Look the Same?",
+        "table_id": "Ch 5",
+        "section": "Maths"
+      },
+      {
+        "chapter_title": "Be My Multiple, I'll be Your Factor",
+        "table_id": "Ch 6",
+        "section": "Maths"
+      },
+      {
+        "chapter_title": "Can You See the Pattern?",
+        "table_id": "Ch 7",
+        "section": "Maths"
+      },
+      {
+        "chapter_title": "Mapping Your Way",
+        "table_id": "Ch 8",
+        "section": "Maths"
+      },
+      {
+        "chapter_title": "Boxes and Sketches",
+        "table_id": "Ch 9",
+        "section": "Maths"
+      },
+      {
+        "chapter_title": "Tenths and Hundredths",
+        "table_id": "Ch 10",
+        "section": "Maths"
+      },
+      {
+        "chapter_title": "Area and its Boundary",
+        "table_id": "Ch 11",
+        "section": "Maths"
+      },
+      {
+        "chapter_title": "Smart Charts",
+        "table_id": "Ch 12",
+        "section": "Maths"
+      },
+      {
+        "chapter_title": "Ways to Multiply and Divide",
+        "table_id": "Ch 13",
+        "section": "Maths"
+      },
+      {
+        "chapter_title": "How Big? How Heavy?",
+        "table_id": "Ch 14",
+        "section": "Maths"
+      }
+    ]
+  },
+  "Environmental Studies (EVS)": {
+    "Looking Around (Aas Pass)": [
+      {
+        "chapter_title": "Super Senses (कैसे पहचाना चींटी ने दोस्त को?)",
+        "table_id": "Ch 1",
+        "section": "EVS"
+      },
+      {
+        "chapter_title": "A Snake Charmer's Story (कहानी सँपेरों की)",
+        "table_id": "Ch 2",
+        "section": "EVS"
+      },
+      {
+        "chapter_title": "From Tasting to Digesting (चखने से पचने तक)",
+        "table_id": "Ch 3",
+        "section": "EVS"
+      },
+      {
+        "chapter_title": "Mangoes Round the Year (खाएँ आम बारहों महीने!)",
+        "table_id": "Ch 4",
+        "section": "EVS"
+      },
+      {
+        "chapter_title": "Seeds and Seeds (बीज, बीज, बीज)",
+        "table_id": "Ch 5",
+        "section": "EVS"
+      },
+      {
+        "chapter_title": "Every Drop Counts (बूँद-बूँद, दरिया-दरिया)",
+        "table_id": "Ch 6",
+        "section": "EVS"
+      },
+      {
+        "chapter_title": "Experiments with Water (पानी के प्रयोग)",
+        "table_id": "Ch 7",
+        "section": "EVS"
+      },
+      {
+        "chapter_title": "A Treat for Mosquitoes (मच्छरों की दावत?)",
+        "table_id": "Ch 8",
+        "section": "EVS"
+      },
+      {
+        "chapter_title": "Up You Go! (डायरी: कमर सीधी, ऊपर चढ़ो!)",
+        "table_id": "Ch 9",
+        "section": "EVS"
+      },
+      {
+        "chapter_title": "Walls Tell Stories (बोलती इमारतें)",
+        "table_id": "Ch 10",
+        "section": "EVS"
+      },
+      {
+        "chapter_title": "Sunita in Space (सुनीता अंतरिक्ष में)",
+        "table_id": "Ch 11",
+        "section": "EVS"
+      },
+      {
+        "chapter_title": "What if it Finishes…? (खत्म हो जाए तो…?)",
+        "table_id": "Ch 12",
+        "section": "EVS"
+      },
+      {
+        "chapter_title": "A Shelter so High! (बसेरा ऊँचाई पर)",
+        "table_id": "Ch 13",
+        "section": "EVS"
+      },
+      {
+        "chapter_title": "When the Earth Shook! (जब धरती काँपी)",
+        "table_id": "Ch 14",
+        "section": "EVS"
+      },
+      {
+        "chapter_title": "Blow Hot, Blow Cold (उसी से ठंडा उसी से गर्म)",
+        "table_id": "Ch 15",
+        "section": "EVS"
+      },
+      {
+        "chapter_title": "Who will do this Work? (कौन करेगा यह काम?)",
+        "table_id": "Ch 16",
+        "section": "EVS"
+      },
+      {
+        "chapter_title": "Across the Wall (फाँद ली दिवार)",
+        "table_id": "Ch 17",
+        "section": "EVS"
+      },
+      {
+        "chapter_title": "No Place for Us? (जाएँ तो जाएँ कहाँ)",
+        "table_id": "Ch 18",
+        "section": "EVS"
+      },
+      {
+        "chapter_title": "A Seed tells a Farmer's Story (किसानों की कहानी – बीज की जुबानी)",
+        "table_id": "Ch 19",
+        "section": "EVS"
+      },
+      {
+        "chapter_title": "Whose Forests? (किसके जंगल?)",
+        "table_id": "Ch 20",
+        "section": "EVS"
+      },
+      {
+        "chapter_title": "Like Father, Like Daughter (किसकी झलक? किसकी छाप?)",
+        "table_id": "Ch 21",
+        "section": "EVS"
+      },
+      {
+        "chapter_title": "On the Move Again (फिर चला काफ़िला)",
+        "table_id": "Ch 22",
+        "section": "EVS"
+      }
+    ]
+  },
+  "English": {
+    "Marigold (Textbook in English)": [
+      {
+        "chapter_title": "Ice-cream Man / Wonderful Waste!",
+        "table_id": "Unit 1",
+        "section": "English"
+      },
+      {
+        "chapter_title": "Teamwork / Flying Together",
+        "table_id": "Unit 2",
+        "section": "English"
+      },
+      {
+        "chapter_title": "My Shadow / Robinson Crusoe",
+        "table_id": "Unit 3",
+        "section": "English"
+      },
+      {
+        "chapter_title": "Crying / My Elder Brother",
+        "table_id": "Unit 4",
+        "section": "English"
+      },
+      {
+        "chapter_title": "The Lazy Frog / Rip Van Winkle",
+        "table_id": "Unit 5",
+        "section": "English"
+      },
+      {
+        "chapter_title": "Class Discussion / The Talkative Barber",
+        "table_id": "Unit 6",
+        "section": "English"
+      },
+      {
+        "chapter_title": "Topsy-turvy Land / Gulliver's Travels",
+        "table_id": "Unit 7",
+        "section": "English"
+      },
+      {
+        "chapter_title": "Nobody's Friend / The Little Bully",
+        "table_id": "Unit 8",
+        "section": "English"
+      },
+      {
+        "chapter_title": "Sing a Song of People / Around the World",
+        "table_id": "Unit 9",
+        "section": "English"
+      },
+      {
+        "chapter_title": "Malu Bhalu / Who Will be Ningthou?",
+        "table_id": "Unit 10",
+        "section": "English"
+      }
+    ]
+  },
+  "Hindi": {
+    "रिमझिम (Rimjhim)": [
+      {
+        "chapter_title": "राख की रस्सी (लोककथा)",
+        "table_id": "पाठ 1",
+        "section": "Hindi"
+      },
+      {
+        "chapter_title": "फसलों के त्योहार (लेख)",
+        "table_id": "पाठ 2",
+        "section": "Hindi"
+      },
+      {
+        "chapter_title": "खिलौनेवाला (कविता)",
+        "table_id": "पाठ 3",
+        "section": "Hindi"
+      },
+      {
+        "chapter_title": "नन्हा फनकार (कहानी)",
+        "table_id": "पाठ 4",
+        "section": "Hindi"
+      },
+      {
+        "chapter_title": "जहाँ चाह वहाँ राह (लेख)",
+        "table_id": "पाठ 5",
+        "section": "Hindi"
+      },
+      {
+        "chapter_title": "चिट्ठी का सफ़र (लेख)",
+        "table_id": "पाठ 6",
+        "section": "Hindi"
+      },
+      {
+        "chapter_title": "डाकिए की कहानी, कुँवरसिंह की जुबानी (भेंटवार्ता)",
+        "table_id": "पाठ 7",
+        "section": "Hindi"
+      },
+      {
+        "chapter_title": "वे दिन भी क्या दिन थे (विज्ञान कथा)",
+        "table_id": "पाठ 8",
+        "section": "Hindi"
+      },
+      {
+        "chapter_title": "एक माँ की बेबसी (कविता)",
+        "table_id": "पाठ 9",
+        "section": "Hindi"
+      },
+      {
+        "chapter_title": "एक दिन की बादशाहत (कहानी)",
+        "table_id": "पाठ 10",
+        "section": "Hindi"
+      },
+      {
+        "chapter_title": "चावल की रोटियाँ (नाटक)",
+        "table_id": "पाठ 11",
+        "section": "Hindi"
+      },
+      {
+        "chapter_title": "गुरु और चेला (कविता)",
+        "table_id": "पाठ 12",
+        "section": "Hindi"
+      },
+      {
+        "chapter_title": "स्वामी की दादी (कहानी)",
+        "table_id": "पाठ 13",
+        "section": "Hindi"
+      },
+      {
+        "chapter_title": "बाघ आया उस रात (कविता)",
+        "table_id": "पाठ 14",
+        "section": "Hindi"
+      },
+      {
+        "chapter_title": "बिशन की दिलेरी (कहानी)",
+        "table_id": "पाठ 15",
+        "section": "Hindi"
+      },
+      {
+        "chapter_title": "पानी रे पानी (लेख)",
+        "table_id": "पाठ 16",
+        "section": "Hindi"
+      },
+      {
+        "chapter_title": "छोटी-सी हमारी नदी (कविता)",
+        "table_id": "पाठ 17",
+        "section": "Hindi"
+      },
+      {
+        "chapter_title": "चुनौती हिमालय की (यात्रा वर्णन)",
+        "table_id": "पाठ 18",
+        "section": "Hindi"
+      }
+    ]
+  }
+}
