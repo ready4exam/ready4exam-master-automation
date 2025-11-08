@@ -1,51 +1,49 @@
-// scripts/createClassRepo.js
 import fs from "fs";
 import path from "path";
+import { fileURLToPath } from "url";
+import simpleGit from "simple-git";
 
-const __dirname = process.cwd();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-async function main() {
-  const cls = process.argv[2];
-  if (!cls) throw new Error("❌ Missing class argument (e.g. node createClassRepo.js 11)");
+const cls = process.env.CLASS || "11";
+const repoPath = path.join(__dirname, `../temp_repo/class${cls}`);
+const staticFile = path.join(process.cwd(), "static_curriculum", `class${cls}`, "curriculum.js`);
 
-  console.log(`⚙️ Running createClassRepo.js for class=${cls}`);
-  console.log(`🚀 Starting automation for Class ${cls}`);
+console.log(`⚙️ Running createClassRepo.js for class=${cls}`);
 
-  // Paths
-  const sourceFile = path.join(__dirname, "static_curriculum", `class${cls}`, "curriculum.js");
-  const destDir = path.join(__dirname, "temp_repo", "js");
-  const destFile = path.join(destDir, "curriculum.js");
-
-  // Ensure target folder exists
-  fs.mkdirSync(destDir, { recursive: true });
-
-  // 1️⃣ Check if static curriculum exists
-  if (!fs.existsSync(sourceFile)) {
-    throw new Error(`❌ Missing static curriculum file for Class ${cls}: ${sourceFile}`);
-  }
-
-  // 2️⃣ Read and copy file
-  const data = fs.readFileSync(sourceFile, "utf-8");
-
-  if (!data || data.trim().length < 10) {
-    throw new Error(`⚠️ Static curriculum file for Class ${cls} seems empty.`);
-  }
-
-  fs.writeFileSync(destFile, data);
-  console.log(`✅ curriculum.js successfully copied from static_curriculum/class${cls}/`);
-
-  // 3️⃣ Confirm file integrity
-  const verify = fs.readFileSync(destFile, "utf-8");
-  if (verify.includes("export const curriculum")) {
-    console.log(`📘 curriculum.js verified and ready for Class ${cls}.`);
-  } else {
-    console.warn(`⚠️ Warning: curriculum.js copied but missing export line! Check static file syntax.`);
-  }
-
-  console.log(`🎉 Successfully processed curriculum for Class ${cls}.`);
+if (!fs.existsSync(staticFile)) {
+  console.error(`❌ curriculum.js not found at: ${staticFile}`);
+  process.exit(1);
 }
 
-main().catch((err) => {
-  console.error("🚨 Error in createClassRepo.js:", err.message);
+if (!fs.existsSync(repoPath)) {
+  console.log(`❌ Repo folder not found at ${repoPath}. Ensure it is cloned first.`);
   process.exit(1);
-});
+}
+
+// Ensure /js folder exists in the repo
+const jsDir = path.join(repoPath, "js");
+if (!fs.existsSync(jsDir)) {
+  fs.mkdirSync(jsDir, { recursive: true });
+  console.log(`📁 Created js folder in ${repoPath}`);
+}
+
+// Copy only curriculum.js file safely
+const targetFile = path.join(jsDir, "curriculum.js");
+fs.copyFileSync(staticFile, targetFile);
+
+console.log(`✅ curriculum.js successfully copied from static_curriculum/class${cls}/`);
+console.log(`📘 curriculum.js created at: ${targetFile}`);
+
+// Commit the changes
+const git = simpleGit(repoPath);
+
+try {
+  await git.add(".");
+  await git.commit(`Updated curriculum.js for Class ${cls}`);
+  await git.push("origin", "main");
+  console.log(`🚀 Curriculum pushed successfully for Class ${cls}`);
+} catch (err) {
+  console.error("⚠️ Git push failed:", err.message);
+}
