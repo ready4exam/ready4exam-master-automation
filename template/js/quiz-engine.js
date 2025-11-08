@@ -3,7 +3,6 @@
 // Core quiz logic: loading questions, tracking progress, auth state, GA4 logging
 // -----------------------------------------------------------------------------
 
-
 import { initializeServices, getAuthUser } from "./config.js";
 import { fetchQuestions, saveResult } from "./api.js";
 import * as UI from "./ui-renderer.js";
@@ -13,7 +12,7 @@ import {
   signInWithGoogle,
   signOut,
 } from "./auth-paywall.js";
-import curriculumData from "./curriculum.js"; // <-- used to map slug -> full chapter title
+import { curriculum as curriculumData } from "./curriculum.js"; // ✅ fixed import — matches curriculum.js export
 
 // Global quiz state
 let quizState = {
@@ -54,7 +53,6 @@ function humanizeSlug(slug) {
 
 // -------------------------------
 // Find chapter title from curriculum (safe search across sub-subjects)
-// Returns the full title (e.g. "Chapter 3: Drainage") or null
 // -------------------------------
 function findChapterTitle(classId, subject, topicSlug) {
   try {
@@ -107,7 +105,6 @@ function parseUrlParameters() {
     findChapterTitle(quizState.classId, quizState.subject, quizState.topicSlug) ||
     humanizeSlug(quizState.topicSlug) + (humanizeSlug(quizState.topicSlug) ? " Quiz" : "");
 
-  // now update header with the resolved *chapter title*
   UI.updateHeader(displayTitle, quizState.difficulty);
 }
 
@@ -122,12 +119,8 @@ function renderQuestion() {
     return;
   }
 
-  // UI.renderQuestion expects idxOneBased
   UI.renderQuestion(q, idx + 1, quizState.userAnswers[q.id], quizState.isSubmitted);
-
-  // Update navigation UI and counter
   UI.updateNavigation?.(idx, quizState.questions.length, quizState.isSubmitted);
-
   UI.hideStatus();
 }
 
@@ -148,8 +141,7 @@ function handleNavigation(dir) {
 function handleAnswerSelection(questionId, selectedOption) {
   if (quizState.isSubmitted) return;
   quizState.userAnswers[questionId] = selectedOption;
-  // Re-render to reflect selection (UI.renderQuestion will show selected state)
-  renderQuestion();
+  renderQuestion(); // Re-render to reflect selection
 }
 
 // -------------------------------
@@ -214,7 +206,6 @@ async function handleSubmit() {
     }
   }
 
-  // Show results and review
   quizState.currentQuestionIndex = 0;
   renderQuestion();
   UI.showResults(quizState.score, quizState.questions.length);
@@ -249,7 +240,6 @@ async function loadQuiz() {
     }
 
     renderQuestion();
-    // Attach answer listeners to the question-list container (delegated change handler inside UI)
     UI.attachAnswerListeners?.(handleAnswerSelection);
     UI.showView?.("quiz-content");
   } catch (err) {
@@ -278,45 +268,25 @@ async function onAuthChange(user) {
 }
 
 // -------------------------------
-// DOM Event Handlers (delegated)
+// DOM Event Handlers
 // -------------------------------
 function attachDomEventHandlers() {
-  // Single delegated listener to handle navigation AND auth buttons reliably.
   document.addEventListener(
     "click",
     (e) => {
       const btn = e.target.closest("button, a");
       if (!btn) return;
 
-      // Navigation controls (use IDs present in DOM)
-      if (btn.id === "prev-btn") {
-        e.preventDefault();
-        return handleNavigation(-1);
-      }
-      if (btn.id === "next-btn") {
-        e.preventDefault();
-        return handleNavigation(1);
-      }
-      if (btn.id === "submit-btn") {
-        e.preventDefault();
-        return handleSubmit();
-      }
+      if (btn.id === "prev-btn") return handleNavigation(-1);
+      if (btn.id === "next-btn") return handleNavigation(1);
+      if (btn.id === "submit-btn") return handleSubmit();
 
-      // Auth & paywall buttons
-      if (btn.id === "login-btn" || btn.id === "google-signin-btn" || btn.id === "paywall-login-btn") {
-        e.preventDefault();
+      if (["login-btn", "google-signin-btn", "paywall-login-btn"].includes(btn.id)) {
         return signInWithGoogle();
       }
-      if (btn.id === "logout-nav-btn") {
-        e.preventDefault();
-        return signOut();
-      }
-
-      // Back to chapter selection button (inside review)
-      if (btn.id === "back-to-chapters-btn") {
-        e.preventDefault();
+      if (btn.id === "logout-nav-btn") return signOut();
+      if (btn.id === "back-to-chapters-btn")
         return (window.location.href = "chapter-selection.html");
-      }
     },
     false
   );
