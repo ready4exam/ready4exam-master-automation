@@ -1,123 +1,286 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Ready4Exam Academic Portal</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          fontFamily: { sans: ['Inter', 'sans-serif'] },
-          colors: {
-            'cbse-blue': '#1a3e6a',
-            'cbse-light': '#f5f7fa',
-            'accent-gold': '#ffb703'
-          }
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ready4Exam — Class Portal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        serif: ['Merriweather', 'serif'],
+                    },
+                    colors: {
+                        'cbse-blue': '#1a3e6a',
+                        'cbse-light': '#f5f7fa',
+                        'accent-gold': '#ffb703',
+                        'heading': '#0f172a',
+                    }
+                }
+            }
         }
-      }
-    };
-  </script>
-  <style>
-    body { font-family: 'Inter', sans-serif; }
-    .card {
-      background: white; border-radius: 1rem;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-      padding: 2rem; transition: .25s;
-    }
-    .card:hover { transform: translateY(-4px); box-shadow: 0 8px 18px rgba(0,0,0,0.12); }
-    .btn { background: #1a3e6a; color: white; font-weight: 600; padding: .75rem 1.5rem; border-radius: .75rem; }
-    .btn:hover { background: #16345a; }
-  </style>
-</head>
+    </script>
 
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Merriweather:wght@400;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .subject-card {
+            /* Card styling for the subjects */
+            @apply block p-6 rounded-xl bg-white border border-gray-200 shadow-lg transition-all duration-300 relative overflow-hidden;
+        }
+        .subject-card:hover {
+            transform: translateY(-5px);
+            @apply shadow-2xl border-cbse-blue/50;
+        }
+        .card-header {
+            @apply flex items-center space-x-4 mb-4;
+        }
+        .card-title {
+            @apply text-xl font-extrabold text-heading;
+        }
+        .card-description {
+            @apply text-gray-600 text-sm;
+        }
+        .card-button {
+            @apply px-4 py-2 text-sm font-semibold rounded-lg transition-colors duration-200;
+        }
+        .science { @apply bg-green-600 hover:bg-green-700 text-white; }
+        .social { @apply bg-red-600 hover:bg-red-700 text-white; }
+        .math { @apply bg-purple-600 hover:bg-purple-700 text-white; }
+
+        /* small util classes for the dynamic stream view */
+        .card-dyn { background: white; border-radius: 1rem; padding: 1.5rem; box-shadow: 0 8px 20px rgba(2,6,23,0.06); cursor: pointer; transition: .18s; }
+        .card-dyn:hover { transform: translateY(-4px); box-shadow: 0 12px 30px rgba(2,6,23,0.08); }
+        .btn-dyn { background: #1a3e6a; color: white; padding: .5rem .9rem; border-radius: .6rem; font-weight:600; }
+    </style>
+</head>
 <body class="bg-cbse-light min-h-screen flex flex-col">
-  <header class="bg-cbse-blue text-white shadow-lg">
-    <div class="max-w-6xl mx-auto px-6 py-4 flex justify-between items-center">
-      <h1 class="text-2xl font-extrabold text-accent-gold">Ready4<span class="text-white">Exam</span></h1>
+
+  <header class="bg-cbse-blue shadow-lg">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
+      <h1 class="text-2xl font-extrabold text-accent-gold tracking-wider">
+        Ready4<span class="text-white">Exam</span> Portal
+      </h1>
+      <nav id="auth-nav-container">
+        <button id="login-btn" class="px-4 py-2 text-sm font-semibold rounded-lg bg-white text-cbse-blue hover:bg-gray-100 transition">
+          Sign In
+        </button>
+      </nav>
     </div>
   </header>
 
-  <main class="flex-grow max-w-6xl mx-auto px-6 py-12">
-    <h2 class="text-3xl font-extrabold text-cbse-blue mb-8 text-center">
-      Choose Your Stream or Subject
-    </h2>
+  <main id="main-area" class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
 
-    <p id="intro-text" class="text-center text-gray-600 mb-10">
-      Select your stream to view all available subjects and books, or jump straight into a subject for classes below 11.
-    </p>
+    <!-- =========================
+         STATIC Classic view for Classes 5–10 (word-for-word copy of Class 9)
+         This whole block MUST render exactly for classes 5–10.
+         ========================= -->
+    <section id="classic-index" class="">
+        <header class="text-center mb-12">
+            <h2 class="text-4xl font-extrabold text-heading mb-2">CBSE Class 9 Syllabus</h2>
+            <p class="text-lg text-gray-600">Select a Subject to begin your chapter-wise practice quizzes.</p>
+        </header>
 
-    <div id="stream-container" class="grid grid-cols-1 sm:grid-cols-3 gap-6 text-center"></div>
+        <div id="classic-grid" class="grid grid-cols-1 md:grid-cols-3 gap-8">
+
+            <a href="chapter-selection.html?class=9&subject=Science" class="subject-card" data-subject="Science">
+                <div class="card-header">
+                    <i data-lucide="flask-conical" class="text-green-700 h-8 w-8"></i>
+                    <h3 class="card-title">Science</h3>
+                </div>
+                <p class="card-description">Physics, Chemistry, and Biology — Core concepts from Motion to Sound, and the structure of life.</p>
+                <div class="mt-6 text-center">
+                    <button class="card-button science">
+                        Start Learning
+                    </button>
+                </div>
+            </a>
+
+            <a href="chapter-selection.html?class=9&subject=Social_Science" class="subject-card" data-subject="Social_Science">
+                <div class="card-header">
+                    <i data-lucide="landmark" class="text-red-700 h-8 w-8"></i>
+                    <h3 class="card-title">Social Science</h3>
+                </div>
+                <p class="card-description">History, Geography, Political Science, and Economics — Comprehending our nation and physical features of India.</p>
+                <div class="mt-6 text-center">
+                    <button class="card-button social">
+                        Start Learning
+                    </button>
+                </div>
+            </a>
+
+            <a href="chapter-selection.html?class=9&subject=Mathematics" class="subject-card" data-subject="Mathematics">
+                <div class="card-header">
+                    <i data-lucide="atom" class="text-purple-700 h-8 w-8"></i>
+                    <h3 class="card-title">Mathematics</h3>
+                </div>
+                <p class="card-description">Detailed study of Number Systems, Polynomials, Geometry, and Heron's Formula for foundational clarity.</p>
+                <div class="mt-6 text-center">
+                    <button class="card-button math">
+                        Start Learning
+                    </button>
+                </div>
+            </a>
+
+             <a href="chapter-selection.html?class=9&subject=Hindi" class="subject-card" data-subject="Hindi">
+                <div class="card-header">
+                    <i data-lucide="book-open" class="text-blue-700 h-8 w-8"></i>
+                    <h3 class="card-title">Hindi / Sanskrit</h3>
+                </div>
+                <p class="card-description">Literature and Grammar practice for Hindi A/B or Sanskrit (placeholder).</p>
+                <div class="mt-6 text-center">
+                    <button class="card-button" style="background-color: #0077b6; color: white;">
+                        Start Learning
+                    </button>
+                </div>
+            </a>
+
+             <a href="chapter-selection.html?class=9&subject=English" class="subject-card" data-subject="English">
+                <div class="card-header">
+                    <i data-lucide="globe" class="text-yellow-700 h-8 w-8"></i>
+                    <h3 class="card-title">English Language & Lit</h3>
+                </div>
+                <p class="card-description">Practice for Literature, Grammar, and Composition topics (placeholder).</p>
+                <div class="mt-6 text-center">
+                    <button class="card-button" style="background-color: #ffc300; color: #1a3e6a;">
+                        Start Learning
+                    </button>
+                </div>
+            </a>
+        </div>
+    </section>
+
+    <!-- =========================
+         DYNAMIC Stream / Subject view for Classes 11–12
+         Hidden for classes <= 10; shown for classes >= 11
+         Keeps same typography & card feel as classic
+         ========================= -->
+    <section id="stream-index" class="hidden">
+      <div class="text-center mb-8">
+        <h2 id="stream-header" class="text-4xl font-extrabold text-heading mb-2">CBSE Senior Secondary</h2>
+        <p id="stream-subtext" class="text-lg text-gray-600">Select your stream to open subjects and NCERT books.</p>
+      </div>
+
+      <div id="stream-cards" class="grid grid-cols-1 sm:grid-cols-3 gap-8 mb-10"></div>
+
+      <div id="subject-section" class="hidden">
+        <h3 id="subject-section-title" class="text-2xl font-bold text-cbse-blue mb-6 text-center"></h3>
+        <div id="subject-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8"></div>
+      </div>
+    </section>
+
   </main>
 
-  <footer class="bg-cbse-blue py-6 text-center text-white">
-    <small>© 2025 Ready4Exam Academic Portal. All Rights Reserved.</small>
+  <footer class="bg-cbse-blue mt-16 py-8">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-white">
+      <small class="text-sm opacity-70 block mt-2">© 2025 Ready4Exam Academic Portal. All Rights Reserved.</small>
+    </div>
   </footer>
 
+  <!-- SCRIPT: controls which index is shown, and renders subjects for streams -->
   <script type="module">
+    // Use curriculum for stream subject rendering only when needed
     import { curriculum } from "./js/curriculum.js";
 
-    const selectedClass = localStorage.getItem("selectedClass") || "11";
-    const streamContainer = document.getElementById("stream-container");
-    const introText = document.getElementById("intro-text");
+    // selectedClass is authoritative: this determines which layout to show.
+    // Default to 9 for safety (classes 5–10 must show the classic view).
+    const selectedClass = Number(localStorage.getItem("selectedClass") || 9);
 
-    function renderClassicSubjects() {
-      introText.textContent = "Select a subject to explore chapters and take quizzes.";
-      const subjects = Object.keys(curriculum[selectedClass] || curriculum || {});
-      streamContainer.innerHTML = "";
-      subjects.forEach(sub => {
+    const classicSection = document.getElementById("classic-index");
+    const streamSection = document.getElementById("stream-index");
+    const streamCards = document.getElementById("stream-cards");
+    const subjectSection = document.getElementById("subject-section");
+    const subjectGrid = document.getElementById("subject-grid");
+    const subjectSectionTitle = document.getElementById("subject-section-title");
+
+    // Make sure lucide icons are created (for classic static cards and dynamic cards)
+    function initLucide() {
+      try { lucide.createIcons(); } catch (e) { /* ignore if not loaded yet */ }
+    }
+
+    // If class is <= 10 -> show the exact classic block, hide streams
+    if (selectedClass <= 10) {
+      classicSection.classList.remove("hidden");
+      streamSection.classList.add("hidden");
+      initLucide();
+    } else {
+      // Show stream selection layout
+      classicSection.classList.add("hidden");
+      streamSection.classList.remove("hidden");
+      subjectSection.classList.add("hidden");
+
+      // Streams to show
+      const streams = [
+        { id: "Science", label: "Science", desc: "Physics, Chemistry, Biology & Mathematics" },
+        { id: "Commerce", label: "Commerce", desc: "Accountancy, Business Studies & Economics" },
+        { id: "Humanities", label: "Humanities / Arts", desc: "History, Geography, Political Science & more" }
+      ];
+
+      // render stream cards
+      streamCards.innerHTML = "";
+      streams.forEach(s => {
+        const div = document.createElement("div");
+        div.className = "card-dyn p-6";
+        div.innerHTML = `<h3 class="text-xl font-bold text-cbse-blue mb-2">${s.label}</h3>
+                         <p class="text-gray-600 mb-4">${s.desc}</p>
+                         <button class="btn-dyn">Explore ${s.label}</button>`;
+        div.addEventListener("click", () => {
+          // Save chosen stream, show subjects
+          localStorage.setItem("selectedStream", s.id);
+          renderSubjectsForStream(s.id);
+        });
+        streamCards.appendChild(div);
+      });
+      initLucide();
+    }
+
+    // Render subject cards for a stream (Science/Commerce/Humanities)
+    function renderSubjectsForStream(stream) {
+      subjectSection.classList.remove("hidden");
+      subjectGrid.innerHTML = "";
+      subjectSectionTitle.textContent = `${stream} Stream — Subjects`;
+
+      // Define canonical stream-subject mapping (keeps UI stable)
+      const streamSubjectsMap = {
+        "Science": ["Physics", "Chemistry", "Biology", "Mathematics", "English"],
+        "Commerce": ["Accountancy", "Business Studies", "Economics", "Mathematics", "English"],
+        "Humanities": ["History", "Geography", "Political Science", "Sociology", "Psychology", "English", "Economics"]
+      };
+
+      const availableSubjects = streamSubjectsMap[stream] || [];
+
+      // Use keys from curriculum to ensure subject exists
+      const allSubjects = Object.keys(curriculum || {});
+
+      availableSubjects.forEach(sub => {
+        if (!allSubjects.includes(sub)) return; // skip if curriculum doesn't have it
         const card = document.createElement("div");
-        card.className = "card cursor-pointer";
-        card.innerHTML = `<h3 class='text-xl font-bold mb-2 text-cbse-blue'>${sub}</h3>
-                          <p class='text-gray-600 mb-4'>Explore chapters from ${sub}.</p>
-                          <button class='btn'>Start</button>`;
-        card.onclick = () => {
+        card.className = "subject-card cursor-pointer p-6";
+        // card HTML closely mirrors the classic card style
+        card.innerHTML = `
+          <div class="card-header">
+            <h3 class="card-title">${sub}</h3>
+          </div>
+          <p class="card-description">Explore chapters & NCERT books for ${sub}.</p>
+        `;
+        card.addEventListener("click", () => {
           localStorage.setItem("selectedSubject", sub);
           window.location.href = "chapter-selection.html";
-        };
-        streamContainer.appendChild(card);
+        });
+        subjectGrid.appendChild(card);
       });
+
+      // scroll to subject section
+      subjectSection.scrollIntoView({ behavior: "smooth", block: "start" });
     }
 
-    function renderStreamOptions() {
-      streamContainer.innerHTML = "";
-      const streams = ["Science", "Commerce", "Humanities"];
-      introText.textContent = "Select your academic stream to continue.";
-      streams.forEach(stream => {
-        const div = document.createElement("div");
-        div.className = "card cursor-pointer";
-        div.innerHTML = `<h3 class='text-xl font-bold text-cbse-blue mb-2'>${stream}</h3>
-                         <p class='text-gray-600 mb-4'>View all subjects under the ${stream} stream.</p>
-                         <button class='btn'>Explore ${stream}</button>`;
-        div.onclick = () => renderSubjects(stream);
-        streamContainer.appendChild(div);
-      });
-    }
-
-    function renderSubjects(stream) {
-      streamContainer.innerHTML = "";
-      const subjects = Object.keys(curriculum || {});
-      subjects.forEach(sub => {
-        if ((stream === "Science" && ["Physics","Chemistry","Biology","Mathematics"].includes(sub)) ||
-            (stream === "Commerce" && ["Accountancy","Business Studies","Economics","Mathematics"].includes(sub)) ||
-            (stream === "Humanities" && ["History","Political Science","Sociology","Geography","Psychology","Economics","English"].includes(sub))) {
-          const card = document.createElement("div");
-          card.className = "card cursor-pointer";
-          card.innerHTML = `<h3 class='text-xl font-bold mb-2 text-cbse-blue'>${sub}</h3>
-                            <button class='btn mt-4'>Open</button>`;
-          card.onclick = () => {
-            localStorage.setItem("selectedSubject", sub);
-            localStorage.setItem("selectedStream", stream);
-            window.location.href = "chapter-selection.html";
-          };
-          streamContainer.appendChild(card);
-        }
-      });
-    }
-
-    if (Number(selectedClass) <= 10) renderClassicSubjects();
-    else renderStreamOptions();
+    // ensure lucide icons for both static and dynamic elements
+    document.addEventListener("DOMContentLoaded", initLucide);
   </script>
 </body>
 </html>
