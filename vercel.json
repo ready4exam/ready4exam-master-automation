@@ -1,9 +1,5 @@
 {
   "version": 2,
-  "functions": {
-    "api/gemini.js": { "runtime": "edge" },
-    "api/**/*.js": { "runtime": "nodejs18.x" }
-  },
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/$1" }
   ]
