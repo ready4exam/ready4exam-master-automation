@@ -3,64 +3,51 @@ import fs from "fs";
 import path from "path";
 
 /**
- * Generates the static curriculum.js structure for a given class (5–12).
+ * Ready4Exam Static Curriculum Generator
+ * --------------------------------------
  * This version:
- * - Creates curriculum.js only once.
- * - Skips regeneration on future runs (freeze behavior).
- * - Has no Gemini API calls.
+ *  - Copies pre-maintained curriculum.js from /static_curriculum/classX/
+ *  - Ensures every class repo (5–12) uses the correct NCERT syllabus
+ *  - Skips Gemini API or auto-generation completely
+ *  - Guarantees consistent structure across runs
  */
 
 export async function generateCurriculumForClass(cls) {
-  const outputDir = path.join(process.cwd(), "temp_repo", "js");
-  const curriculumFile = path.join(outputDir, "curriculum.js");
+  const classFolder = `class${cls}`;
+  const projectRoot = process.cwd();
+  const srcFile = path.join(projectRoot, "static_curriculum", classFolder, "curriculum.js");
+  const destDir = path.join(projectRoot, "temp_repo", "js");
+  const destFile = path.join(destDir, "curriculum.js");
 
-  // 🧊 Step 1 — Freeze check
-  if (fs.existsSync(curriculumFile)) {
-    const existing = fs.readFileSync(curriculumFile, "utf-8").trim();
+  console.log(`📘 Preparing curriculum for Class ${cls}...`);
+  fs.mkdirSync(destDir, { recursive: true });
 
-    if (existing && existing.includes("export const curriculum =") && existing.length > 100) {
-      console.log(`🧊 curriculum.js already exists and contains data — skipping regeneration for Class ${cls}.`);
-      return;
-    }
+  // ✅ Check existence of the manual curriculum
+  if (!fs.existsSync(srcFile)) {
+    console.error(`❌ curriculum.js missing at: static_curriculum/${classFolder}/curriculum.js`);
+    console.warn("ℹ️ Please create the file manually before running automation.");
+    console.warn("Example path:", `ready4exam-master-automation/static_curriculum/${classFolder}/curriculum.js`);
+    console.warn(`
+      Example format:
+      export const curriculum = {
+        "Science": [
+          { "chapter_title": "Motion", "table_id": "", "section": "" }
+        ]
+      };
+    `);
+    // Write an empty fallback to avoid pipeline break
+    fs.writeFileSync(destFile, `// Empty fallback for Class ${cls}\nexport const curriculum = {};\n`);
+    return {};
   }
 
-  console.log(`📘 Creating static NCERT curriculum structure for Class ${cls}...`);
-  fs.mkdirSync(outputDir, { recursive: true });
-
-  // Step 2 — Base structure (manual fill)
-  let baseStructure = {};
-
-  if (cls <= 10) {
-    // Class 5–10 → Simple format
-    baseStructure = {
-      "Science": [],
-      "Social_Science": [],
-      "Mathematics": [],
-      "English": [],
-      "Hindi": []
-    };
-  } else {
-    // Class 11–12 → Stream subjects
-    baseStructure = {
-      "Physics": { "Physics Part I": [], "Physics Part II": [] },
-      "Chemistry": { "Chemistry Part I": [], "Chemistry Part II": [] },
-      "Biology": { "Biology": [] },
-      "Mathematics": { "Mathematics": [] },
-      "Accountancy": { "Financial Accounting - I": [], "Financial Accounting - II": [] },
-      "Business Studies": { "Business Studies": [] },
-      "Economics": { "Indian Economic Development": [], "Statistics for Economics": [] },
-      "History": { "Themes in World History": [] },
-      "Geography": { "Fundamentals of Physical Geography": [], "India Physical Environment": [] },
-      "Political Science": { "Political Theory": [], "Indian Constitution at Work": [] },
-      "Psychology": { "Introduction to Psychology": [] },
-      "Sociology": { "Introducing Sociology": [], "Understanding Society": [] },
-      "English": { "Hornbill": [], "Snapshots": [] }
-    };
+  try {
+    fs.copyFileSync(srcFile, destFile);
+    console.log(`✅ curriculum.js successfully copied from static_curriculum/${classFolder}/`);
+    return true;
+  } catch (err) {
+    console.error(`❌ Failed to copy curriculum.js for Class ${cls}:`, err.message);
+    console.log("⚠️ Writing fallback empty file instead to keep build running...");
+    fs.writeFileSync(destFile, `// Error fallback for Class ${cls}\nexport const curriculum = {};\n`);
+    return {};
   }
-
-  // Step 3 — Write once
-  const fileContent = `// Auto-generated curriculum structure for Class ${cls}\n\nexport const curriculum = ${JSON.stringify(baseStructure, null, 2)};\n`;
-  fs.writeFileSync(curriculumFile, fileContent);
-
-  console.log(`✅ curriculum.js written successfully for Class ${cls}. File is now frozen (will not regenerate).`);
 }
