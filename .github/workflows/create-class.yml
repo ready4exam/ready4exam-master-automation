@@ -1,36 +1,73 @@
-name: 🚀 Create Class Repository (Static Curriculum)
+name: 🧠 Create Class Repo Automation
 
 on:
   workflow_dispatch:
     inputs:
       class:
-        description: "Class number (5–12)"
+        description: "Enter the class number (5–12)"
         required: true
         default: "11"
 
+permissions:
+  contents: write
+  actions: read
+
 jobs:
-  create-class-repo:
+  build:
     runs-on: ubuntu-latest
+
     steps:
-      - name: 🛠️ Checkout Master Automation Repo
+      - name: 🧩 Checkout Repository
         uses: actions/checkout@v4
 
-      - name: 🧩 Setup Node.js
+      - name: ⚙️ Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: "20"
 
       - name: 📦 Install Dependencies
         run: npm install
 
-      - name: ⚙️ Run Create Class Script
-        env:
-          GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
-          GITHUB_OWNER: ready4exam
-          GITHUB_REPO_TEMPLATE: ready4exam-master-automation
+      - name: 🧹 Clear Cache (Ensure fresh code)
+        run: |
+          rm -rf ~/.npm ~/.cache
+          echo "✅ Node cache cleared."
+
+      - name: 🧾 Display Selected Class
+        run: echo "🏫 Building automation for Class=${{ github.event.inputs.class }}"
+
+      - name: 🧠 Run Create Class Script
         run: |
           echo "⚙️ Running createClassRepo.js for class=${{ github.event.inputs.class }}"
           node ./scripts/createClassRepo.js ${{ github.event.inputs.class }}
 
-      - name: ✅ Done
-        run: echo "🎉 Class repository successfully created and curriculum applied."
+      - name: ✅ Verify Curriculum.js
+        run: |
+          echo "🔍 Checking curriculum file..."
+          if [ -f "./temp_repo/js/curriculum.js" ]; then
+            echo "✅ curriculum.js found and ready."
+          else
+            echo "❌ curriculum.js missing — check static_curriculum folder."
+            exit 1
+          fi
+
+      - name: 🚀 Push to Class Repository
+        env:
+          GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+          GITHUB_OWNER: ready4exam
+          GITHUB_REPO: ready4exam-${{ github.event.inputs.class }}
+        run: |
+          echo "📤 Deploying to repository: $GITHUB_OWNER/$GITHUB_REPO"
+          cd temp_repo
+          git init
+          git config user.name "ready4exam-automation"
+          git config user.email "automation@ready4exam.edu"
+          git add .
+          git commit -m "Auto-deploy: Class ${{ github.event.inputs.class }} curriculum update"
+          git branch -M main
+          git remote add origin https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_OWNER}/${GITHUB_REPO}.git
+          git push -f origin main
+          echo "🎉 Successfully deployed to: https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}"
+
+      - name: 🏁 Completion Log
+        run: echo "✅ Class ${{ github.event.inputs.class }} automation complete."
