@@ -1,7 +1,9 @@
 // -------------------- /api/_cors.js --------------------
 // ✅ Universal CORS helper for both Edge & Node runtimes
+// Supports Automation 1 (Gemini - Edge) and Automation 2 (Supabase/Curriculum - Node)
 
 export function getCorsHeaders(origin = "") {
+  // --- Define your trusted frontend domains ---
   const allowedOrigins = [
     "https://tableautomation-5iuc.vercel.app",
     "https://ready4exam.github.io",
@@ -18,13 +20,22 @@ export function getCorsHeaders(origin = "") {
   };
 }
 
-// ✅ Optional: Node.js–style handler for manual testing or preflight debugging
+// ✅ Optional: Node.js–style default handler
+// Used when calling /api/_cors directly or for preflight checks
 export default function handler(req, res) {
   const origin = req.headers.origin || "*";
   const headers = getCorsHeaders(origin);
+
+  // Apply headers for Node.js (serverless) runtime
   for (const [key, value] of Object.entries(headers)) {
     res.setHeader(key, value);
   }
+
   if (req.method === "OPTIONS") return res.status(200).end();
-  res.status(200).json({ ok: true, message: "CORS preflight handled." });
+
+  res.status(200).json({
+    ok: true,
+    message: "CORS preflight handled successfully.",
+    origin: origin
+  });
 }
