@@ -1,54 +1,36 @@
-name: "Create or Update Class Repo (Front-End Builder)"
+name: 🚀 Create Class Repository (Static Curriculum)
 
 on:
   workflow_dispatch:
     inputs:
       class:
-        description: "Enter class number (5–12)"
+        description: "Class number (5–12)"
         required: true
         default: "11"
 
 jobs:
-  build-repo:
+  create-class-repo:
     runs-on: ubuntu-latest
-
     steps:
-      # 🧩 Ensure we always get the latest main branch code (no cache)
-      - name: 🧩 Checkout latest automation repo
+      - name: 🛠️ Checkout Master Automation Repo
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          clean: true
 
-      # 🧠 Setup Node.js environment
-      - name: 🧠 Set up Node.js
+      - name: 🧩 Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 20
 
-      # 📦 Install all dependencies
-      - name: 📦 Install dependencies
-        run: |
-          echo "Installing project dependencies..."
-          npm install
+      - name: 📦 Install Dependencies
+        run: npm install
 
-      # ⚙️ Execute the Class Repo Builder Script
-      - name: ⚙️ Run Class Repo Builder Script
+      - name: ⚙️ Run Create Class Script
         env:
-          CLASS: ${{ github.event.inputs.class }}
-          GITHUB_OWNER: ready4exam
-          PERSONAL_ACCESS_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GITHUB_OWNER: ready4exam
+          GITHUB_REPO_TEMPLATE: ready4exam-master-automation
         run: |
           echo "⚙️ Running createClassRepo.js for class=${{ github.event.inputs.class }}"
-          node scripts/createClassRepo.js
+          node ./scripts/createClassRepo.js ${{ github.event.inputs.class }}
 
-      # 🧾 Optional Debug Confirmation (helps verify which commit is running)
-      - name: 🧾 Confirm current commit and folder state
-        run: |
-          echo "📦 Current Commit SHA: $GITHUB_SHA"
-          echo "📂 Current Directory:"
-          pwd
-          echo "📁 Files in Repository Root:"
-          ls -la
+      - name: ✅ Done
+        run: echo "🎉 Class repository successfully created and curriculum applied."
