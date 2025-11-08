@@ -1,5 +1,5 @@
 // scripts/convertCurriculumToJSON.js
-import fs from "fs";
+import fs from "fs"; 
 import path from "path";
 
 const baseDir = path.join(process.cwd(), "static_curriculum");
