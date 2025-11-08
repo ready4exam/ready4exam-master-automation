@@ -3,21 +3,35 @@ import fs from "fs";
 import path from "path";
 
 /**
- * Creates a structured curriculum.js file for a given class.
- * No Gemini API calls. You can manually populate later.
+ * Generates the static curriculum.js structure for a given class (5–12).
+ * This version:
+ * - Creates curriculum.js only once.
+ * - Skips regeneration on future runs (freeze behavior).
+ * - Has no Gemini API calls.
  */
-export async function generateCurriculumForClass(cls) {
-  console.log(`📘 Creating static NCERT curriculum structure for Class ${cls}...`);
 
+export async function generateCurriculumForClass(cls) {
   const outputDir = path.join(process.cwd(), "temp_repo", "js");
   const curriculumFile = path.join(outputDir, "curriculum.js");
+
+  // 🧊 Step 1 — Freeze check
+  if (fs.existsSync(curriculumFile)) {
+    const existing = fs.readFileSync(curriculumFile, "utf-8").trim();
+
+    if (existing && existing.includes("export const curriculum =") && existing.length > 100) {
+      console.log(`🧊 curriculum.js already exists and contains data — skipping regeneration for Class ${cls}.`);
+      return;
+    }
+  }
+
+  console.log(`📘 Creating static NCERT curriculum structure for Class ${cls}...`);
   fs.mkdirSync(outputDir, { recursive: true });
 
-  // ✅ Structure template for manual population
+  // Step 2 — Base structure (manual fill)
   let baseStructure = {};
 
   if (cls <= 10) {
-    // Class 5–10 -> simple structure
+    // Class 5–10 → Simple format
     baseStructure = {
       "Science": [],
       "Social_Science": [],
@@ -26,7 +40,7 @@ export async function generateCurriculumForClass(cls) {
       "Hindi": []
     };
   } else {
-    // Class 11–12 -> stream-based structure
+    // Class 11–12 → Stream subjects
     baseStructure = {
       "Physics": { "Physics Part I": [], "Physics Part II": [] },
       "Chemistry": { "Chemistry Part I": [], "Chemistry Part II": [] },
@@ -44,9 +58,9 @@ export async function generateCurriculumForClass(cls) {
     };
   }
 
+  // Step 3 — Write once
   const fileContent = `// Auto-generated curriculum structure for Class ${cls}\n\nexport const curriculum = ${JSON.stringify(baseStructure, null, 2)};\n`;
   fs.writeFileSync(curriculumFile, fileContent);
 
-  console.log(`✅ curriculum.js written successfully for Class ${cls}. You can now manually populate chapters.`);
-  return baseStructure;
+  console.log(`✅ curriculum.js written successfully for Class ${cls}. File is now frozen (will not regenerate).`);
 }
