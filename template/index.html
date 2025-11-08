@@ -2,168 +2,97 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
-  <title>CBSE Class 11 — Academic Study Portal</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CBSE Class 11 Streams</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          fontFamily: { sans: ['Inter', 'sans-serif'], serif: ['Merriweather', 'serif'] },
-          colors: {
-            'cbse-blue': '#1a3e6a',
-            'cbse-light': '#f5f7fa',
-            'accent-gold': '#ffb703',
-            'heading': '#0f172a',
-          },
-        },
-      },
-    };
-  </script>
   <script src="https://unpkg.com/lucide@latest"></script>
   <style>
     body { font-family: 'Inter', sans-serif; }
-    .stream-card {
+    .card {
       background: white;
-      border-radius: 1rem;
-      padding: 2rem;
-      box-shadow: 0 8px 20px rgba(2, 6, 23, 0.06);
-      transition: transform 0.25s, box-shadow 0.25s;
-      cursor: pointer;
-    }
-    .stream-card:hover {
-      transform: translateY(-5px);
-      box-shadow: 0 12px 30px rgba(2, 6, 23, 0.12);
-    }
-    .btn {
-      background: #1a3e6a;
-      color: white;
-      padding: 0.5rem 1rem;
-      border-radius: 0.6rem;
-      font-weight: 600;
-    }
-    .subject-card {
-      background: white;
-      border-radius: 0.8rem;
-      padding: 1.25rem;
+      padding: 1.5rem;
+      border-radius: .75rem;
+      box-shadow: 0 8px 20px rgba(2,6,23,0.06);
       border: 1px solid #e5e7eb;
-      box-shadow: 0 4px 10px rgba(2, 6, 23, 0.05);
-      transition: 0.2s;
+      transition: transform .2s;
     }
-    .subject-card:hover {
-      transform: translateY(-3px);
-      box-shadow: 0 10px 20px rgba(2, 6, 23, 0.1);
-    }
+    .card:hover { transform: translateY(-5px); }
   </style>
 </head>
-
 <body class="bg-cbse-light min-h-screen flex flex-col">
-  <header class="bg-cbse-blue shadow-lg">
-    <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
-      <h1 class="text-2xl font-extrabold text-accent-gold tracking-wider">
-        Ready4<span class="text-white">Exam</span> Portal
-      </h1>
-      <span class="text-white text-sm">Class 11 Academic Portal</span>
-    </div>
+
+<header class="bg-cbse-blue shadow-lg">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
+    <h1 class="text-2xl font-extrabold text-accent-gold">Ready4<span class="text-white">Exam</span> Portal</h1>
+  </div>
+</header>
+
+<main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+  <header class="text-center mb-12">
+    <h2 class="text-4xl font-extrabold text-heading mb-2">CBSE Class 11 Streams</h2>
+    <p class="text-lg text-gray-600">Select your stream to explore subjects and begin your chapter-wise practice quizzes.</p>
   </header>
 
-  <main class="flex-grow max-w-7xl mx-auto px-4 py-12">
-    <!-- Main Heading -->
-    <header class="text-center mb-12">
-      <h2 class="text-4xl font-extrabold text-heading mb-2">CBSE Class 11 Streams</h2>
-      <p class="text-lg text-gray-600">Select your academic stream to explore NCERT subjects, books, and chapters.</p>
-    </header>
+  <div id="stream-container" class="grid grid-cols-1 md:grid-cols-3 gap-8"></div>
+  <div id="subject-container" class="grid grid-cols-1 md:grid-cols-3 gap-8 mt-12 hidden"></div>
+</main>
 
-    <!-- Stream Cards -->
-    <div id="stream-container" class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16"></div>
+<footer class="bg-cbse-blue py-6 text-center text-white">
+  <small>© 2025 Ready4Exam Academic Portal</small>
+</footer>
 
-    <!-- Subject Section -->
-    <section id="subject-section" class="hidden">
-      <h3 id="subject-header" class="text-3xl font-extrabold text-cbse-blue text-center mb-8"></h3>
-      <div id="subject-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8"></div>
-    </section>
-  </main>
+<script type="module">
+import { curriculum } from "./js/curriculum.js";
 
-  <footer class="bg-cbse-blue py-8 text-center text-white">
-    <small class="text-sm opacity-70">© 2025 Ready4Exam Academic Portal. All Rights Reserved.</small>
-  </footer>
+const streamContainer = document.getElementById("stream-container");
+const subjectContainer = document.getElementById("subject-container");
 
-  <script type="module">
-    import { curriculum } from "./js/curriculum.js";
+const streams = {
+  Science: ["Physics", "Chemistry", "Biology", "Mathematics"],
+  Commerce: ["Accountancy", "Business Studies", "Economics", "Mathematics"],
+  Humanities: ["History", "Political Science", "Geography", "Economics"]
+};
 
-    const streamContainer = document.getElementById("stream-container");
-    const subjectSection = document.getElementById("subject-section");
-    const subjectHeader = document.getElementById("subject-header");
-    const subjectGrid = document.getElementById("subject-grid");
+const descriptions = {
+  Science: "Explore Physics, Chemistry, Biology and Mathematics — the foundation of scientific learning.",
+  Commerce: "Dive into Accountancy, Business Studies, and Economics to build your financial acumen.",
+  Humanities: "Understand History, Political Science, and Geography — the study of society and people."
+};
 
-    const streams = [
-      {
-        name: "Science",
-        desc: "Explore the wonders of Physics, Chemistry, Biology, and Mathematics — the foundation for medical, engineering, and research fields.",
-        subjects: ["Physics", "Chemistry", "Biology", "Mathematics", "English"],
-      },
-      {
-        name: "Commerce",
-        desc: "Dive into Accountancy, Business Studies, and Economics — core subjects for finance, entrepreneurship, and management.",
-        subjects: ["Accountancy", "Business Studies", "Economics", "Mathematics", "English"],
-      },
-      {
-        name: "Humanities",
-        desc: "Understand society through History, Geography, Political Science, Sociology, and Psychology — ideal for civil services and liberal arts.",
-        subjects: ["History", "Geography", "Political Science", "Sociology", "Psychology", "English", "Economics"],
-      },
-    ];
+// Render streams
+Object.keys(streams).forEach(stream => {
+  const div = document.createElement("div");
+  div.className = "card cursor-pointer";
+  div.innerHTML = `
+    <h3 class="text-2xl font-bold mb-2">${stream}</h3>
+    <p class="text-gray-600">${descriptions[stream]}</p>
+  `;
+  div.onclick = () => renderSubjects(stream);
+  streamContainer.appendChild(div);
+});
 
-    // Ensure everything loads after DOM + import
-    document.addEventListener("DOMContentLoaded", () => {
-      renderStreams();
-    });
+function renderSubjects(stream) {
+  streamContainer.classList.add("hidden");
+  subjectContainer.classList.remove("hidden");
+  subjectContainer.innerHTML = "";
 
-    function renderStreams() {
-      streamContainer.innerHTML = "";
-      streams.forEach((stream) => {
-        const div = document.createElement("div");
-        div.className = "stream-card";
-        div.innerHTML = `
-          <h3 class="text-2xl font-bold text-cbse-blue mb-2">${stream.name}</h3>
-          <p class="text-gray-600 mb-4">${stream.desc}</p>
-          <button class="btn">Explore ${stream.name}</button>
-        `;
-        div.addEventListener("click", () => renderSubjects(stream));
-        streamContainer.appendChild(div);
-      });
-    }
+  const subjects = streams[stream];
+  subjects.forEach(sub => {
+    if (!curriculum[sub]) return; // Skip if not present
+    const div = document.createElement("div");
+    div.className = "card cursor-pointer";
+    div.innerHTML = `
+      <h3 class="text-xl font-semibold mb-1">${sub}</h3>
+      <p class="text-gray-600">View chapters from ${sub} curriculum.</p>
+    `;
+    div.onclick = () => {
+      window.location.href = `chapter-selection.html?subject=${encodeURIComponent(sub)}`;
+    };
+    subjectContainer.appendChild(div);
+  });
+}
 
-    function renderSubjects(stream) {
-      subjectSection.classList.remove("hidden");
-      subjectHeader.textContent = `${stream.name} Stream — Subjects`;
-      subjectGrid.innerHTML = "";
-
-      const validSubjects = stream.subjects.filter((s) => Object.keys(curriculum).includes(s));
-      if (validSubjects.length === 0) {
-        subjectGrid.innerHTML = `<p class='text-center text-gray-600'>No subjects found in curriculum.js for ${stream.name} stream.</p>`;
-        return;
-      }
-
-      validSubjects.forEach((sub) => {
-        const card = document.createElement("div");
-        card.className = "subject-card cursor-pointer";
-        card.innerHTML = `
-          <h4 class="text-xl font-bold text-cbse-blue mb-2">${sub}</h4>
-          <p class="text-gray-600">Explore books and chapters of ${sub} as per NCERT Class 11 syllabus.</p>
-        `;
-        card.addEventListener("click", () => {
-          sessionStorage.setItem("selectedStream", stream.name);
-          sessionStorage.setItem("selectedSubject", sub);
-          sessionStorage.setItem("selectedClass", "11");
-          window.location.href = "chapter-selection.html";
-        });
-        subjectGrid.appendChild(card);
-      });
-
-      // Smooth scroll reveal
-      subjectSection.scrollIntoView({ behavior: "smooth" });
-    }
-  </script>
+lucide.createIcons();
+</script>
 </body>
 </html>
