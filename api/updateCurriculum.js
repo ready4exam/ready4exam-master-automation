@@ -1,4 +1,4 @@
-// -------------------- /api/updateCurriculum.js --------------------
+// -------------------- /api/updateCurriculum.js -------------------
 import { corsHeaders } from "./_cors.js";
 
 export const config = { runtime: "nodejs" };
