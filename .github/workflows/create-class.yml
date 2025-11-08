@@ -1,43 +1,35 @@
-name: 🚀 Create Class Repo
+name: 🧠 Ready4Exam Multi-Class Automation
 
 on:
   workflow_dispatch:
-    inputs:
-      class:
-        description: 'Class number (5–12)'
-        required: true
-        default: '11'
 
 jobs:
-  create-class:
+  build-deploy:
     runs-on: ubuntu-latest
-
     steps:
-      - name: 🧾 Checkout master automation repo
+      - name: 🧩 Checkout repository
         uses: actions/checkout@v4
 
-      - name: 🧩 Setup Node.js
+      - name: ⚙️ Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      - name: 📦 Install dependencies
-        run: npm install simple-git
+      - name: 🧹 Clean environment
+        run: |
+          rm -rf node_modules
+          npm cache clean --force
 
-      - name: 🧱 Clone target class repo into temp_repo
+      - name: 📦 Install dependencies
+        run: npm install
+
+      - name: 🧠 Generate curriculum.js for all classes
+        run: node scripts/generateCurriculumJS.js
+
+      - name: 🚀 Build & Push Repositories
         env:
           GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
-        run: |
-          mkdir -p temp_repo
-          cd temp_repo
-          git clone https://x-access-token:${GITHUB_TOKEN}@github.com/ready4exam/ready4exam-${{ github.event.inputs.class }}.git class${{ github.event.inputs.class }}
-
-      - name: ⚙️ Configure Git identity
-        run: |
-          git config --global user.email "automation@ready4exam.org"
-          git config --global user.name "Ready4Exam Automation"
-
-      - name: ⚙️ Run createClassRepo.js
-        env:
-          CLASS: ${{ github.event.inputs.class }}
         run: node scripts/createClassRepo.js
+
+      - name: ✅ Done
+        run: echo "🎉 All class repositories updated successfully!"
