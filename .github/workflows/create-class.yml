@@ -32,6 +32,11 @@ jobs:
           cd temp_repo
           git clone https://x-access-token:${GITHUB_TOKEN}@github.com/ready4exam/ready4exam-${{ github.event.inputs.class }}.git class${{ github.event.inputs.class }}
 
+      - name: ⚙️ Configure Git identity
+        run: |
+          git config --global user.email "automation@ready4exam.org"
+          git config --global user.name "Ready4Exam Automation"
+
       - name: ⚙️ Run createClassRepo.js
         env:
           CLASS: ${{ github.event.inputs.class }}
