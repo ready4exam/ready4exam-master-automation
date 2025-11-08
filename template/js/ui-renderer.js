@@ -1,4 +1,4 @@
-// js/ui-renderer.js 
+// js/ui-renderer.js
 import { cleanKatexMarkers } from './utils.js';
 
 let els = {};
@@ -67,22 +67,18 @@ export function hideStatus() {
 export function updateHeader(topicDisplayTitle, diff) {
   initializeElements();
 
-  // Remove old mini Ready4Exam label
   if (els.miniTitle) els.miniTitle.textContent = "";
 
-  // Update main heading
   if (els.title) {
     const text = topicDisplayTitle ? `${topicDisplayTitle}` : "Ready4Exam Quiz";
     els.title.textContent = text;
   }
 
-  // ✅ New: Also show chapter beside the home button
   if (els.chapterNameDisplay) {
     els.chapterNameDisplay.textContent = topicDisplayTitle || "";
     els.chapterNameDisplay.classList.remove("hidden");
   }
 
-  // Difficulty badge
   if (els.diffBadge) {
     els.diffBadge.textContent = `Difficulty: ${diff || "--"}`;
     els.diffBadge.classList.remove("hidden");
@@ -291,7 +287,13 @@ export function renderAllQuestionsForReview(questions, userAnswers = {}) {
     const btn = e.target.closest("button[data-diff]");
     if (btn) {
       const params = new URLSearchParams(window.location.search);
+      const currentClass = localStorage.getItem("selectedClass") || "class11";
+      const subject = params.get("subject") || localStorage.getItem("selectedSubject") || "Business Studies";
+      const topic = params.get("topic") || localStorage.getItem("selectedTopic") || "";
       params.set("difficulty", btn.dataset.diff);
+      params.set("class", currentClass);
+      params.set("subject", subject);
+      params.set("topic", topic);
       window.location.href = `quiz-engine.html?${params.toString()}`;
     }
     if (e.target.id === "back-to-chapters-btn") {
@@ -300,4 +302,21 @@ export function renderAllQuestionsForReview(questions, userAnswers = {}) {
   });
 
   showView("results-screen");
+}
+
+/* -----------------------------------
+   START QUIZ (NEW)
+----------------------------------- */
+export function startQuiz(topicSlug, difficulty) {
+  const selectedClass = localStorage.getItem("selectedClass") || "class11";
+  const selectedSubject = localStorage.getItem("selectedSubject") || "Business Studies";
+  const topic = topicSlug || localStorage.getItem("selectedTopic");
+
+  if (!topic) {
+    alert("Error: Missing topic information.");
+    return;
+  }
+
+  const url = `quiz-engine.html?class=${selectedClass}&subject=${encodeURIComponent(selectedSubject)}&topic=${encodeURIComponent(topic)}&difficulty=${difficulty}`;
+  window.location.href = url;
 }
