@@ -35,12 +35,6 @@
       transform: translateY(-5px);
       box-shadow: 0 12px 30px rgba(2, 6, 23, 0.12);
     }
-    .card-title {
-      @apply text-2xl font-extrabold text-cbse-blue mb-2;
-    }
-    .card-description {
-      @apply text-gray-600 text-sm mb-4 leading-relaxed;
-    }
     .btn {
       background: #1a3e6a;
       color: white;
@@ -49,7 +43,16 @@
       font-weight: 600;
     }
     .subject-card {
-      @apply bg-white rounded-xl p-5 border border-gray-200 shadow-md hover:shadow-xl transition;
+      background: white;
+      border-radius: 0.8rem;
+      padding: 1.25rem;
+      border: 1px solid #e5e7eb;
+      box-shadow: 0 4px 10px rgba(2, 6, 23, 0.05);
+      transition: 0.2s;
+    }
+    .subject-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 10px 20px rgba(2, 6, 23, 0.1);
     }
   </style>
 </head>
@@ -88,27 +91,33 @@
   <script type="module">
     import { curriculum } from "./js/curriculum.js";
 
-    const streams = [
-      {
-        name: "Science",
-        desc: "Explore the wonders of Physics, Chemistry, Biology, and Mathematics — the foundation for medical, engineering, and research fields."
-      },
-      {
-        name: "Commerce",
-        desc: "Dive into Accountancy, Business Studies, and Economics — core subjects for finance, entrepreneurship, and management."
-      },
-      {
-        name: "Humanities",
-        desc: "Understand society through History, Geography, Political Science, Sociology, and Psychology — ideal for civil services and liberal arts."
-      }
-    ];
-
     const streamContainer = document.getElementById("stream-container");
     const subjectSection = document.getElementById("subject-section");
     const subjectHeader = document.getElementById("subject-header");
     const subjectGrid = document.getElementById("subject-grid");
 
-    renderStreams();
+    const streams = [
+      {
+        name: "Science",
+        desc: "Explore the wonders of Physics, Chemistry, Biology, and Mathematics — the foundation for medical, engineering, and research fields.",
+        subjects: ["Physics", "Chemistry", "Biology", "Mathematics", "English"],
+      },
+      {
+        name: "Commerce",
+        desc: "Dive into Accountancy, Business Studies, and Economics — core subjects for finance, entrepreneurship, and management.",
+        subjects: ["Accountancy", "Business Studies", "Economics", "Mathematics", "English"],
+      },
+      {
+        name: "Humanities",
+        desc: "Understand society through History, Geography, Political Science, Sociology, and Psychology — ideal for civil services and liberal arts.",
+        subjects: ["History", "Geography", "Political Science", "Sociology", "Psychology", "English", "Economics"],
+      },
+    ];
+
+    // Ensure everything loads after DOM + import
+    document.addEventListener("DOMContentLoaded", () => {
+      renderStreams();
+    });
 
     function renderStreams() {
       streamContainer.innerHTML = "";
@@ -120,43 +129,39 @@
           <p class="text-gray-600 mb-4">${stream.desc}</p>
           <button class="btn">Explore ${stream.name}</button>
         `;
-        div.onclick = () => renderSubjects(stream.name);
+        div.addEventListener("click", () => renderSubjects(stream));
         streamContainer.appendChild(div);
       });
     }
 
     function renderSubjects(stream) {
       subjectSection.classList.remove("hidden");
-      subjectHeader.textContent = `${stream} Stream — Subjects`;
+      subjectHeader.textContent = `${stream.name} Stream — Subjects`;
       subjectGrid.innerHTML = "";
 
-      // ✅ Filter subjects based on stream
-      const subjectsByStream = {
-        "Science": ["Physics", "Chemistry", "Biology", "Mathematics", "English"],
-        "Commerce": ["Accountancy", "Business Studies", "Economics", "Mathematics", "English"],
-        "Humanities": ["History", "Geography", "Political Science", "Sociology", "Psychology", "English", "Economics"],
-      };
+      const validSubjects = stream.subjects.filter((s) => Object.keys(curriculum).includes(s));
+      if (validSubjects.length === 0) {
+        subjectGrid.innerHTML = `<p class='text-center text-gray-600'>No subjects found in curriculum.js for ${stream.name} stream.</p>`;
+        return;
+      }
 
-      const subjects = subjectsByStream[stream] || [];
-
-      subjects.forEach((sub) => {
-        if (!curriculum[sub]) return;
+      validSubjects.forEach((sub) => {
         const card = document.createElement("div");
         card.className = "subject-card cursor-pointer";
         card.innerHTML = `
           <h4 class="text-xl font-bold text-cbse-blue mb-2">${sub}</h4>
           <p class="text-gray-600">Explore books and chapters of ${sub} as per NCERT Class 11 syllabus.</p>
         `;
-        card.onclick = () => {
-          sessionStorage.setItem("selectedStream", stream);
+        card.addEventListener("click", () => {
+          sessionStorage.setItem("selectedStream", stream.name);
           sessionStorage.setItem("selectedSubject", sub);
           sessionStorage.setItem("selectedClass", "11");
           window.location.href = "chapter-selection.html";
-        };
+        });
         subjectGrid.appendChild(card);
       });
 
-      // Smooth scroll to reveal subjects
+      // Smooth scroll reveal
       subjectSection.scrollIntoView({ behavior: "smooth" });
     }
   </script>
