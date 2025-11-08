@@ -1,1 +1,29 @@
+name: Convert Curriculum JS to JSON
+
+on:
+  workflow_dispatch:
+
+jobs:
+  convert:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 🛎️ Checkout repo
+        uses: actions/checkout@v4
+
+      - name: 🧩 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: 🔄 Convert curriculum.js → curriculum.json
+        run: node scripts/convertCurriculumToJSON.js
+
+      - name: 💾 Commit and push JSON files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add static_curriculum/**/*.json
+          git commit -m "Auto-converted curriculum.js → curriculum.json"
+          git push
 
