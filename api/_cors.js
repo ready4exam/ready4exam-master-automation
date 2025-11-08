@@ -1,5 +1,7 @@
 // /api/_cors.js
-export default async function handler(req, res) {
+// ✅ Universal CORS handler for Node + Edge compatible imports
+
+export function getCorsHeaders(origin = "") {
   const allowedOrigins = [
     "https://tableautomation-5iuc.vercel.app",
     "https://ready4exam.github.io",
@@ -7,12 +9,23 @@ export default async function handler(req, res) {
     "http://127.0.0.1:5500"
   ];
 
-  const origin = req.headers.origin || "*";
   const allowOrigin = allowedOrigins.includes(origin) ? origin : "*";
 
-  res.setHeader("Access-Control-Allow-Origin", allowOrigin);
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  return {
+    "Access-Control-Allow-Origin": allowOrigin,
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization"
+  };
+}
+
+// ✅ Optional: direct route test
+export default async function handler(req, res) {
+  const origin = req.headers.origin || "*";
+  const headers = getCorsHeaders(origin);
+
+  for (const [key, value] of Object.entries(headers)) {
+    res.setHeader(key, value);
+  }
 
   if (req.method === "OPTIONS") {
     return res.status(200).end();
