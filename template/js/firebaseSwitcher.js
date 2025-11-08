@@ -1,6 +1,6 @@
-// firebaseSwitcher.js
+// js/firebaseSwitcher.js
 // -----------------------------------------------------------------------------
-// Manages multi-Firebase project initialization (Class 9, Class 11, placeholders)
+// Manages multi-Firebase project initialization (Class 9, Class 11 + placeholders)
 // -----------------------------------------------------------------------------
 
 import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
@@ -25,19 +25,22 @@ const firebaseConfigs = {
     messagingSenderId: "192315627607",
     appId: "1:192315627607:web:9f2e2794dc42aaa3352b12",
     measurementId: "G-3GXX6VXYT1"
-  }
+  },
+  // 🟦 Future placeholders (add configs as needed)
+  class10: {},
+  class12: {}
 };
 
-let currentClassId = "class9";
+let currentClassId = "class11";
 let clients = null;
 
 /** Initialize or switch Firebase project context. */
-export function switchFirebaseProject(classId = "class9") {
+export function switchFirebaseProject(classId = "class11") {
   currentClassId = classId;
   const config = firebaseConfigs[classId];
-  if (!config) throw new Error(`Firebase config missing for ${classId}`);
+  if (!config || !config.apiKey) throw new Error(`Firebase config missing for ${classId}`);
 
-  const existing = getApps().find(a => a.name === classId);
+  const existing = getApps().find((a) => a.name === classId);
   const app = existing || initializeApp(config, classId);
   const auth = getAuth(app);
   const db = getFirestore(app);
@@ -52,3 +55,14 @@ export function getCurrentClients() {
   if (!clients) return switchFirebaseProject(currentClassId);
   return clients;
 }
+
+/** Get the currently selected class (from storage or fallback). */
+export function getActiveClass() {
+  return localStorage.getItem("selectedClass") || currentClassId;
+}
+
+/** Automatically select the saved class on load. */
+document.addEventListener("DOMContentLoaded", () => {
+  const savedClass = localStorage.getItem("selectedClass") || "class11";
+  switchFirebaseProject(savedClass);
+});
