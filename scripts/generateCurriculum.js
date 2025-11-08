@@ -9,6 +9,8 @@ import path from "path";
 export async function generateCurriculumForClass(cls) {
   console.log(`🧠 Preparing curriculum for Class ${cls} from static source...`);
 
+  // FIX APPLIED: Changed the trailing backtick (`) to a double quote (")
+  // to fix the SyntaxError: Invalid or unexpected token.
   const staticFile = path.join(process.cwd(), "static_curriculum", `class${cls}`, "curriculum.js");
   const destFile = path.join(process.cwd(), "temp_repo", "js", "curriculum.js");
 
