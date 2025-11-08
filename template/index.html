@@ -24,7 +24,9 @@
     }
   </script>
   <script src="https://unpkg.com/lucide@latest"></script>
+
   <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
     body { font-family: 'Inter', sans-serif; background-color: #f5f7fa; }
     .subject-card {
       @apply block p-6 rounded-xl bg-white border border-gray-200 shadow-lg transition-all duration-300 relative overflow-hidden;
@@ -35,10 +37,14 @@
     }
     .card-title { @apply text-xl font-extrabold text-heading; }
     .card-description { @apply text-gray-600 text-sm; }
+    .back-btn {
+      @apply text-cbse-blue underline cursor-pointer font-semibold text-sm mb-6 block;
+    }
   </style>
 </head>
 
 <body class="bg-cbse-light min-h-screen flex flex-col">
+
   <header class="bg-cbse-blue shadow-lg">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
       <h1 class="text-2xl font-extrabold text-accent-gold tracking-wider">
@@ -48,7 +54,8 @@
   </header>
 
   <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-    <header class="text-center mb-12">
+
+    <header id="page-header" class="text-center mb-12">
       <h2 class="text-4xl font-extrabold text-heading mb-2">CBSE Class 11 Streams</h2>
       <p class="text-lg text-gray-600">Select your stream to explore subjects and begin your chapter-wise practice quizzes.</p>
     </header>
@@ -56,8 +63,9 @@
     <!-- Stream Cards -->
     <div id="stream-container" class="grid grid-cols-1 md:grid-cols-3 gap-8"></div>
 
-    <!-- Subject Cards (appear after stream selection) -->
-    <div id="subject-container" class="grid grid-cols-1 md:grid-cols-3 gap-8 mt-12 hidden"></div>
+    <!-- Subject Cards -->
+    <div id="subject-container" class="grid grid-cols-1 md:grid-cols-3 gap-8 hidden"></div>
+
   </main>
 
   <footer class="bg-cbse-blue mt-16 py-8">
@@ -71,59 +79,93 @@
 
     const streamContainer = document.getElementById("stream-container");
     const subjectContainer = document.getElementById("subject-container");
+    const header = document.getElementById("page-header");
 
-    // Define streams and subjects mapping
+    // Define streams & subject mappings
     const streams = {
       Science: ["Physics", "Chemistry", "Biology", "Mathematics"],
       Commerce: ["Accountancy", "Business Studies", "Economics", "Mathematics"],
       Humanities: ["History", "Political Science", "Geography", "Economics"]
     };
 
-    const descriptions = {
-      Science: "Explore Physics, Chemistry, Biology, and Mathematics — the foundation of scientific learning.",
-      Commerce: "Dive into Accountancy, Business Studies, and Economics to build your financial acumen.",
-      Humanities: "Understand History, Political Science, and Geography — the study of society and people."
+    const streamDescriptions = {
+      Science: "Explore Physics, Chemistry, Biology, and Mathematics — the foundation for engineering, medical, and scientific careers.",
+      Commerce: "Dive into Accountancy, Business Studies, and Economics — building strong fundamentals for finance and management.",
+      Humanities: "Understand History, Political Science, and Geography — developing insight into society, governance, and human evolution."
     };
 
-    // Render Stream Cards
+    const subjectDescriptions = {
+      Physics: "Study laws of motion, energy, and the universe's structure.",
+      Chemistry: "Learn molecular behavior and reactions that shape matter.",
+      Biology: "Discover life processes, evolution, and biological systems.",
+      Mathematics: "Develop logical reasoning and analytical problem-solving skills.",
+      Accountancy: "Master the principles of accounting and financial reporting.",
+      "Business Studies": "Understand business operations, ethics, and entrepreneurship.",
+      Economics: "Analyze growth, development, and market forces shaping the economy.",
+      History: "Explore civilizations, revolutions, and historical transformations.",
+      "Political Science": "Learn how constitutions, rights, and governments work.",
+      Geography: "Understand earth’s structure, environment, and human geography."
+    };
+
+    // Render stream cards
     Object.keys(streams).forEach(stream => {
-      const a = document.createElement("div");
-      a.className = "subject-card cursor-pointer";
-      a.innerHTML = `
-        <div class="flex items-center space-x-3 mb-3">
-          <i data-lucide="layers" class="h-6 w-6 text-cbse-blue"></i>
+      const card = document.createElement("div");
+      card.className = "subject-card cursor-pointer";
+      card.innerHTML = `
+        <div class="flex items-center space-x-4 mb-3">
+          <i data-lucide="layers" class="h-7 w-7 text-cbse-blue"></i>
           <h3 class="card-title">${stream}</h3>
         </div>
-        <p class="card-description">${descriptions[stream]}</p>
+        <p class="card-description">${streamDescriptions[stream]}</p>
       `;
-      a.onclick = () => renderSubjects(stream);
-      streamContainer.appendChild(a);
+      card.onclick = () => renderSubjects(stream);
+      streamContainer.appendChild(card);
     });
+    lucide.createIcons();
 
+    // Render subjects for selected stream
     function renderSubjects(stream) {
       streamContainer.classList.add("hidden");
       subjectContainer.classList.remove("hidden");
       subjectContainer.innerHTML = "";
 
-      const subjects = streams[stream];
-      subjects.forEach(sub => {
-        if (!curriculum[sub]) return;
-        const div = document.createElement("a");
-        div.href = `chapter-selection.html?subject=${encodeURIComponent(sub)}`;
-        div.className = "subject-card";
-        div.innerHTML = `
-          <div class="flex items-center space-x-3 mb-3">
-            <i data-lucide="book-open" class="h-6 w-6 text-cbse-blue"></i>
-            <h3 class="card-title">${sub}</h3>
+      header.querySelector("h2").textContent = `${stream} Stream Subjects`;
+      header.querySelector("p").textContent = `Select a subject to explore its books and chapters.`;
+
+      // Back button
+      const backBtn = document.createElement("span");
+      backBtn.textContent = "← Back to Streams";
+      backBtn.className = "back-btn";
+      backBtn.onclick = () => {
+        subjectContainer.classList.add("hidden");
+        streamContainer.classList.remove("hidden");
+        header.querySelector("h2").textContent = "CBSE Class 11 Streams";
+        header.querySelector("p").textContent = "Select your stream to explore subjects and begin your chapter-wise practice quizzes.";
+      };
+      subjectContainer.before(backBtn);
+
+      // Filter subjects that belong to this stream
+      const streamSubjects = streams[stream].filter(sub => curriculum[sub]);
+      if (!streamSubjects.length) {
+        subjectContainer.innerHTML = `<p class="text-center text-gray-600 col-span-3">No subjects found for this stream.</p>`;
+        return;
+      }
+
+      streamSubjects.forEach(subject => {
+        const card = document.createElement("a");
+        card.href = `chapter-selection.html?subject=${encodeURIComponent(subject)}`;
+        card.className = "subject-card";
+        card.innerHTML = `
+          <div class="flex items-center space-x-4 mb-3">
+            <i data-lucide="book-open" class="h-7 w-7 text-cbse-blue"></i>
+            <h3 class="card-title">${subject}</h3>
           </div>
-          <p class="card-description">View chapters and quizzes for ${sub}.</p>
+          <p class="card-description">${subjectDescriptions[subject] || "Explore the chapters and quizzes for this subject."}</p>
         `;
-        subjectContainer.appendChild(div);
+        subjectContainer.appendChild(card);
       });
       lucide.createIcons();
     }
-
-    lucide.createIcons();
   </script>
 </body>
 </html>
