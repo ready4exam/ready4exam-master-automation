@@ -30,7 +30,7 @@ jobs:
         run: npm install
 
       - name: 🧠 Generate curriculum.js from JSON
-        run: node scripts/generateCurriculumJS.js
+        run: node scripts/generateCurriculum.js
         env:
           CLASS: ${{ github.event.inputs.CLASS }}
 
