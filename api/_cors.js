@@ -1,5 +1,6 @@
-// /api/_cors.js
-// ✅ Universal CORS handler for Node + Edge compatible imports
+// /api/corsHandler.js
+// ✅ Universal CORS handler (Node + Edge compatible)
+// Works for all backend routes in Ready4Exam Automation
 
 export function getCorsHeaders(origin = "") {
   const allowedOrigins = [
@@ -10,7 +11,7 @@ export function getCorsHeaders(origin = "") {
   ];
 
   const allowOrigin = allowedOrigins.includes(origin) ? origin : "*";
- 
+
   return {
     "Access-Control-Allow-Origin": allowOrigin,
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
@@ -18,7 +19,7 @@ export function getCorsHeaders(origin = "") {
   };
 }
 
-// ✅ Optional: direct route test
+// ✅ Optional direct access (for testing route manually)
 export default async function handler(req, res) {
   const origin = req.headers.origin || "*";
   const headers = getCorsHeaders(origin);
