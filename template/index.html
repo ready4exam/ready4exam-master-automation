@@ -3,126 +3,121 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Ready4Exam — Class Portal</title>
+  <title>Ready4Exam Academic Portal</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
       theme: {
         extend: {
-          fontFamily:{sans:['Inter','sans-serif']},
-          colors:{'cbse-blue':'#1a3e6a','cbse-light':'#f5f7fa','accent-gold':'#ffb703'}
+          fontFamily: { sans: ['Inter', 'sans-serif'] },
+          colors: {
+            'cbse-blue': '#1a3e6a',
+            'cbse-light': '#f5f7fa',
+            'accent-gold': '#ffb703'
+          }
         }
       }
     };
   </script>
   <style>
-    body{font-family:'Inter',sans-serif;}
-    .card{background:#fff;padding:1.5rem;border-radius:.75rem;border:1px solid #e5e7eb;box-shadow:0 8px 20px rgba(2,6,23,.06);transition:.2s;}
-    .card:hover{transform:translateY(-4px);}
+    body { font-family: 'Inter', sans-serif; }
+    .card {
+      background: white; border-radius: 1rem;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      padding: 2rem; transition: .25s;
+    }
+    .card:hover { transform: translateY(-4px); box-shadow: 0 8px 18px rgba(0,0,0,0.12); }
+    .btn { background: #1a3e6a; color: white; font-weight: 600; padding: .75rem 1.5rem; border-radius: .75rem; }
+    .btn:hover { background: #16345a; }
   </style>
 </head>
 
 <body class="bg-cbse-light min-h-screen flex flex-col">
-<header class="bg-cbse-blue shadow-lg">
-  <div class="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
-    <h1 class="text-2xl font-extrabold text-accent-gold">Ready4<span class="text-white">Exam</span></h1>
-  </div>
-</header>
+  <header class="bg-cbse-blue text-white shadow-lg">
+    <div class="max-w-6xl mx-auto px-6 py-4 flex justify-between items-center">
+      <h1 class="text-2xl font-extrabold text-accent-gold">Ready4<span class="text-white">Exam</span></h1>
+    </div>
+  </header>
 
-<main class="flex-grow max-w-5xl mx-auto px-6 py-12 text-center">
-  <h2 id="class-header" class="text-3xl font-extrabold text-cbse-blue mb-4"></h2>
-  <p class="text-gray-700 mb-8">Select your stream or subject to begin topic-wise practice aligned with NCERT syllabus.</p>
+  <main class="flex-grow max-w-6xl mx-auto px-6 py-12">
+    <h2 class="text-3xl font-extrabold text-cbse-blue mb-8 text-center">
+      Choose Your Stream or Subject
+    </h2>
 
-  <!-- Stream Section -->
-  <div id="stream-selection" class="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-12 hidden"></div>
+    <p id="intro-text" class="text-center text-gray-600 mb-10">
+      Select your stream to view all available subjects and books, or jump straight into a subject for classes below 11.
+    </p>
 
-  <!-- Subject Section -->
-  <div id="subject-container" class="hidden">
-    <h3 id="subject-header" class="text-2xl font-bold text-cbse-blue mb-6"></h3>
-    <div id="subject-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6"></div>
-  </div>
-</main>
+    <div id="stream-container" class="grid grid-cols-1 sm:grid-cols-3 gap-6 text-center"></div>
+  </main>
 
-<footer class="bg-cbse-blue py-6 text-center text-white">
-  <small>© 2025 Ready4Exam Academic Portal</small>
-</footer>
+  <footer class="bg-cbse-blue py-6 text-center text-white">
+    <small>© 2025 Ready4Exam Academic Portal. All Rights Reserved.</small>
+  </footer>
 
-<script type="module">
-import { curriculum } from "./js/curriculum.js";
+  <script type="module">
+    import { curriculum } from "./js/curriculum.js";
 
-const selectedClass = localStorage.getItem("selectedClass") || "9";
-document.getElementById("class-header").textContent = `CBSE Class ${selectedClass}`;
+    const selectedClass = localStorage.getItem("selectedClass") || "11";
+    const streamContainer = document.getElementById("stream-container");
+    const introText = document.getElementById("intro-text");
 
-const streamSel = document.getElementById("stream-selection");
-const subjectContainer = document.getElementById("subject-container");
-const subjectGrid = document.getElementById("subject-grid");
-const subjectHeader = document.getElementById("subject-header");
-
-if (Number(selectedClass) <= 10) {
-  // ----- CLASSES 5–10 -----
-  renderClassicSubjects();
-} else {
-  // ----- CLASSES 11–12 -----
-  renderStreams();
-}
-
-function renderClassicSubjects(){
-  subjectContainer.classList.remove("hidden");
-  subjectHeader.textContent = `Subjects for Class ${selectedClass}`;
-  subjectGrid.innerHTML="";
-  Object.keys(curriculum).forEach(sub=>{
-    const card=document.createElement("button");
-    card.className="card text-left";
-    card.innerHTML=`<h4 class='text-lg font-bold text-cbse-blue mb-1'>${sub}</h4>
-      <p class='text-gray-600 text-sm'>Start learning chapters in ${sub}.</p>`;
-    card.onclick=()=>{
-      localStorage.setItem("selectedSubject",sub);
-      window.location.href="chapter-selection.html";
-    };
-    subjectGrid.appendChild(card);
-  });
-}
-
-function renderStreams(){
-  streamSel.classList.remove("hidden");
-  const streams=["Science","Commerce","Humanities"];
-  streams.forEach(stream=>{
-    const btn=document.createElement("button");
-    btn.className="card";
-    btn.innerHTML=`<h3 class='text-xl font-bold text-cbse-blue mb-2'>${stream}</h3>`;
-    btn.onclick=()=>{
-      localStorage.setItem("selectedStream",stream);
-      renderStreamSubjects(stream);
-    };
-    streamSel.appendChild(btn);
-  });
-}
-
-function renderStreamSubjects(stream){
-  streamSel.classList.add("hidden");
-  subjectContainer.classList.remove("hidden");
-  subjectHeader.textContent=`${stream} Stream — Subjects`;
-  subjectGrid.innerHTML="";
-  const allSubjects=Object.keys(curriculum);
-  let streamSubjects=[];
-  if(stream==="Science")streamSubjects=["Physics","Chemistry","Biology","Mathematics"];
-  if(stream==="Commerce")streamSubjects=["Accountancy","Business Studies","Economics","Mathematics"];
-  if(stream==="Humanities")streamSubjects=["History","Geography","Political Science","Sociology","Psychology","Economics"];
-
-  streamSubjects.forEach(sub=>{
-    if(allSubjects.includes(sub)){
-      const card=document.createElement("button");
-      card.className="card text-left";
-      card.innerHTML=`<h4 class='text-lg font-bold text-cbse-blue mb-1'>${sub}</h4>
-      <p class='text-gray-600 text-sm'>Explore ${sub} chapters.</p>`;
-      card.onclick=()=>{
-        localStorage.setItem("selectedSubject",sub);
-        window.location.href="chapter-selection.html";
-      };
-      subjectGrid.appendChild(card);
+    function renderClassicSubjects() {
+      introText.textContent = "Select a subject to explore chapters and take quizzes.";
+      const subjects = Object.keys(curriculum[selectedClass] || curriculum || {});
+      streamContainer.innerHTML = "";
+      subjects.forEach(sub => {
+        const card = document.createElement("div");
+        card.className = "card cursor-pointer";
+        card.innerHTML = `<h3 class='text-xl font-bold mb-2 text-cbse-blue'>${sub}</h3>
+                          <p class='text-gray-600 mb-4'>Explore chapters from ${sub}.</p>
+                          <button class='btn'>Start</button>`;
+        card.onclick = () => {
+          localStorage.setItem("selectedSubject", sub);
+          window.location.href = "chapter-selection.html";
+        };
+        streamContainer.appendChild(card);
+      });
     }
-  });
-}
-</script>
+
+    function renderStreamOptions() {
+      streamContainer.innerHTML = "";
+      const streams = ["Science", "Commerce", "Humanities"];
+      introText.textContent = "Select your academic stream to continue.";
+      streams.forEach(stream => {
+        const div = document.createElement("div");
+        div.className = "card cursor-pointer";
+        div.innerHTML = `<h3 class='text-xl font-bold text-cbse-blue mb-2'>${stream}</h3>
+                         <p class='text-gray-600 mb-4'>View all subjects under the ${stream} stream.</p>
+                         <button class='btn'>Explore ${stream}</button>`;
+        div.onclick = () => renderSubjects(stream);
+        streamContainer.appendChild(div);
+      });
+    }
+
+    function renderSubjects(stream) {
+      streamContainer.innerHTML = "";
+      const subjects = Object.keys(curriculum || {});
+      subjects.forEach(sub => {
+        if ((stream === "Science" && ["Physics","Chemistry","Biology","Mathematics"].includes(sub)) ||
+            (stream === "Commerce" && ["Accountancy","Business Studies","Economics","Mathematics"].includes(sub)) ||
+            (stream === "Humanities" && ["History","Political Science","Sociology","Geography","Psychology","Economics","English"].includes(sub))) {
+          const card = document.createElement("div");
+          card.className = "card cursor-pointer";
+          card.innerHTML = `<h3 class='text-xl font-bold mb-2 text-cbse-blue'>${sub}</h3>
+                            <button class='btn mt-4'>Open</button>`;
+          card.onclick = () => {
+            localStorage.setItem("selectedSubject", sub);
+            localStorage.setItem("selectedStream", stream);
+            window.location.href = "chapter-selection.html";
+          };
+          streamContainer.appendChild(card);
+        }
+      });
+    }
+
+    if (Number(selectedClass) <= 10) renderClassicSubjects();
+    else renderStreamOptions();
+  </script>
 </body>
 </html>
