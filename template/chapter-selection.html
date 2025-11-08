@@ -3,14 +3,14 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Select Chapter &amp; Difficulty</title>
+  <title>Select Chapter & Difficulty</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
       theme: {
         extend: {
-          fontFamily: { sans:['Inter','sans-serif'] },
-          colors:{
+          fontFamily: { sans: ['Inter','sans-serif'] },
+          colors: {
             'cbse-blue':'#1a3e6a',
             'cbse-light':'#f5f7fa',
             'accent-gold':'#ffb703'
@@ -24,7 +24,7 @@
     .topic-btn{display:flex;align-items:center;justify-content:space-between;padding:1rem;background:#fff;border:1px solid #d1d5db;border-radius:.75rem;box-shadow:0 2px 6px rgba(2,6,23,.05);cursor:pointer;transition:.2s;}
     .topic-btn:hover{background:#f5f7fa;}
     .topic-btn.selected{border-color:#1a3e6a;background:#eff6ff;}
-    .difficulty-btn{padding:.6rem 1.25rem;border-radius:.75rem;font-weight:600;transition:.2s;cursor:pointer;}
+    .difficulty-btn{padding:.6rem 1.25rem;border-radius:.75rem;font-weight:600;cursor:pointer;transition:.2s;}
     .difficulty-btn.selected{box-shadow:0 6px 18px rgba(26,62,106,.14);}
   </style>
 </head>
@@ -33,13 +33,13 @@
   <header class="bg-cbse-blue shadow-lg">
     <div class="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
       <h1 class="text-2xl font-extrabold text-accent-gold">Ready4<span class="text-white">Exam</span></h1>
-      <button onclick="window.location.href='index.html'" class="text-white text-sm underline">← Back to Streams</button>
+      <button onclick="window.location.href='index.html'" class="text-white text-sm underline">← Back</button>
     </div>
   </header>
 
   <main class="flex-grow max-w-4xl mx-auto px-4 py-10">
-    <h2 id="page-title" class="text-3xl font-extrabold text-cbse-blue mb-6 text-center">Select Chapter &amp; Difficulty</h2>
-    <div id="dynamic-container" class="space-y-5 mb-10"></div>
+    <h2 id="page-title" class="text-3xl font-extrabold text-cbse-blue mb-8 text-center">Select Chapter & Difficulty</h2>
+    <div id="chapter-container" class="space-y-5 mb-10"></div>
 
     <div id="difficulty-container" class="hidden mb-10 text-center">
       <h3 class="text-2xl font-bold text-cbse-blue mb-4">Select Quiz Difficulty</h3>
@@ -64,70 +64,66 @@
   <script type="module">
     import { curriculum } from "./js/curriculum.js";
 
-    const dynamicContainer = document.getElementById("dynamic-container");
-    const difficultyContainer = document.getElementById("difficulty-container");
-    const errorMsg = document.getElementById("error-msg");
+    const container = document.getElementById("chapter-container");
+    const diffContainer = document.getElementById("difficulty-container");
     const startBtn = document.getElementById("start-quiz");
+    const errorMsg = document.getElementById("error-msg");
 
     const selectedClass = localStorage.getItem("selectedClass") || "11";
-    const selectedStream = localStorage.getItem("selectedStream");
     const selectedSubject = localStorage.getItem("selectedSubject");
 
-    let selectedBook = null;
     let selectedChapter = null;
     let selectedDifficulty = null;
 
-    // --------------- CLASSIC FLOW ---------------
-    function renderClassicChapters() {
-      const chapters = curriculum[selectedClass]?.[selectedSubject] || [];
-      dynamicContainer.innerHTML = "";
-      if (!chapters.length) {
-        dynamicContainer.innerHTML = `<p class='text-gray-600'>No chapters found for ${selectedSubject}.</p>`;
+    // --- Generic render that auto-detects structure ---
+    function renderChapters() {
+      container.innerHTML = "";
+
+      let subjectData =
+        curriculum[selectedClass]?.[selectedSubject] || // for nested-by-class
+        curriculum[selectedSubject] ||                 // for flat subject root
+        [];
+
+      // case 1: array → direct chapters
+      if (Array.isArray(subjectData)) {
+        renderChapterButtons(subjectData);
         return;
       }
+
+      // case 2: object with books
+      if (typeof subjectData === "object") {
+        Object.entries(subjectData).forEach(([book, chapters]) => {
+          const bookHeader = document.createElement("h3");
+          bookHeader.className = "text-xl font-bold text-cbse-blue mt-6 mb-2";
+          bookHeader.textContent = book;
+          container.appendChild(bookHeader);
+          renderChapterButtons(chapters);
+        });
+        return;
+      }
+
+      container.innerHTML = `<p class="text-gray-600">No chapters found for ${selectedSubject}.</p>`;
+    }
+
+    function renderChapterButtons(chapters) {
+      if (!Array.isArray(chapters) || !chapters.length) return;
       chapters.forEach(ch => {
-        const name = ch.title || ch.chapter_title || ch;
+        const name = ch.chapter_title || ch.title || ch;
         const btn = document.createElement("div");
         btn.className = "topic-btn";
-        btn.innerHTML = `<span>${name}</span>`;
+        btn.textContent = name;
         btn.onclick = e => selectChapter(name, e.currentTarget);
-        dynamicContainer.appendChild(btn);
+        container.appendChild(btn);
       });
     }
 
-    // --------------- STREAM FLOW (11–12) ---------------
-    function renderBooksAndChapters() {
-      const subjectData = curriculum[selectedSubject];
-      dynamicContainer.innerHTML = "";
-      if (!subjectData) {
-        dynamicContainer.innerHTML = `<p class='text-gray-600'>No books found for ${selectedSubject}.</p>`;
-        return;
-      }
-
-      Object.keys(subjectData).forEach(bookName => {
-        const bookDiv = document.createElement("div");
-        bookDiv.innerHTML = `<h3 class='text-xl font-bold text-cbse-blue mb-2 mt-6'>${bookName}</h3>`;
-        const chapters = subjectData[bookName];
-        chapters.forEach(ch => {
-          const name = ch.chapter_title || ch.title || ch;
-          const btn = document.createElement("div");
-          btn.className = "topic-btn";
-          btn.innerHTML = `<span>${name}</span>`;
-          btn.onclick = e => selectChapter(name, e.currentTarget);
-          bookDiv.appendChild(btn);
-        });
-        dynamicContainer.appendChild(bookDiv);
-      });
-    }
-
-    // --------------- SHARED HANDLERS ---------------
-    function selectChapter(chapter, el) {
+    function selectChapter(chName, el) {
       document.querySelectorAll(".topic-btn").forEach(b => b.classList.remove("selected"));
       el.classList.add("selected");
-      selectedChapter = chapter;
-      difficultyContainer.classList.remove("hidden");
-      errorMsg.classList.add("hidden");
+      selectedChapter = chName;
+      diffContainer.classList.remove("hidden");
       startBtn.disabled = true;
+      errorMsg.classList.add("hidden");
     }
 
     document.querySelectorAll(".difficulty-btn").forEach(btn => {
@@ -149,9 +145,8 @@
       window.location.href = "quiz-engine.html";
     };
 
-    // INIT
-    if (Number(selectedClass) <= 10) renderClassicChapters();
-    else renderBooksAndChapters();
+    // --- INIT ---
+    renderChapters();
   </script>
 </body>
 </html>
