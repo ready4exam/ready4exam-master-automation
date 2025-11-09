@@ -9,16 +9,21 @@ import { getCorsHeaders } from "./_cors.js";
 export const config = { runtime: "nodejs" };
 
 export default async function handler(req, res) {
+  // ----------------------------
+  // CORS HANDLING
+  // ----------------------------
   const origin = req.headers.origin || "*";
   const headers = { ...getCorsHeaders(origin), "Content-Type": "application/json" };
   Object.entries(headers).forEach(([k, v]) => res.setHeader(k, v));
 
-  // --- Preflight ---
+  // Handle preflight
   if (req.method === "OPTIONS") return res.status(200).end();
   if (req.method !== "POST") return res.status(405).json({ error: "Only POST method allowed" });
 
   try {
-    // --- Parse body ---
+    // ----------------------------
+    // BODY VALIDATION
+    // ----------------------------
     const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
     const { meta = {}, csv = [] } = body;
     const { className, subject, book = "", chapter, refresh = false } = meta;
@@ -27,14 +32,18 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Missing or invalid parameters" });
     }
 
-    // --- Supabase (unified 11) ---
+    // ----------------------------
+    // SUPABASE CONNECTION
+    // ----------------------------
     const supabaseUrl = process.env.SUPABASE_URL_11;
     const supabaseKey = process.env.SUPABASE_SERVICE_KEY_11;
     if (!supabaseUrl || !supabaseKey) throw new Error("Supabase_11 credentials missing");
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // --- Table name ---
+    // ----------------------------
+    // TABLE NAME FORMAT
+    // ----------------------------
     const tableName = [
       `class${className}`,
       subject.toLowerCase().replace(/\s+/g, "_"),
@@ -47,7 +56,9 @@ export default async function handler(req, res) {
 
     console.log(`🧩 Processing table: ${tableName}`);
 
-    // --- Create table if not exists ---
+    // ----------------------------
+    // CREATE TABLE IF NOT EXISTS (Dynamic)
+    // ----------------------------
     const createQuery = `
       CREATE TABLE IF NOT EXISTS public.${tableName} (
         id BIGSERIAL PRIMARY KEY,
@@ -65,24 +76,36 @@ export default async function handler(req, res) {
       ALTER TABLE public.${tableName} ENABLE ROW LEVEL SECURITY;
     `;
 
-    const { error: ddlError } = await supabase.rpc("execute_sql", { query: createQuery }).catch(() => ({
-      error: null,
-    }));
-    if (ddlError) console.warn("⚠️ DDL warning:", ddlError.message);
-
-    // --- Refresh mode ---
-    if (refresh) {
-      console.log(`♻️ Refresh mode: truncating ${tableName}`);
-      await supabase.rpc("execute_sql", { query: `TRUNCATE TABLE public.${tableName};` }).catch(() => {});
+    try {
+      const { error: ddlError } = await supabase.rpc("execute_sql", { query: createQuery });
+      if (ddlError) console.warn("⚠️ DDL warning:", ddlError.message);
+    } catch {
+      console.warn("⚠️ RPC execute_sql not available — skipping automatic table creation");
     }
 
-    // --- Insert rows ---
+    // ----------------------------
+    // REFRESH MODE (optional truncate)
+    // ----------------------------
+    if (refresh) {
+      console.log(`♻️ Refresh mode: truncating ${tableName}`);
+      try {
+        await supabase.rpc("execute_sql", { query: `TRUNCATE TABLE public.${tableName};` });
+      } catch {
+        console.warn("⚠️ Table truncate RPC failed — continuing");
+      }
+    }
+
+    // ----------------------------
+    // INSERT CSV DATA
+    // ----------------------------
     const { error: insertError } = await supabase.from(tableName).insert(csv);
     if (insertError) throw insertError;
 
     console.log(`✅ Inserted ${csv.length} rows into ${tableName}`);
 
-    // --- Log usage ---
+    // ----------------------------
+    // LOG USAGE (for dailyReport.js)
+    // ----------------------------
     const logEntry = {
       class_name: className,
       subject,
@@ -93,10 +116,24 @@ export default async function handler(req, res) {
       refresh,
       created_at: new Date().toISOString(),
     };
-    await supabase.from("usage_logs").insert(logEntry).catch(() => {});
 
-    // --- Response ---
+    await supabase.from("usage_logs").insert(logEntry).catch(() => {
+      console.warn("⚠️ Logging failed, continuing silently");
+    });
+
+    // ----------------------------
+    // SUCCESS RESPONSE
+    // ----------------------------
     return res.status(200).json({
       ok: true,
       message: `${csv.length} questions uploaded to ${tableName}`,
       table: tableName,
+    });
+  } catch (err) {
+    console.error("❌ manageSupabase.js error:", err);
+    return res.status(500).json({
+      ok: false,
+      error: err.message || "Internal server error",
+    });
+  }
+}
