@@ -1,7 +1,6 @@
-// js/firebaseSwitcher.js
+// firebaseSwitcher.js
 // -----------------------------------------------------------------------------
-// Manages multi-Firebase project initialization (Class 9, Class 11 + placeholders)
-// Central source of truth for all Firebase configs
+// Manages multi-Firebase project initialization (Class 9, Class 11, placeholders)
 // -----------------------------------------------------------------------------
 
 import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
@@ -9,7 +8,7 @@ import { getAuth } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth
 import { getFirestore } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 // -----------------------------------------------------------------------------
-// 🧩 Firebase Configurations for Each Class
+// Firebase Configurations (production keys)
 // -----------------------------------------------------------------------------
 const firebaseConfigs = {
   class9: {
@@ -30,84 +29,55 @@ const firebaseConfigs = {
     appId: "1:192315627607:web:9f2e2794dc42aaa3352b12",
     measurementId: "G-3GXX6VXYT1",
   },
-
-  // 🟨 Placeholders (for classes not yet active)
-  class6: {},
-  class7: {},
-  class8: {},
-  class10: {},
-  class12: {},
 };
 
 // -----------------------------------------------------------------------------
-// 🧠 Internal State
+// Internal State
 // -----------------------------------------------------------------------------
-let currentClassId = "class11";
+let currentClassId = localStorage.getItem("selectedClass") || "class11";
 let clients = null;
 
 // -----------------------------------------------------------------------------
-// ✅ switchFirebaseProject()
-// Initialize or switch Firebase project context safely
+// Core: switchFirebaseProject()
 // -----------------------------------------------------------------------------
 export function switchFirebaseProject(classId = "class11") {
-  // Normalize numeric ID → add prefix
-  if (!String(classId).startsWith("class")) {
-    classId = `class${classId}`;
+  try {
+    if (!classId.startsWith("class")) classId = `class${classId}`;
+    if (!firebaseConfigs[classId]) {
+      console.warn(`[firebaseSwitcher] Missing config for ${classId} — falling back to class11.`);
+      classId = "class11";
+    }
+
+    currentClassId = classId;
+    const config = firebaseConfigs[classId];
+    if (!config) throw new Error(`Firebase config missing for ${classId}`);
+
+    // Prevent duplicate initialization
+    const existing = getApps().find((a) => a.name === classId);
+    const app = existing || initializeApp(config, classId);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    clients = { app, auth, db, classId };
+    console.log(`[firebaseSwitcher] Active → ${classId}`);
+    return clients;
+  } catch (err) {
+    console.error("[firebaseSwitcher] Failed to switch:", err.message);
+    return null;
   }
-
-  currentClassId = classId;
-  let config = firebaseConfigs[classId];
-
-  // Graceful fallback to class11 if config missing or invalid
-  if (!config || !config.apiKey) {
-    console.warn(`[firebaseSwitcher] Missing config for ${classId} — falling back to class11.`);
-    config = firebaseConfigs["class11"];
-    currentClassId = "class11";
-  }
-
-  // Avoid reinitializing if app already exists
-  const existing = getApps().find((a) => a.name === currentClassId);
-  const app = existing || initializeApp(config, currentClassId);
-  const auth = getAuth(app);
-  const db = getFirestore(app);
-
-  clients = { app, auth, db, classId: currentClassId };
-  console.log(`[firebaseSwitcher] Active → ${currentClassId}`);
-  return clients;
 }
 
 // -----------------------------------------------------------------------------
-// ✅ getCurrentClients()
-// Retrieve current Firebase app/auth/db context
+// Helper: getCurrentClients()
 // -----------------------------------------------------------------------------
 export function getCurrentClients() {
-  if (!clients) {
-    console.warn("[firebaseSwitcher] Clients not initialized — switching to default.");
-    return switchFirebaseProject(currentClassId);
-  }
-  return clients;
+  if (clients) return clients;
+  return switchFirebaseProject(currentClassId);
 }
 
 // -----------------------------------------------------------------------------
-// ✅ getActiveClass()
-// Return currently selected class from storage or default
+// Helper: getActiveClass()
 // -----------------------------------------------------------------------------
 export function getActiveClass() {
-  const saved = localStorage.getItem("selectedClass");
-  if (!saved) return currentClassId;
-  return saved.startsWith("class") ? saved : `class${saved}`;
+  return currentClassId;
 }
-
-// -----------------------------------------------------------------------------
-// ✅ Auto-Switch on Page Load
-// -----------------------------------------------------------------------------
-document.addEventListener("DOMContentLoaded", () => {
-  const savedClass = getActiveClass();
-  try {
-    switchFirebaseProject(savedClass);
-  } catch (err) {
-    console.warn("[firebaseSwitcher] Failed to switch:", err.message);
-    console.log("[firebaseSwitcher] Falling back to class11.");
-    switchFirebaseProject("class11");
-  }
-});
