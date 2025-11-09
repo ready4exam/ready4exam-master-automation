@@ -4,44 +4,81 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Ready4Exam — Chapter Selection</title>
-    <script type="module" src="./js/ui-renderer.js"></script>
-    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@3.4.14/dist/tailwind.min.css" rel="stylesheet">
+
+    <!-- ✅ Tailwind & Fonts (GitHub Pages compatible) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: { sans: ["Inter", "sans-serif"] },
+            colors: {
+              "cbse-blue": "#1a3e6a",
+              "accent-gold": "#ffb703",
+            },
+          },
+        },
+      };
+    </script>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap"
+      rel="stylesheet"
+    />
+
+    <script type="module">
+      import * as UI from "./js/ui-renderer.js";
+      window.UI = UI;
+    </script>
   </head>
-  <body class="bg-gray-50 text-gray-800">
-    <header class="bg-white shadow-sm py-4">
+
+  <body class="bg-gray-50 text-gray-800 font-sans">
+    <!-- Header -->
+    <header class="bg-cbse-blue text-white py-4 shadow">
       <div class="max-w-5xl mx-auto flex justify-between items-center px-4">
-        <h1 class="text-xl font-bold">Ready4Exam — Class 11</h1>
-        <select id="class-selector" class="border rounded p-2">
+        <h1 class="text-xl font-extrabold">
+          Ready4Exam <span class="text-accent-gold">— Class 11</span>
+        </h1>
+        <select id="class-selector" class="text-gray-800 rounded p-2">
           <option value="class9">Class 9</option>
           <option value="class11" selected>Class 11</option>
         </select>
       </div>
     </header>
 
-    <main class="max-w-4xl mx-auto mt-8 px-4">
-      <h2 class="text-2xl font-semibold mb-4">Physics Chapters</h2>
+    <!-- Chapter List -->
+    <main class="max-w-4xl mx-auto mt-10 px-4">
+      <h2 class="text-2xl font-bold mb-6 text-cbse-blue">Physics Chapters</h2>
 
-      <div class="grid md:grid-cols-2 gap-4">
-        <div class="p-4 bg-white rounded-lg shadow-sm border border-gray-100">
-          <h3 class="font-bold text-lg mb-2">Electric Charges and Fields</h3>
+      <div class="grid md:grid-cols-2 gap-6">
+        <div class="p-6 bg-white rounded-xl shadow border border-gray-100">
+          <h3 class="font-semibold text-lg mb-3">Electric Charges and Fields</h3>
+          <p class="text-gray-600 mb-4 text-sm">Core concepts of electrostatics.</p>
           <button
-            class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-            onclick="UI.startQuiz('class11', 'Physics', 'Electric_Charges_and_Fields', 'simple')"
+            class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition"
+            onclick="UI.startQuiz('class11','Physics','Electric_Charges_and_Fields','simple')"
           >
             Start Quiz
           </button>
         </div>
 
-        <div class="p-4 bg-white rounded-lg shadow-sm border border-gray-100">
-          <h3 class="font-bold text-lg mb-2">Electrostatic Potential and Capacitance</h3>
+        <div class="p-6 bg-white rounded-xl shadow border border-gray-100">
+          <h3 class="font-semibold text-lg mb-3">Electrostatic Potential and Capacitance</h3>
+          <p class="text-gray-600 mb-4 text-sm">Study of electric potential & energy.</p>
           <button
-            class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-            onclick="UI.startQuiz('class11', 'Physics', 'Electrostatic_Potential_and_Capacitance', 'simple')"
+            class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition"
+            onclick="UI.startQuiz('class11','Physics','Electrostatic_Potential_and_Capacitance','simple')"
           >
             Start Quiz
           </button>
         </div>
       </div>
     </main>
+
+    <!-- Footer -->
+    <footer class="bg-cbse-blue text-white text-center py-4 mt-16">
+      <small class="opacity-80">
+        © 2025 Ready4Exam Academic Portal. All Rights Reserved.
+      </small>
+    </footer>
   </body>
 </html>
