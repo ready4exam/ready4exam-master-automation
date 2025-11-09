@@ -1,5 +1,7 @@
-// /api/dailyReport.js
-// Sends a daily usage summary email based on usage_logs in Supabase_11
+// -------------------- /api/dailyReport.js --------------------
+// Sends a daily Supabase usage summary email for Ready4Exam automation
+// Uses Supabase_11 (shared) and Gmail SMTP via App Password
+// Compatible with Vercel Cron or manual GET/POST trigger
 
 import { createClient } from "@supabase/supabase-js";
 import nodemailer from "nodemailer";
@@ -7,9 +9,9 @@ import { getCorsHeaders } from "./_cors.js";
 
 export const config = { runtime: "nodejs" };
 
+// Utility to get start of today's date in UTC
 function startOfTodayISO() {
   const d = new Date();
-  // Use UTC day boundary for consistent cross-timezone reporting
   const yyyy = d.getUTCFullYear();
   const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
   const dd = String(d.getUTCDate()).padStart(2, "0");
@@ -21,14 +23,13 @@ export default async function handler(req, res) {
   const headers = { ...getCorsHeaders(origin), "Content-Type": "application/json" };
   Object.entries(headers).forEach(([k, v]) => res.setHeader(k, v));
 
-  // Only allow GET or POST (cron will call GET/POST depending on platform)
   if (req.method === "OPTIONS") return res.status(200).end();
   if (!["GET", "POST"].includes(req.method)) {
-    return res.status(405).json({ error: "Only GET/POST allowed" });
+    return res.status(405).json({ error: "Only GET or POST allowed" });
   }
 
   try {
-    // Validate env
+    // --- ENV VALIDATION ---
     const SUPABASE_URL = process.env.SUPABASE_URL_11;
     const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY_11;
     const SMTP_HOST = process.env.SMTP_HOST;
@@ -38,43 +39,48 @@ export default async function handler(req, res) {
     const TO_EMAIL = process.env.DAILY_REPORT_EMAIL;
     const FROM_EMAIL = process.env.REPORT_FROM_EMAIL || SMTP_USER;
 
-    if (!SUPABASE_URL || !SUPABASE_KEY) throw new Error("Missing Supabase_11 env vars");
-    if (!SMTP_HOST || !SMTP_PORT || !SMTP_USER || !SMTP_PASS) throw new Error("Missing SMTP env vars");
-    if (!TO_EMAIL) throw new Error("Missing DAILY_REPORT_EMAIL env var");
+    console.log("🧩 ENV CHECK:", {
+      SUPABASE_URL: !!SUPABASE_URL,
+      SUPABASE_KEY: !!SUPABASE_KEY,
+      SMTP_HOST: !!SMTP_HOST,
+      SMTP_PORT: !!SMTP_PORT,
+      SMTP_USER: !!SMTP_USER,
+      SMTP_PASS: !!SMTP_PASS,
+      TO_EMAIL: !!TO_EMAIL,
+    });
+
+    if (!SUPABASE_URL || !SUPABASE_KEY) throw new Error("Supabase_11 credentials missing");
+    if (!SMTP_HOST || !SMTP_PORT || !SMTP_USER || !SMTP_PASS) throw new Error("SMTP credentials missing");
+    if (!TO_EMAIL) throw new Error("DAILY_REPORT_EMAIL missing");
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
-
-    // Determine date range: today (UTC)
     const since = startOfTodayISO();
 
-    // Query usage_logs for today's entries
-    // usage_logs columns: class_name, subject, book, chapter, table_name, inserted_count, refresh, created_at
-    const { data: rows, error } = await supabase
+    // --- FETCH TODAY'S USAGE LOGS ---
+    const { data: rows, error: queryError } = await supabase
       .from("usage_logs")
       .select("class_name,subject,book,chapter,table_name,inserted_count,refresh,created_at")
       .gte("created_at", since)
       .order("created_at", { ascending: false });
 
-    if (error) {
-      console.error("Supabase query error:", error);
-      throw error;
-    }
+    if (queryError) throw new Error("Supabase query error: " + queryError.message);
 
-    // Aggregate metrics
-    const totalRuns = rows.length;
+    // --- AGGREGATE METRICS ---
+    const totalRuns = rows?.length || 0;
     const distinctTables = new Set(rows.map(r => r.table_name)).size;
     const totalInserted = rows.reduce((s, r) => s + (Number(r.inserted_count) || 0), 0);
-
-    // Top chapters (by inserted_count)
     const top = [...rows]
       .filter(r => r.inserted_count)
       .sort((a, b) => (b.inserted_count || 0) - (a.inserted_count || 0))
       .slice(0, 10);
 
-    // Compose HTML email
+    const today = since.slice(0, 10);
     const now = new Date().toISOString();
+
+    // --- EMAIL CONTENT ---
     const htmlRows = top.length
-      ? top.map(r => `<tr>
+      ? top.map(r => `
+        <tr>
           <td>${r.class_name}</td>
           <td>${r.subject}</td>
           <td>${r.book || "-"}</td>
@@ -82,67 +88,72 @@ export default async function handler(req, res) {
           <td>${r.table_name}</td>
           <td style="text-align:right">${r.inserted_count}</td>
         </tr>`).join("\n")
-      : `<tr><td colspan="6" style="text-align:center">No inserts recorded today</td></tr>`;
+      : `<tr><td colspan="6" style="text-align:center;padding:12px;">No new inserts recorded today</td></tr>`;
 
     const html = `
-      <div style="font-family:Arial,Helvetica,sans-serif; color:#111">
-        <h2>Ready4Exam — Daily Supabase Usage Report</h2>
-        <p><strong>Date (UTC):</strong> ${since.slice(0,10)}</p>
+      <div style="font-family:Arial,Helvetica,sans-serif;color:#111">
+        <h2>📊 Ready4Exam – Daily Supabase Usage Report</h2>
+        <p><strong>Date (UTC):</strong> ${today}</p>
         <p><strong>Generated at:</strong> ${now}</p>
         <ul>
-          <li><strong>Total runs:</strong> ${totalRuns}</li>
-          <li><strong>Distinct tables created/updated:</strong> ${distinctTables}</li>
-          <li><strong>Total questions inserted:</strong> ${totalInserted}</li>
+          <li><strong>Total Runs:</strong> ${totalRuns}</li>
+          <li><strong>Distinct Tables Updated:</strong> ${distinctTables}</li>
+          <li><strong>Total Questions Inserted:</strong> ${totalInserted}</li>
         </ul>
 
-        <h3>Top Chapters / Recent Activity</h3>
-        <table width="100%" cellpadding="6" cellspacing="0" style="border-collapse:collapse; border:1px solid #ddd">
-          <thead style="background:#f7f7f7">
+        <h3>Top Chapters (Most Recent Activity)</h3>
+        <table width="100%" border="1" cellspacing="0" cellpadding="6" style="border-collapse:collapse;border:1px solid #ddd">
+          <thead style="background:#f5f5f5">
             <tr>
               <th>Class</th><th>Subject</th><th>Book</th><th>Chapter</th><th>Table</th><th>Inserted</th>
             </tr>
           </thead>
-          <tbody>
-            ${htmlRows}
-          </tbody>
+          <tbody>${htmlRows}</tbody>
         </table>
 
-        <p style="margin-top:16px; font-size:12px; color:#666">This is an automated developer report from Ready4Exam master automation.</p>
+        <p style="margin-top:16px;font-size:12px;color:#555;">
+          This report is auto-generated by <strong>ready4exam-master-automation</strong>.<br>
+          Supabase instance: <code>Supabase_11</code>.
+        </p>
       </div>
     `;
 
-    // Send email with Nodemailer
+    // --- SMTP CONFIG ---
     const transporter = nodemailer.createTransport({
       host: SMTP_HOST,
       port: Number(SMTP_PORT),
-      secure: Number(SMTP_PORT) === 465, // true for 465, false for other ports
+      secure: true, // Gmail uses SSL on port 465
       auth: {
         user: SMTP_USER,
         pass: SMTP_PASS,
       },
     });
 
+    // --- SEND EMAIL ---
     const mailOptions = {
       from: FROM_EMAIL,
       to: TO_EMAIL,
-      subject: `[Ready4Exam] Daily Supabase Usage — ${since.slice(0,10)}`,
+      subject: `[Ready4Exam] Daily Supabase Usage – ${today}`,
       html,
     };
 
     const info = await transporter.sendMail(mailOptions);
-    console.log("Email sent:", info.messageId || info);
+    console.log("✅ Email sent:", info?.messageId || info);
 
+    // --- RESPONSE ---
     return res.status(200).json({
       ok: true,
-      date: since.slice(0,10),
+      date: today,
       totalRuns,
       distinctTables,
       totalInserted,
       topCount: top.length,
-      emailInfo: info.messageId || info,
+      emailSent: TO_EMAIL,
+      messageId: info?.messageId || null,
     });
+
   } catch (err) {
-    console.error("dailyReport error:", err);
-    return res.status(500).json({ error: err.message || String(err) });
+    console.error("❌ dailyReport.js error:", err);
+    return res.status(500).json({ ok: false, error: err.message || String(err) });
   }
 }
