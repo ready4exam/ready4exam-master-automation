@@ -192,14 +192,21 @@
     });
 
     // Start Quiz button
-    startBtn.onclick = () => {
-      if (!selectedChapter || !selectedDifficulty) {
-        errorMsg.classList.remove("hidden");
-        return;
-      }
-      const url = `quiz-engine.html?subject=${encodeURIComponent(subject)}&book=${encodeURIComponent(selectedBook)}&chapter=${encodeURIComponent(selectedChapter)}&difficulty=${encodeURIComponent(selectedDifficulty)}`;
-      window.location.href = url;
-    };
+   startBtn.onclick = () => {
+  if (!selectedChapter || !selectedDifficulty) {
+    errorMsg.classList.remove("hidden");
+    return;
+  }
+
+  // Default to class 11 for now — can be dynamically set later
+  const classId = "class11";
+
+  // Convert chapter to slug (topic)
+  const topicSlug = selectedChapter.replace(/\s+/g, "_");
+
+  const url = `quiz-engine.html?class=${encodeURIComponent(classId)}&subject=${encodeURIComponent(subject)}&topic=${encodeURIComponent(topicSlug)}&difficulty=${encodeURIComponent(selectedDifficulty)}`;
+  window.location.href = url;
+};
 
     // Initialize on load
     renderBooks();
