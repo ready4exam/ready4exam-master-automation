@@ -1,12 +1,12 @@
 name: Count Curriculum Chapters
 
 on:
-  workflow_dispatch: # allows you to run it manually
+  workflow_dispatch:
   push:
     branches:
       - main
     paths:
-      - "static_curriculum/**" # re-run only if curriculum changes
+      - "static_curriculum/**"
 
 jobs:
   count-chapters:
@@ -21,38 +21,8 @@ jobs:
         with:
           node-version: 20
 
-      - name: 📦 Install dependencies
-        run: npm install
-
       - name: ▶️ Run Chapter Count Script
-        run: node scripts/countChapters.js
-
-      - name: 💾 Generate JSON Report
         run: |
-          node -e '
-          import fs from "fs";
-          import path from "path";
-          import { fileURLToPath } from "url";
-          const __filename = fileURLToPath(import.meta.url);
-          const __dirname = path.dirname(__filename);
-          import("../scripts/countChapters.js").then(async (mod) => {
-            const result = await (mod.default || mod.runCount)();
-            fs.writeFileSync(path.join(__dirname, "../chapter_summary.json"), JSON.stringify(result, null, 2));
-          });
-          '
-
-      - name: 📤 Upload JSON report as artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: chapter-summary
-          path: chapter_summary.json
-
-      # Optional: Commit the JSON report back to repo
-      - name: 📝 Commit report to repo
-        if: github.event_name == 'workflow_dispatch'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add chapter_summary.json
-          git commit -m "Auto-generated chapter summary report"
-          git push
+          echo "Current working directory: $(pwd)"
+          ls -R
+          node ./scripts/countChapters.js
