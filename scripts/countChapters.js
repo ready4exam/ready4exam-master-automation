@@ -1,10 +1,4 @@
-/**
- * scripts/countChapters.js
- * -----------------------------------------
- * Counts total chapters per class and per subject
- * from all static_curriculum/classX/curriculum.js files.
- * -----------------------------------------
- */
+// scripts/countChapters.js
 
 import fs from "fs";
 import path from "path";
@@ -13,54 +7,48 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Adjust base path if needed
-const baseDir = path.join(__dirname, "../static_curriculum");
+// Base directory (adjust automatically)
+const repoRoot = process.cwd().includes("ready4exam-master-automation")
+  ? process.cwd()
+  : path.join(process.cwd(), "ready4exam-master-automation");
 
-// Function to safely import curriculum.js (ESM-compatible)
-async function importCurriculum(filePath) {
-  try {
-    // Dynamic import to handle ES module exports
-    const mod = await import(filePath);
-    // curriculum.js may export default or named variable
-    return mod.default || mod.curriculum || mod;
-  } catch (err) {
-    console.error(`❌ Failed to import ${filePath}:`, err.message);
-    return null;
-  }
-}
+const baseDir = path.join(repoRoot, "static_curriculum");
 
 async function countChapters() {
-  console.log("📘 Counting chapters in all curriculum files...\n");
+  console.log("📘 Counting chapters in all curriculum JSON files...\n");
 
   const results = [];
-
-  // Loop through folders like class6, class7, ..., class12
   const classDirs = fs
     .readdirSync(baseDir)
     .filter((f) => fs.statSync(path.join(baseDir, f)).isDirectory());
 
   for (const classDir of classDirs) {
-    const curriculumPath = path.join(baseDir, classDir, "curriculum.js");
-    if (!fs.existsSync(curriculumPath)) {
-      console.warn(`⚠️  Skipping ${classDir} — curriculum.js not found`);
+    const jsonPath = path.join(baseDir, classDir, "curriculum.json");
+    if (!fs.existsSync(jsonPath)) {
+      console.warn(`⚠️  Skipping ${classDir} — curriculum.json not found`);
       continue;
     }
 
-    // Convert file path to file:// URL for import
-    const curriculumURL = pathToFileURL(curriculumPath).href;
-    const curriculum = await importCurriculum(curriculumURL);
-    if (!curriculum || typeof curriculum !== "object") continue;
+    let curriculum;
+    try {
+      curriculum = JSON.parse(fs.readFileSync(jsonPath, "utf-8"));
+    } catch (err) {
+      console.error(`❌ Failed to parse ${jsonPath}: ${err.message}`);
+      continue;
+    }
 
     let totalChapters = 0;
     const subjectCounts = {};
 
     for (const [subject, books] of Object.entries(curriculum)) {
       let subjectChapterCount = 0;
-      for (const book of Object.values(books)) {
-        if (Array.isArray(book)) {
-          subjectChapterCount += book.length;
+
+      for (const [bookTitle, chapters] of Object.entries(books)) {
+        if (Array.isArray(chapters)) {
+          subjectChapterCount += chapters.length;
         }
       }
+
       subjectCounts[subject] = subjectChapterCount;
       totalChapters += subjectChapterCount;
     }
@@ -82,14 +70,14 @@ async function countChapters() {
     console.log(`   ➕ Total: ${item.totalChapters} chapters`);
   }
 
+  // Write a JSON summary file
+  fs.writeFileSync(
+    path.join(repoRoot, "chapter_summary.json"),
+    JSON.stringify(results, null, 2)
+  );
+
   console.log("\n✅ Done!");
+  return results;
 }
 
-// Helper for dynamic import
-function pathToFileURL(filePath) {
-  const absPath = path.resolve(filePath);
-  return new URL(`file://${absPath}`);
-}
-
-// Run
 countChapters();
