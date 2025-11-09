@@ -26,7 +26,9 @@ const firebaseConfigs = {
     appId: "1:192315627607:web:9f2e2794dc42aaa3352b12",
     measurementId: "G-3GXX6VXYT1"
   },
-  // 🟦 Future placeholders (add configs as needed)
+  // 🟦 Future placeholders
+  class7: {},
+  class8: {},
   class10: {},
   class12: {}
 };
@@ -34,12 +36,20 @@ const firebaseConfigs = {
 let currentClassId = "class11";
 let clients = null;
 
-/** Initialize or switch Firebase project context. */
+/** Initialize or switch Firebase project context safely */
 export function switchFirebaseProject(classId = "class11") {
+  // 🧩 Normalize numeric class ID → add prefix
+  if (!String(classId).startsWith("class")) {
+    classId = `class${classId}`;
+  }
+
   currentClassId = classId;
   const config = firebaseConfigs[classId];
-  if (!config || !config.apiKey) throw new Error(`Firebase config missing for ${classId}`);
+  if (!config || !config.apiKey) {
+    throw new Error(`Firebase config missing for ${classId}`);
+  }
 
+  // Avoid re-initializing same app
   const existing = getApps().find((a) => a.name === classId);
   const app = existing || initializeApp(config, classId);
   const auth = getAuth(app);
@@ -50,19 +60,24 @@ export function switchFirebaseProject(classId = "class11") {
   return clients;
 }
 
-/** Retrieve the active app/auth/db context. */
+/** Retrieve the active app/auth/db context */
 export function getCurrentClients() {
   if (!clients) return switchFirebaseProject(currentClassId);
   return clients;
 }
 
-/** Get the currently selected class (from storage or fallback). */
+/** Get the currently selected class (from storage or fallback) */
 export function getActiveClass() {
-  return localStorage.getItem("selectedClass") || currentClassId;
+  const saved = localStorage.getItem("selectedClass");
+  return saved ? (saved.startsWith("class") ? saved : `class${saved}`) : currentClassId;
 }
 
-/** Automatically select the saved class on load. */
+/** Auto-select saved class on page load */
 document.addEventListener("DOMContentLoaded", () => {
-  const savedClass = localStorage.getItem("selectedClass") || "class11";
-  switchFirebaseProject(savedClass);
+  const savedClass = getActiveClass();
+  try {
+    switchFirebaseProject(savedClass);
+  } catch (err) {
+    console.warn("[firebaseSwitcher] Failed to switch:", err.message);
+  }
 });
