@@ -1,7 +1,7 @@
 // js/config.js
 // -----------------------------------------------------------------------------
 // Initializes Firebase, Supabase, and Google Analytics (GA4)
-// Supports named Firebase apps via firebaseSwitcher.js
+ // Supports named Firebase apps via firebaseSwitcher.js
 // -----------------------------------------------------------------------------
 
 import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
