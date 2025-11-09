@@ -1,4 +1,9 @@
 // scripts/countChapters.js
+// -----------------------------------------
+// Counts chapters from curriculum.json files,
+// adds a final total across all classes,
+// and exports results to both JSON and CSV.
+// -----------------------------------------
 
 import fs from "fs";
 import path from "path";
@@ -7,12 +12,41 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Base directory (adjust automatically)
+// Determine repo root (handles GitHub Actions nested path)
 const repoRoot = process.cwd().includes("ready4exam-master-automation")
   ? process.cwd()
   : path.join(process.cwd(), "ready4exam-master-automation");
 
 const baseDir = path.join(repoRoot, "static_curriculum");
+
+// Utility to convert JSON to CSV
+function convertToCSV(dataArray) {
+  const headers = ["Class", "Subject", "Chapters"];
+  const rows = [];
+
+  for (const item of dataArray) {
+    for (const [subject, count] of Object.entries(item.subjects)) {
+      rows.push([item.class, subject, count]);
+    }
+  }
+
+  // Add total rows
+  const totalPerClass = dataArray.map(
+    (item) => [item.class, "Total (Class)", item.totalChapters]
+  );
+  rows.push(["---", "---", "---"]);
+  rows.push(...totalPerClass);
+
+  // Calculate final total
+  const grandTotal = dataArray.reduce(
+    (acc, item) => acc + item.totalChapters,
+    0
+  );
+  rows.push(["---", "FINAL TOTAL", grandTotal]);
+
+  // Convert to CSV string
+  return [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+}
 
 async function countChapters() {
   console.log("📘 Counting chapters in all curriculum JSON files...\n");
@@ -60,6 +94,7 @@ async function countChapters() {
     });
   }
 
+  // Print readable report
   console.log("📊 Summary Report:");
   console.log("---------------------------");
   for (const item of results) {
@@ -70,14 +105,26 @@ async function countChapters() {
     console.log(`   ➕ Total: ${item.totalChapters} chapters`);
   }
 
-  // Write a JSON summary file
-  fs.writeFileSync(
-    path.join(repoRoot, "chapter_summary.json"),
-    JSON.stringify(results, null, 2)
+  const grandTotal = results.reduce(
+    (acc, item) => acc + item.totalChapters,
+    0
   );
+  console.log("\n===========================");
+  console.log(`📚 FINAL TOTAL CHAPTERS: ${grandTotal}`);
+  console.log("===========================\n");
 
-  console.log("\n✅ Done!");
-  return results;
+  // Save JSON
+  const jsonPath = path.join(repoRoot, "chapter_summary.json");
+  fs.writeFileSync(jsonPath, JSON.stringify(results, null, 2));
+
+  // Save CSV
+  const csvContent = convertToCSV(results);
+  const csvPath = path.join(repoRoot, "chapter_summary.csv");
+  fs.writeFileSync(csvPath, csvContent);
+
+  console.log(`✅ Reports saved:
+   • ${jsonPath}
+   • ${csvPath}`);
 }
 
 countChapters();
