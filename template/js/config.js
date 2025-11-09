@@ -1,65 +1,43 @@
 // js/config.js
 // -----------------------------------------------------------------------------
-// Initializes Firebase, Supabase, and Google Analytics (GA4)
-// Now supports multiple Firebase projects via firebaseSwitcher.js
+// Central configuration hub for Ready4Exam
+// Initializes Firebase (via firebaseSwitcher.js), Supabase, and GA4 Analytics
 // -----------------------------------------------------------------------------
 
-import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-import { getAuth } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-import { getFirestore } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+import { getCurrentClients, switchFirebaseProject, getActiveClass } from "./firebaseSwitcher.js";
 import { createClient as createSupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { switchFirebaseProject, getCurrentClients } from "./firebaseSwitcher.js";
 
-// ---------- internal state ----------
-let firebaseApp = null;
-let firebaseAuth = null;
-let firebaseDB = null;
+// -----------------------------------------------------------------------------
+// 🧠 Internal state
+// -----------------------------------------------------------------------------
 let supabase = null;
 let analyticsInitialized = false;
 
 // -----------------------------------------------------------------------------
-// initializeServices()
+// ✅ initializeServices()
+// Initializes Firebase (through firebaseSwitcher), Supabase, and GA4
 // -----------------------------------------------------------------------------
-export async function initializeServices(classId = null) {
-  if (firebaseApp && supabase && !classId) {
-    return { app: firebaseApp, auth: firebaseAuth, db: firebaseDB, supabase };
-  }
+export async function initializeServices() {
+  console.log("[Config] Initializing services...");
 
-  // If user selected a class explicitly → switch Firebase project
-  if (classId) {
-    console.log(`[Config] Switching Firebase project for: ${classId}`);
-    const clients = switchFirebaseProject(classId);
-    firebaseApp = clients.app;
-    firebaseAuth = clients.auth;
-    firebaseDB = clients.db;
-  } else {
-    // Default initialization from injected config
-    const cfg = JSON.parse(window.__firebase_config || "{}");
-    if (!cfg?.apiKey) throw new Error("Firebase config missing.");
+  // 1️⃣ Firebase Initialization
+  const activeClass = getActiveClass();
+  const { app, auth, db } = switchFirebaseProject(activeClass);
+  console.log(`[Config] Firebase initialized for: ${activeClass}`);
 
-    firebaseApp = initializeApp(cfg);
-    firebaseAuth = getAuth(firebaseApp);
-    firebaseDB = getFirestore(firebaseApp);
-    console.log("[Config] Firebase initialized from window.__firebase_config.");
-  }
-
-  // ---------- Supabase ----------
+  // 2️⃣ Supabase Initialization (static across all classes)
   const SUPABASE_URL = "https://gkyvojcmqsgdynmitcuf.supabase.co";
   const SUPABASE_ANON_KEY =
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdreXZvamNtcXNnZHlubWl0Y3VmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA3NDQ0OTcsImV4cCI6MjA3NjMyMDQ5N30.5dn5HbXxQ5sYNECS9o3VxVeyL6I6Z2Yf-nmPwztx1hE";
 
-  try {
+  if (!supabase) {
     supabase = createSupabaseClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     console.log("[Config] Supabase initialized:", SUPABASE_URL);
-  } catch (err) {
-    console.warn("[Config] Supabase initialization failed:", err);
   }
 
-  // ---------- Google Analytics ----------
-  const measurementId = window.__firebase_config
-    ? JSON.parse(window.__firebase_config || "{}").measurementId
-    : null;
-  if (measurementId && typeof window !== "undefined") {
+  // 3️⃣ Google Analytics (GA4)
+  const measurementId = "G-4EFDM0CRYY"; // Your main Ready4Exam GA4 ID
+  if (measurementId && typeof window !== "undefined" && !analyticsInitialized) {
     window.dataLayer = window.dataLayer || [];
     window.gtag = function () {
       window.dataLayer.push(arguments);
@@ -70,29 +48,42 @@ export async function initializeServices(classId = null) {
     console.log("[Config] Google Analytics initialized:", measurementId);
   }
 
-  return { app: firebaseApp, auth: firebaseAuth, db: firebaseDB, supabase };
+  return { app, auth, db, supabase };
 }
 
 // -----------------------------------------------------------------------------
-// Helpers + Exports
+// ✅ getInitializedClients()
+// Returns currently active app/auth/db + supabase clients
 // -----------------------------------------------------------------------------
 export function getInitializedClients() {
-  // If switcher already has clients → return them
   try {
-    const clients = getCurrentClients();
-    if (clients) return { app: clients.app, auth: clients.auth, db: clients.db, supabase };
+    const { app, auth, db } = getCurrentClients();
+    if (!app || !auth || !db) throw new Error("Firebase not initialized.");
+    return { app, auth, db, supabase };
   } catch (err) {
-    // fallback to old logic
+    console.error("[Config] getInitializedClients failed:", err.message);
+    throw err;
   }
-
-  if (!firebaseApp) throw new Error("Firebase not initialized yet.");
-  return { app: firebaseApp, auth: firebaseAuth, db: firebaseDB, supabase };
 }
 
+// -----------------------------------------------------------------------------
+// ✅ getAuthUser()
+// Returns the currently authenticated Firebase user
+// -----------------------------------------------------------------------------
 export function getAuthUser() {
-  return (firebaseAuth && firebaseAuth.currentUser) || null;
+  try {
+    const { auth } = getCurrentClients();
+    return auth?.currentUser || null;
+  } catch (err) {
+    console.warn("[Config] getAuthUser() failed:", err.message);
+    return null;
+  }
 }
 
+// -----------------------------------------------------------------------------
+// ✅ logAnalyticsEvent()
+// Wrapper for Google Analytics custom event logging
+// -----------------------------------------------------------------------------
 export function logAnalyticsEvent(eventName, params = {}) {
   if (!analyticsInitialized || typeof window.gtag !== "function") {
     console.warn("[GA4] gtag not available — event not logged:", eventName);
@@ -105,6 +96,3 @@ export function logAnalyticsEvent(eventName, params = {}) {
     console.error("[GA4] Failed to log event:", err);
   }
 }
-
-// convenience re-exports
-export { firebaseApp, firebaseAuth, firebaseDB, supabase };
