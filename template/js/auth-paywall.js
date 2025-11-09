@@ -1,4 +1,4 @@
-// auth-paywall.js
+// js/auth-paywall.js
 // -----------------------------------------------------------------------------
 // Handles sign-in/out and authentication state
 // -----------------------------------------------------------------------------
@@ -37,20 +37,45 @@ function internalAuthChangeHandler(user) {
   if (typeof externalOnAuthChange === "function") externalOnAuthChange(user);
 }
 
+// -----------------------------------------------------------------------------
+// Initialize listener + attach click handler
+// -----------------------------------------------------------------------------
 export async function initializeAuthListener(onAuthChangeCallback = null) {
   const auth = getAuthInstance();
   await setPersistence(auth, browserLocalPersistence);
+
   try {
     const redirectResult = await firebaseGetRedirectResult(auth);
-    if (redirectResult?.user) console.log(LOG, "Restored user:", redirectResult.user.uid);
+    if (redirectResult?.user)
+      console.log(LOG, "Restored user:", redirectResult.user.uid);
   } catch (err) {
     console.warn(LOG, "Redirect restore error:", err.message);
   }
+
   if (onAuthChangeCallback) externalOnAuthChange = onAuthChangeCallback;
   onAuthStateChanged(auth, internalAuthChangeHandler);
   console.log(LOG, "Auth listener initialized.");
+
+  // ✅ Directly bind button click here (synchronous user action context)
+  document.addEventListener("DOMContentLoaded", () => {
+    const signInBtn = document.getElementById("google-signin-btn");
+    if (signInBtn) {
+      console.log(LOG, "Binding click handler to Google Sign-In button.");
+      signInBtn.addEventListener("click", async (e) => {
+        e.preventDefault();
+        try {
+          await signInWithGoogle();
+        } catch (err) {
+          console.error(LOG, "Sign-in error:", err);
+        }
+      });
+    }
+  });
 }
 
+// -----------------------------------------------------------------------------
+// Sign In / Sign Out
+// -----------------------------------------------------------------------------
 export async function signInWithGoogle() {
   const auth = getAuthInstance();
   if (isSigningIn) return;
@@ -62,7 +87,11 @@ export async function signInWithGoogle() {
     UI.hideAuthLoading();
     return result;
   } catch (popupError) {
-    const fallbackCodes = ["auth/popup-blocked", "auth/cancelled-popup-request", "auth/web-storage-unsupported"];
+    const fallbackCodes = [
+      "auth/popup-blocked",
+      "auth/cancelled-popup-request",
+      "auth/web-storage-unsupported",
+    ];
     if (fallbackCodes.includes(popupError.code)) {
       console.warn(LOG, "Popup blocked → fallback to redirect.");
       await signInWithRedirect(auth, googleProvider);
