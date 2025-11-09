@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Ready4Exam — Chapter Selection</title>
 
-    <!-- ✅ Tailwind & Fonts (GitHub Pages compatible) -->
+    <!-- ✅ Load Tailwind properly (works on GitHub Pages) -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -25,10 +25,17 @@
       rel="stylesheet"
     />
 
+    <!-- ✅ Import UI Renderer correctly -->
     <script type="module">
       import * as UI from "./js/ui-renderer.js";
       window.UI = UI;
     </script>
+
+    <style>
+      body {
+        font-family: "Inter", sans-serif;
+      }
+    </style>
   </head>
 
   <body class="bg-gray-50 text-gray-800 font-sans">
@@ -51,8 +58,12 @@
 
       <div class="grid md:grid-cols-2 gap-6">
         <div class="p-6 bg-white rounded-xl shadow border border-gray-100">
-          <h3 class="font-semibold text-lg mb-3">Electric Charges and Fields</h3>
-          <p class="text-gray-600 mb-4 text-sm">Core concepts of electrostatics.</p>
+          <h3 class="font-semibold text-lg mb-3">
+            Electric Charges and Fields
+          </h3>
+          <p class="text-gray-600 mb-4 text-sm">
+            Core concepts of electrostatics.
+          </p>
           <button
             class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition"
             onclick="UI.startQuiz('class11','Physics','Electric_Charges_and_Fields','simple')"
@@ -62,8 +73,12 @@
         </div>
 
         <div class="p-6 bg-white rounded-xl shadow border border-gray-100">
-          <h3 class="font-semibold text-lg mb-3">Electrostatic Potential and Capacitance</h3>
-          <p class="text-gray-600 mb-4 text-sm">Study of electric potential & energy.</p>
+          <h3 class="font-semibold text-lg mb-3">
+            Electrostatic Potential and Capacitance
+          </h3>
+          <p class="text-gray-600 mb-4 text-sm">
+            Study of electric potential & energy.
+          </p>
           <button
             class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition"
             onclick="UI.startQuiz('class11','Physics','Electrostatic_Potential_and_Capacitance','simple')"
