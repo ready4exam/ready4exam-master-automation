@@ -12,7 +12,8 @@ import {
   signInWithGoogle,
   signOut,
 } from "./auth-paywall.js";
-import { curriculum as curriculumData } from "./curriculum.js"; // ✅ fixed import — matches curriculum.js export
+import { getActiveClass } from "./firebaseSwitcher.js";
+import curriculumData from "./curriculum.js"; // safe import for chapter lookup
 
 // Global quiz state
 let quizState = {
@@ -27,9 +28,9 @@ let quizState = {
   score: 0,
 };
 
-// -------------------------------
-// Utility: Hash email for GA4
-// -------------------------------
+/* -------------------------------
+   Utility: Hash email for GA4
+-------------------------------- */
 async function hashEmail(email) {
   const encoder = new TextEncoder();
   const data = encoder.encode(email.trim().toLowerCase());
@@ -39,9 +40,9 @@ async function hashEmail(email) {
     .join("");
 }
 
-// -------------------------------
-// Convert slug to readable fallback
-// -------------------------------
+/* -------------------------------
+   Convert slug to readable
+-------------------------------- */
 function humanizeSlug(slug) {
   if (!slug) return "";
   return slug
@@ -51,19 +52,17 @@ function humanizeSlug(slug) {
     .join(" ");
 }
 
-// -------------------------------
-// Find chapter title from curriculum (safe search across sub-subjects)
-// -------------------------------
+/* -------------------------------
+   Find chapter title from curriculum
+-------------------------------- */
 function findChapterTitle(classId, subject, topicSlug) {
   try {
     if (!classId || !subject || !topicSlug) return null;
     const classBlock = curriculumData?.[classId];
     if (!classBlock) return null;
-
     const subjectBlock = classBlock[subject];
     if (!subjectBlock) return null;
 
-    // If subjectBlock is an object (has sub-subjects), search each array
     if (typeof subjectBlock === "object" && !Array.isArray(subjectBlock)) {
       for (const sub in subjectBlock) {
         const arr = subjectBlock[sub];
@@ -74,7 +73,6 @@ function findChapterTitle(classId, subject, topicSlug) {
       }
     }
 
-    // If subjectBlock itself is an array of chapters
     if (Array.isArray(subjectBlock)) {
       for (const ch of subjectBlock) {
         if (ch?.id === topicSlug) return ch?.title || null;
@@ -88,29 +86,36 @@ function findChapterTitle(classId, subject, topicSlug) {
   }
 }
 
-// -------------------------------
-// Parse quiz parameters
-// -------------------------------
+/* -------------------------------
+   Parse quiz parameters
+-------------------------------- */
 function parseUrlParameters() {
   const urlParams = new URLSearchParams(window.location.search);
-  quizState.classId = urlParams.get("class");
-  quizState.subject = urlParams.get("subject");
-  quizState.topicSlug = urlParams.get("topic");
-  quizState.difficulty = urlParams.get("difficulty");
+  quizState.classId = urlParams.get("class") || getActiveClass();
+  quizState.subject = urlParams.get("subject") || localStorage.getItem("selectedSubject") || "Business Studies";
+  quizState.topicSlug = urlParams.get("topic") || localStorage.getItem("selectedTopic");
+  quizState.difficulty = urlParams.get("difficulty") || "simple";
 
-  if (!quizState.topicSlug) throw new Error("Missing topic parameter.");
+  // ✅ Always normalize classId prefix
+  if (!String(quizState.classId).startsWith("class")) {
+    quizState.classId = `class${quizState.classId}`;
+  }
 
-  // Resolve display title using curriculum.js. Fallback to humanized slug.
+  if (!quizState.topicSlug) {
+    console.error("[ENGINE] Missing topic parameter.");
+    throw new Error("Missing topic parameter.");
+  }
+
   const displayTitle =
     findChapterTitle(quizState.classId, quizState.subject, quizState.topicSlug) ||
-    humanizeSlug(quizState.topicSlug) + (humanizeSlug(quizState.topicSlug) ? " Quiz" : "");
+    humanizeSlug(quizState.topicSlug);
 
   UI.updateHeader(displayTitle, quizState.difficulty);
 }
 
-// -------------------------------
-// Render question (index is zero-based internal)
-// -------------------------------
+/* -------------------------------
+   Render question
+-------------------------------- */
 function renderQuestion() {
   const idx = quizState.currentQuestionIndex;
   const q = quizState.questions[idx];
@@ -118,15 +123,14 @@ function renderQuestion() {
     UI.showStatus("<span>No question to display.</span>");
     return;
   }
-
   UI.renderQuestion(q, idx + 1, quizState.userAnswers[q.id], quizState.isSubmitted);
   UI.updateNavigation?.(idx, quizState.questions.length, quizState.isSubmitted);
   UI.hideStatus();
 }
 
-// -------------------------------
-// Navigation (next/prev)
-// -------------------------------
+/* -------------------------------
+   Navigation
+-------------------------------- */
 function handleNavigation(dir) {
   const newIndex = quizState.currentQuestionIndex + dir;
   if (newIndex >= 0 && newIndex < quizState.questions.length) {
@@ -135,18 +139,18 @@ function handleNavigation(dir) {
   }
 }
 
-// -------------------------------
-// Answer selection handler
-// -------------------------------
+/* -------------------------------
+   Answer selection
+-------------------------------- */
 function handleAnswerSelection(questionId, selectedOption) {
   if (quizState.isSubmitted) return;
   quizState.userAnswers[questionId] = selectedOption;
-  renderQuestion(); // Re-render to reflect selection
+  renderQuestion();
 }
 
-// -------------------------------
-// Submit quiz: compute score, save, GA logging
-// -------------------------------
+/* -------------------------------
+   Submit quiz
+-------------------------------- */
 async function handleSubmit() {
   if (quizState.isSubmitted) return;
   quizState.isSubmitted = true;
@@ -196,9 +200,6 @@ async function handleSubmit() {
           score: quizState.score,
           total: quizState.questions.length,
           percentage,
-          mcq_correct: correctTypeCount.mcq,
-          ar_correct: correctTypeCount.ar,
-          case_correct: correctTypeCount.case,
         });
       }
     } catch (err) {
@@ -206,16 +207,13 @@ async function handleSubmit() {
     }
   }
 
-  quizState.currentQuestionIndex = 0;
-  renderQuestion();
   UI.showResults(quizState.score, quizState.questions.length);
   UI.renderAllQuestionsForReview?.(quizState.questions, quizState.userAnswers);
-  UI.updateNavigation?.(quizState.currentQuestionIndex, quizState.questions.length, true);
 }
 
-// -------------------------------
-// Load quiz questions
-// -------------------------------
+/* -------------------------------
+   Load quiz questions
+-------------------------------- */
 async function loadQuiz() {
   try {
     UI.showStatus("Fetching questions...");
@@ -227,18 +225,6 @@ async function loadQuiz() {
     quizState.currentQuestionIndex = 0;
     quizState.isSubmitted = false;
 
-    // GA4: quiz started
-    try {
-      if (typeof gtag === "function") {
-        gtag("event", "quiz_started", {
-          topic: quizState.topicSlug,
-          difficulty: quizState.difficulty,
-        });
-      }
-    } catch (e) {
-      console.warn("[GA4] quiz_started log failed:", e);
-    }
-
     renderQuestion();
     UI.attachAnswerListeners?.(handleAnswerSelection);
     UI.showView?.("quiz-content");
@@ -248,9 +234,9 @@ async function loadQuiz() {
   }
 }
 
-// -------------------------------
-// Auth state callback
-// -------------------------------
+/* -------------------------------
+   Auth state
+-------------------------------- */
 async function onAuthChange(user) {
   try {
     if (user) {
@@ -267,9 +253,9 @@ async function onAuthChange(user) {
   }
 }
 
-// -------------------------------
-// DOM Event Handlers
-// -------------------------------
+/* -------------------------------
+   DOM Event Handlers
+-------------------------------- */
 function attachDomEventHandlers() {
   document.addEventListener(
     "click",
@@ -280,21 +266,17 @@ function attachDomEventHandlers() {
       if (btn.id === "prev-btn") return handleNavigation(-1);
       if (btn.id === "next-btn") return handleNavigation(1);
       if (btn.id === "submit-btn") return handleSubmit();
-
-      if (["login-btn", "google-signin-btn", "paywall-login-btn"].includes(btn.id)) {
-        return signInWithGoogle();
-      }
+      if (btn.id === "google-signin-btn" || btn.id === "paywall-login-btn") return signInWithGoogle();
       if (btn.id === "logout-nav-btn") return signOut();
-      if (btn.id === "back-to-chapters-btn")
-        return (window.location.href = "chapter-selection.html");
+      if (btn.id === "back-to-chapters-btn") return (window.location.href = "chapter-selection.html");
     },
     false
   );
 }
 
-// -------------------------------
-// Initialize quiz engine
-// -------------------------------
+/* -------------------------------
+   Initialize quiz engine
+-------------------------------- */
 async function initQuizEngine() {
   try {
     UI.initializeElements();
@@ -305,8 +287,8 @@ async function initQuizEngine() {
     await initializeAuthListener(onAuthChange);
 
     attachDomEventHandlers();
-
     UI.hideStatus();
+
     console.log("[ENGINE] Initialization complete.");
   } catch (err) {
     console.error("[ENGINE FATAL] Initialization failed:", err);
