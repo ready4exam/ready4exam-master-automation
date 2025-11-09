@@ -1,5 +1,9 @@
 // js/ui-renderer.js
-import { cleanKatexMarkers } from './utils.js';
+// -----------------------------------------------------------------------------
+// Handles all quiz UI rendering: question display, results, navigation, etc.
+// -----------------------------------------------------------------------------
+
+import { cleanKatexMarkers } from "./utils.js";
 
 let els = {};
 let isInit = false;
@@ -32,7 +36,7 @@ export function initializeElements() {
     reviewContainer: document.getElementById("review-container"),
     welcomeUser: document.getElementById("welcome-user"),
     miniTitle: document.getElementById("quiz-title"),
-    chapterNameDisplay: document.getElementById("chapter-name-display"), // ✅ added
+    chapterNameDisplay: document.getElementById("chapter-name-display"),
   };
 
   if (!els.reviewContainer) {
@@ -66,7 +70,6 @@ export function hideStatus() {
 
 export function updateHeader(topicDisplayTitle, diff) {
   initializeElements();
-
   if (els.miniTitle) els.miniTitle.textContent = "";
 
   if (els.title) {
@@ -94,9 +97,7 @@ export function updateAuthUI(user) {
   const welcomeEl = els.welcomeUser;
   if (user) {
     const name =
-      user.displayName?.split(" ")[0] ||
-      user.email?.split("@")[0] ||
-      "Student";
+      user.displayName?.split(" ")[0] || user.email?.split("@")[0] || "Student";
     if (welcomeEl) {
       welcomeEl.textContent = `Welcome, ${name}!`;
       welcomeEl.classList.remove("hidden");
@@ -132,6 +133,7 @@ export function showAuthLoading(message = "Signing you in — please wait...") {
     document.body.appendChild(overlay);
   } else overlay.classList.remove("hidden");
 }
+
 export function hideAuthLoading() {
   const overlay = document.getElementById("auth-loading-overlay");
   if (overlay) overlay.remove();
@@ -168,11 +170,13 @@ export function renderQuestion(q, idxOneBased, selected, submitted) {
 
   const reasonHtml =
     (type === "ar" || type === "case") && reason && !submitted
-      ? `<p class="text-gray-700 mt-2 mb-3">${label}: ${reason}</p>` : "";
+      ? `<p class="text-gray-700 mt-2 mb-3">${label}: ${reason}</p>`
+      : "";
 
   const submittedExplanationHtml =
     submitted && (type === "ar" || type === "case") && reason
-      ? `<div class="mt-3 p-3 bg-gray-50 rounded text-gray-700 border border-gray-100"><b>${label}:</b> ${reason}</div>` : "";
+      ? `<div class="mt-3 p-3 bg-gray-50 rounded text-gray-700 border border-gray-100"><b>${label}:</b> ${reason}</div>`
+      : "";
 
   const optionsHtml = ["A", "B", "C", "D"]
     .map((opt) => {
@@ -188,13 +192,16 @@ export function renderQuestion(q, idxOneBased, selected, submitted) {
 
       return `
         <label class="block">
-          <input type="radio" name="q-${q.id}" value="${opt}" class="hidden" ${isSel ? "checked" : ""} ${submitted ? "disabled" : ""}>
+          <input type="radio" name="q-${q.id}" value="${opt}" class="hidden" ${
+        isSel ? "checked" : ""
+      } ${submitted ? "disabled" : ""}>
           <div class="${cls}">
             <span class="font-bold mr-3">${opt}.</span>
             <span class="text-gray-800">${txt}</span>
           </div>
         </label>`;
-    }).join("");
+    })
+    .join("");
 
   els.list.innerHTML = `
     <div class="space-y-6">
@@ -204,8 +211,7 @@ export function renderQuestion(q, idxOneBased, selected, submitted) {
       ${submittedExplanationHtml}
     </div>`;
 
-  if (els.counter)
-    els.counter.textContent = `${idxOneBased} / ${els._total || "--"}`;
+  if (els.counter) els.counter.textContent = `${idxOneBased} / ${els._total || "--"}`;
 }
 
 /* -----------------------------------
@@ -252,21 +258,25 @@ export function renderAllQuestionsForReview(questions, userAnswers = {}) {
   initializeElements();
   if (!els.reviewContainer) return;
 
-  const html = questions.map((q, i) => {
-    const txt = cleanKatexMarkers(q.text || "");
-    const reason = normalizeReasonText(cleanKatexMarkers(q.explanation || ""));
-    const label = (q.question_type || "").toLowerCase() === "case" ? "Context" : "Reasoning (R)";
-    const ua = userAnswers[q.id] || "-";
-    const ca = q.correct_answer || "-";
-    const correct = ua && ua.toUpperCase() === ca.toUpperCase();
-    return `
+  const html = questions
+    .map((q, i) => {
+      const txt = cleanKatexMarkers(q.text || "");
+      const reason = normalizeReasonText(cleanKatexMarkers(q.explanation || ""));
+      const label = (q.question_type || "").toLowerCase() === "case" ? "Context" : "Reasoning (R)";
+      const ua = userAnswers[q.id] || "-";
+      const ca = q.correct_answer || "-";
+      const correct = ua && ua.toUpperCase() === ca.toUpperCase();
+      return `
       <div class="mb-6 p-4 bg-white rounded-lg border border-gray-100 shadow-sm">
         <p class="font-bold text-lg mb-1">Q${i + 1}: ${txt}</p>
         ${reason ? `<p class="text-gray-700 mb-2">${label}: ${reason}</p>` : ""}
-        <p>Your Answer: <span class="${correct ? "text-green-600 font-semibold" : "text-red-600 font-semibold"}">${ua}</span></p>
+        <p>Your Answer: <span class="${
+          correct ? "text-green-600 font-semibold" : "text-red-600 font-semibold"
+        }">${ua}</span></p>
         <p>Correct Answer: <b class="text-green-700">${ca}</b></p>
       </div>`;
-  }).join("");
+    })
+    .join("");
 
   els.reviewContainer.innerHTML = html;
 
@@ -287,13 +297,7 @@ export function renderAllQuestionsForReview(questions, userAnswers = {}) {
     const btn = e.target.closest("button[data-diff]");
     if (btn) {
       const params = new URLSearchParams(window.location.search);
-      const currentClass = localStorage.getItem("selectedClass") || "class11";
-      const subject = params.get("subject") || localStorage.getItem("selectedSubject") || "Business Studies";
-      const topic = params.get("topic") || localStorage.getItem("selectedTopic") || "";
       params.set("difficulty", btn.dataset.diff);
-      params.set("class", currentClass);
-      params.set("subject", subject);
-      params.set("topic", topic);
       window.location.href = `quiz-engine.html?${params.toString()}`;
     }
     if (e.target.id === "back-to-chapters-btn") {
@@ -305,18 +309,10 @@ export function renderAllQuestionsForReview(questions, userAnswers = {}) {
 }
 
 /* -----------------------------------
-   START QUIZ (NEW)
+   QUIZ LAUNCH (NO LOCALSTORAGE)
 ----------------------------------- */
-export function startQuiz(topicSlug, difficulty) {
-  const selectedClass = localStorage.getItem("selectedClass") || "class11";
-  const selectedSubject = localStorage.getItem("selectedSubject") || "Business Studies";
-  const topic = topicSlug || localStorage.getItem("selectedTopic");
-
-  if (!topic) {
-    alert("Error: Missing topic information.");
-    return;
-  }
-
-  const url = `quiz-engine.html?class=${selectedClass}&subject=${encodeURIComponent(selectedSubject)}&topic=${encodeURIComponent(topic)}&difficulty=${difficulty}`;
+export function startQuiz(selectedClass, selectedSubject, topicSlug, difficulty = "simple") {
+  const url = `quiz-engine.html?class=${encodeURIComponent(selectedClass)}&subject=${encodeURIComponent(selectedSubject)}&topic=${encodeURIComponent(topicSlug)}&difficulty=${encodeURIComponent(difficulty)}`;
+  console.log("[UI] Redirecting to:", url);
   window.location.href = url;
 }
