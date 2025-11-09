@@ -109,7 +109,21 @@
     <small class="opacity-80">© 2025 Ready4Exam Academic Portal. All Rights Reserved.</small>
   </footer>
 
-  <!-- JS Modules (order is important) -->
+  <!-- ✅ Inject Firebase base config -->
+  <script>
+    window.__firebase_config = JSON.stringify({
+      "apiKey": "AIzaSyAXdKiYRxBKAj280YcNuNwlKKDp85xpOWQ",
+      "authDomain": "quiz-signon.firebaseapp.com",
+      "projectId": "quiz-signon",
+      "storageBucket": "quiz-signon.firebasestorage.app",
+      "messagingSenderId": "863414222321",
+      "appId": "1:863414222321:web:819f5564825308bcd9d850",
+      "measurementId": "G-4EFDM0CRYY"
+    });
+    console.log("[Quiz Engine] Injected base Firebase config.");
+  </script>
+
+  <!-- ✅ JS Modules (correct order) -->
   <script type="module" src="./js/firebaseSwitcher.js"></script>
   <script type="module" src="./js/config.js"></script>
   <script type="module" src="./js/auth-paywall.js"></script>
