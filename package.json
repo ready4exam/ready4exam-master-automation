@@ -1,14 +1,17 @@
 {
   "name": "ready4exam-master-automation",
   "version": "1.0.0",
+  "description": "Ready4Exam Automation Backend (Vercel serverless API for Supabase, Gemini, and curriculum sync)",
   "type": "module",
   "scripts": {
-    "build": "true"
+    "vercel-build": "echo '✅ Serverless API deployment – no build output required'"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.44.0",
     "cross-fetch": "^4.0.0",
     "nodemailer": "^6.9.12",
     "date-fns": "^3.6.0"
-  }
+  },
+  "license": "MIT",
+  "author": "Ready4Exam Dev Team"
 }
