@@ -1,21 +1,8 @@
 {
-  "version": 2,
   "functions": {
-    "api/*.js": { "runtime": "nodejs18.x", "maxDuration": 10 }
-  },
-  "routes": [
-    { "src": "/api/(.*)", "dest": "/api/$1" },
-    {
-      "src": "/static_curriculum/(.*)",
-      "headers": {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET,OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type"
-      },
-      "dest": "/static_curriculum/$1"
+    "api/*.js": {
+      "runtime": "nodejs18.x",
+      "maxDuration": 10
     }
-  ],
-  "crons": [
-    { "path": "/api/dailyReport", "schedule": "0 13 * * *" }
-  ]
+  }
 }
