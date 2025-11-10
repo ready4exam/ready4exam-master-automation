@@ -1,13 +1,9 @@
 {
   "name": "ready4exam-master-automation",
   "version": "1.0.0",
-  "description": "Backend automation service for Ready4Exam — Supabase table management, Gemini integration, and daily reports.",
   "type": "module",
-  "main": "index.js",
   "scripts": {
-    "build": "echo \"Building Ready4Exam serverless functions\"",
-    "start": "node api/manageSupabase.js",
-    "dev": "vercel dev"
+    "build": "echo 'Building Ready4Exam API functions'"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.44.0",
@@ -16,8 +12,6 @@
     "date-fns": "^3.6.0"
   },
   "engines": {
-    "node": ">=18.x"
-  },
-  "license": "MIT",
-  "author": "Ready4Exam Automation Team"
+    "node": "18.x"
+  }
 }
