@@ -1,10 +1,10 @@
 // -------------------- /api/manageSupabase.js --------------------
 // Unified Supabase_11 automation for Ready4Exam
 // Creates or refreshes tables, inserts Gemini-generated quiz data,
-// and logs usage for daily reporting.
+// enables RLS, adds an "Allow All Access" policy, and logs usage.
 
 import { createClient } from "@supabase/supabase-js";
-import { getCorsHeaders } from "./cors.js";
+import { getCorsHeaders } from "./_cors.js";
 
 export const config = { runtime: "nodejs" };
 
@@ -42,17 +42,16 @@ export default async function handler(req, res) {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // ----------------------------
-    // TABLE NAME FORMAT
+    // TABLE NAME FORMAT (use only first 2 words of chapter)
     // ----------------------------
     const safeSlug = (str) =>
       str.toLowerCase().replace(/[^a-z0-9]+/g, "_").split("_").slice(0, 2).join("_");
 
     const tableName = table_name || `${safeSlug(chapter)}_quiz`;
-
     console.log(`🧩 Processing table: ${tableName}`);
 
     // ----------------------------
-    // CREATE TABLE IF NOT EXISTS
+    // CREATE TABLE + RLS + POLICY
     // ----------------------------
     const createQuery = `
       CREATE TABLE IF NOT EXISTS public.${tableName} (
@@ -68,12 +67,28 @@ export default async function handler(req, res) {
         correct_answer_key TEXT,
         created_at TIMESTAMP DEFAULT NOW()
       );
+
+      -- Enable RLS
       ALTER TABLE public.${tableName} ENABLE ROW LEVEL SECURITY;
+
+      -- Create universal "Allow All Access" policy if not exists
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_policies WHERE tablename = '${tableName}' AND policyname = 'Allow All Access'
+        ) THEN
+          EXECUTE format(
+            'CREATE POLICY "Allow All Access" ON public.${tableName}
+             FOR ALL USING (true) WITH CHECK (true);'
+          );
+        END IF;
+      END $$;
     `;
 
     try {
       const { error: ddlError } = await supabase.rpc("execute_sql", { query: createQuery });
       if (ddlError) console.warn("⚠️ DDL warning:", ddlError.message);
+      else console.log(`✅ Table + Policy ensured for ${tableName}`);
     } catch (err) {
       console.warn("⚠️ RPC create table failed:", err.message);
     }
