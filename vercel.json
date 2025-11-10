@@ -6,10 +6,6 @@
       "maxDuration": 10
     }
   },
-  "builds": [
-    { "src": "api/*.js", "use": "@vercel/node" },
-    { "src": "static_curriculum/**", "use": "@vercel/static" }
-  ],
   "routes": [
     { "src": "/api/(.*)", "dest": "/api/$1" },
     {
