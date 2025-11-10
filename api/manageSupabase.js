@@ -1,7 +1,7 @@
 // -------------------- /api/manageSupabase.js --------------------
 // Unified Supabase_11 automation for Ready4Exam
 // Creates or refreshes tables, inserts Gemini-generated quiz data,
-// enables RLS, adds "Allow All Access" policy, and logs usage.
+// and logs usage for daily reporting + updates table_mappings.
 
 import { createClient } from "@supabase/supabase-js";
 import { getCorsHeaders } from "./cors.js";
@@ -9,48 +9,50 @@ import { getCorsHeaders } from "./cors.js";
 export const config = { runtime: "nodejs" };
 
 export default async function handler(req, res) {
-  // ----------------------------
-  // CORS HANDLING
-  // ----------------------------
   const origin = req.headers.origin || "*";
   const headers = { ...getCorsHeaders(origin), "Content-Type": "application/json" };
   Object.entries(headers).forEach(([k, v]) => res.setHeader(k, v));
 
+  // Preflight
   if (req.method === "OPTIONS") return res.status(200).end();
   if (req.method !== "POST") return res.status(405).json({ error: "Only POST method allowed" });
 
   try {
     // ----------------------------
-    // BODY VALIDATION
+    // 1️⃣ Parse Input
     // ----------------------------
     const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
     const { meta = {}, csv = [] } = body;
-    const { class_name, subject, book = "", chapter, refresh = false, table_name } = meta;
+    const { class_name, subject, book = "", chapter, refresh = false } = meta;
 
-    if (!class_name || !subject || !chapter || !Array.isArray(csv) || (!refresh && !csv.length)) {
+    if (!class_name || !subject || !chapter || !Array.isArray(csv) || !csv.length) {
       return res.status(400).json({ error: "Missing or invalid parameters" });
     }
 
     // ----------------------------
-    // SUPABASE CONNECTION
+    // 2️⃣ Supabase Connection
     // ----------------------------
     const supabaseUrl = process.env.SUPABASE_URL_11;
     const supabaseKey = process.env.SUPABASE_SERVICE_KEY_11;
-    if (!supabaseUrl || !supabaseKey) throw new Error("Supabase_11 credentials missing");
+    if (!supabaseUrl || !supabaseKey) throw new Error("Supabase credentials missing");
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // ----------------------------
-    // TABLE NAME FORMAT (two-word slug + _quiz)
+    // 3️⃣ Generate Safe Table Name
     // ----------------------------
-    const safeSlug = (str) =>
-      str.toLowerCase().replace(/[^a-z0-9]+/g, "_").split("_").slice(0, 2).join("_");
+    const shortChapterSlug = chapter
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "_")
+      .split("_")
+      .slice(0, 2)
+      .join("_"); // take only first two words
+    const tableName = `${shortChapterSlug}_quiz`;
 
-    const tableName = table_name || `${safeSlug(chapter)}_quiz`;
     console.log(`🧩 Processing table: ${tableName}`);
 
     // ----------------------------
-    // CREATE TABLE + RLS + POLICY
+    // 4️⃣ Create Table if not exists
     // ----------------------------
     const createQuery = `
       CREATE TABLE IF NOT EXISTS public.${tableName} (
@@ -66,72 +68,38 @@ export default async function handler(req, res) {
         correct_answer_key TEXT,
         created_at TIMESTAMP DEFAULT NOW()
       );
-
       ALTER TABLE public.${tableName} ENABLE ROW LEVEL SECURITY;
-
-      DO $$
-      BEGIN
-        IF NOT EXISTS (
-          SELECT 1 FROM pg_policies WHERE tablename = '${tableName}' AND policyname = 'Allow All Access'
-        ) THEN
-          EXECUTE format(
-            'CREATE POLICY "Allow All Access" ON public.${tableName}
-             FOR ALL USING (true) WITH CHECK (true);'
-          );
-        END IF;
-      END $$;
+      DROP POLICY IF EXISTS "Allow All" ON public.${tableName};
+      CREATE POLICY "Allow All" ON public.${tableName} FOR ALL USING (true) WITH CHECK (true);
     `;
 
     try {
-      const { error: ddlError } = await supabase.rpc("execute_sql", { query: createQuery });
-      if (ddlError) console.warn("⚠️ DDL warning:", ddlError.message);
-      else console.log(`✅ Table + Policy ensured for ${tableName}`);
+      await supabase.rpc("execute_sql", { query: createQuery });
     } catch (err) {
-      console.warn("⚠️ RPC create table failed:", err.message);
+      console.warn("⚠️ RPC execute_sql failed, falling back (no DDL RPC available).", err.message);
     }
 
     // ----------------------------
-    // REFRESH MODE
+    // 5️⃣ Refresh Mode (truncate)
     // ----------------------------
     if (refresh) {
-      console.log(`♻️ Refresh mode: truncating ${tableName}`);
+      console.log(`♻️ Refreshing ${tableName}`);
       try {
-        const { error: truncateError } = await supabase.rpc("execute_sql", {
-          query: `TRUNCATE TABLE public.${tableName};`,
-        });
-        if (truncateError) console.warn("⚠️ Truncate warning:", truncateError.message);
+        await supabase.from(tableName).delete().neq("id", 0);
       } catch (err) {
-        console.warn("⚠️ RPC truncate failed:", err.message);
+        console.warn("⚠️ Truncate fallback failed:", err.message);
       }
     }
 
     // ----------------------------
-    // INSERT CSV DATA (retry for schema cache)
+    // 6️⃣ Insert CSV Data
     // ----------------------------
-    if (csv.length) {
-      let insertError = null;
-      for (let attempt = 1; attempt <= 3; attempt++) {
-        try {
-          const { error } = await supabase.from(tableName).insert(csv);
-          if (!error) {
-            console.log(`✅ Inserted ${csv.length} rows into ${tableName} (Attempt ${attempt})`);
-            insertError = null;
-            break;
-          }
-          insertError = error;
-          console.warn(`⚠️ Insert attempt ${attempt} failed: ${error.message}`);
-          await new Promise((r) => setTimeout(r, 1500 * attempt));
-        } catch (err) {
-          console.warn(`⚠️ Insert attempt ${attempt} threw error: ${err.message}`);
-          await new Promise((r) => setTimeout(r, 1500 * attempt));
-        }
-      }
-
-      if (insertError) throw insertError;
-    }
+    const { error: insertError } = await supabase.from(tableName).insert(csv);
+    if (insertError) throw insertError;
+    console.log(`✅ Inserted ${csv.length} rows into ${tableName}`);
 
     // ----------------------------
-    // LOG USAGE
+    // 7️⃣ Log Usage
     // ----------------------------
     const logEntry = {
       class_name,
@@ -143,15 +111,30 @@ export default async function handler(req, res) {
       refresh,
       created_at: new Date().toISOString(),
     };
+    await supabase.from("usage_logs").insert(logEntry).catch(() => {});
 
+    // ----------------------------
+    // 8️⃣ Record Mapping
+    // ----------------------------
     try {
-      await supabase.from("usage_logs").insert(logEntry);
+      await supabase
+        .from("table_mappings")
+        .upsert(
+          {
+            class_name,
+            subject,
+            chapter_title: chapter,
+            table_name: tableName,
+          },
+          { onConflict: "chapter_title" }
+        );
+      console.log(`🔗 Mapping saved: ${chapter} → ${tableName}`);
     } catch (err) {
-      console.warn("⚠️ Logging failed:", err.message);
+      console.warn("⚠️ Mapping upsert failed:", err.message);
     }
 
     // ----------------------------
-    // SUCCESS RESPONSE
+    // ✅ Done
     // ----------------------------
     return res.status(200).json({
       ok: true,
@@ -159,10 +142,7 @@ export default async function handler(req, res) {
       table: tableName,
     });
   } catch (err) {
-    console.error("❌ manageSupabase.js error:", err);
-    return res.status(500).json({
-      ok: false,
-      error: err.message || "Internal server error",
-    });
+    console.error("❌ manageSupabase error:", err);
+    return res.status(500).json({ ok: false, error: err.message || "Internal Server Error" });
   }
 }
