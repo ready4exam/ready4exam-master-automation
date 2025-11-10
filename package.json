@@ -2,14 +2,16 @@
   "name": "ready4exam-master-automation",
   "version": "1.0.0",
   "type": "module",
-  "engines": { "node": "22.x" },
+  "scripts": {
+    "build": "true"
+  },
   "dependencies": {
     "@supabase/supabase-js": "^2.44.0",
     "cross-fetch": "^4.0.0",
     "nodemailer": "^6.9.12",
     "date-fns": "^3.6.0"
   },
-  "scripts": {
-    "build": "echo 'Ready4Exam automation build step complete'"
+  "engines": {
+    "node": "22.x"
   }
 }
