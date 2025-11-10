@@ -1,3 +1,23 @@
-"scripts": {
-  "build": "echo 'Building Ready4Exam serverless functions'"
+{
+  "name": "ready4exam-master-automation",
+  "version": "1.0.0",
+  "description": "Backend automation service for Ready4Exam — Supabase table management, Gemini integration, and daily reports.",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "build": "echo \"Building Ready4Exam serverless functions\"",
+    "start": "node api/manageSupabase.js",
+    "dev": "vercel dev"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.44.0",
+    "cross-fetch": "^4.0.0",
+    "nodemailer": "^6.9.12",
+    "date-fns": "^3.6.0"
+  },
+  "engines": {
+    "node": ">=18.x"
+  },
+  "license": "MIT",
+  "author": "Ready4Exam Automation Team"
 }
