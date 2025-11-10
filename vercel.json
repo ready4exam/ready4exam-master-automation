@@ -2,7 +2,7 @@
   "version": 2,
   "functions": {
     "api/*.js": {
-      "runtime": "@vercel/node@2.x", // Use the official Vercel builder format
+      "runtime": "@vercel/node", // Simplified format
       "maxDuration": 10
     }
   },
