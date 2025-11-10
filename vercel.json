@@ -1,11 +1,7 @@
 {
   "version": 2,
-  "builds": [
-    { "src": "api/*.js", "use": "@vercel/node" },
-    { "src": "static_curriculum/**", "use": "@vercel/static" }
-  ],
   "routes": [
-    { "src": "/api/(.*)", "dest": "/api/$1" },
+    { "src": "/api/(.*)", "dest": "/api/$1.js" },
     {
       "src": "/static_curriculum/(.*)",
       "headers": {
@@ -17,6 +13,6 @@
     }
   ],
   "crons": [
-    { "path": "/api/dailyReport", "schedule": "0 13 * * *" }
+    { "path": "/api/dailyReport.js", "schedule": "0 13 * * *" }
   ]
 }
