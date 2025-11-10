@@ -1,7 +1,7 @@
 // -------------------- /api/manageSupabase.js --------------------
 // Unified Supabase_11 automation for Ready4Exam
 // Creates or refreshes tables, inserts Gemini-generated quiz data,
-// enables RLS, adds an "Allow All Access" policy, and logs usage.
+// enables RLS, adds "Allow All Access" policy, and logs usage.
 
 import { createClient } from "@supabase/supabase-js";
 import { getCorsHeaders } from "./cors.js";
@@ -16,7 +16,6 @@ export default async function handler(req, res) {
   const headers = { ...getCorsHeaders(origin), "Content-Type": "application/json" };
   Object.entries(headers).forEach(([k, v]) => res.setHeader(k, v));
 
-  // Handle preflight
   if (req.method === "OPTIONS") return res.status(200).end();
   if (req.method !== "POST") return res.status(405).json({ error: "Only POST method allowed" });
 
@@ -42,7 +41,7 @@ export default async function handler(req, res) {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // ----------------------------
-    // TABLE NAME FORMAT (use only first 2 words of chapter)
+    // TABLE NAME FORMAT (two-word slug + _quiz)
     // ----------------------------
     const safeSlug = (str) =>
       str.toLowerCase().replace(/[^a-z0-9]+/g, "_").split("_").slice(0, 2).join("_");
@@ -68,10 +67,8 @@ export default async function handler(req, res) {
         created_at TIMESTAMP DEFAULT NOW()
       );
 
-      -- Enable RLS
       ALTER TABLE public.${tableName} ENABLE ROW LEVEL SECURITY;
 
-      -- Create universal "Allow All Access" policy if not exists
       DO $$
       BEGIN
         IF NOT EXISTS (
@@ -109,12 +106,28 @@ export default async function handler(req, res) {
     }
 
     // ----------------------------
-    // INSERT CSV DATA
+    // INSERT CSV DATA (retry for schema cache)
     // ----------------------------
     if (csv.length) {
-      const { error: insertError } = await supabase.from(tableName).insert(csv);
+      let insertError = null;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          const { error } = await supabase.from(tableName).insert(csv);
+          if (!error) {
+            console.log(`✅ Inserted ${csv.length} rows into ${tableName} (Attempt ${attempt})`);
+            insertError = null;
+            break;
+          }
+          insertError = error;
+          console.warn(`⚠️ Insert attempt ${attempt} failed: ${error.message}`);
+          await new Promise((r) => setTimeout(r, 1500 * attempt));
+        } catch (err) {
+          console.warn(`⚠️ Insert attempt ${attempt} threw error: ${err.message}`);
+          await new Promise((r) => setTimeout(r, 1500 * attempt));
+        }
+      }
+
       if (insertError) throw insertError;
-      console.log(`✅ Inserted ${csv.length} rows into ${tableName}`);
     }
 
     // ----------------------------
