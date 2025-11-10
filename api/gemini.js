@@ -2,7 +2,7 @@
 // ✅ Edge-compatible Gemini 2.5 Flash integration
 // Uses the unified getCorsHeaders() helper from _cors.js
 
-import { getCorsHeaders } from "./_cors.js";
+import { getCorsHeaders } from "./cors.js";
 
 export const config = { runtime: "edge" };
 
