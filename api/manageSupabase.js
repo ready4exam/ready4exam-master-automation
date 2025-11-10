@@ -42,22 +42,22 @@ export default async function handler(req, res) {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // ----------------------------
-    // TABLE NAME FORMAT
+    // CLEAN TABLE NAME (Two words + _quiz)
     // ----------------------------
-    const tableName = [
-      `class${className}`,
-      subject.toLowerCase().replace(/\s+/g, "_"),
-      book ? book.toLowerCase().replace(/\s+/g, "_") : "",
-      chapter.toLowerCase().replace(/[^a-z0-9]+/g, "_"),
-      "quiz",
-    ]
-      .filter(Boolean)
+    const cleanChapter = chapter
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, "") // remove punctuation
+      .trim()
+      .split(/\s+/)
+      .slice(0, 2) // take only first two words
       .join("_");
+
+    const tableName = `${cleanChapter}_quiz`;
 
     console.log(`🧩 Processing table: ${tableName}`);
 
     // ----------------------------
-    // CREATE TABLE IF NOT EXISTS (Dynamic)
+    // CREATE TABLE IF NOT EXISTS
     // ----------------------------
     const createQuery = `
       CREATE TABLE IF NOT EXISTS public.${tableName} (
@@ -78,9 +78,9 @@ export default async function handler(req, res) {
 
     try {
       const { error: ddlError } = await supabase.rpc("execute_sql", { query: createQuery });
-      if (ddlError) console.warn("⚠️ DDL warning:", ddlError.message);
+      if (ddlError) console.warn("⚠️ DDL RPC execute_sql unavailable:", ddlError.message);
     } catch {
-      console.warn("⚠️ RPC execute_sql not available — skipping automatic table creation");
+      console.warn("⚠️ RPC execute_sql not supported — table creation may rely on prior migration");
     }
 
     // ----------------------------
