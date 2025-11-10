@@ -4,7 +4,7 @@
 // and logs usage for daily reporting.
 
 import { createClient } from "@supabase/supabase-js";
-import { getCorsHeaders } from "./_cors.js";
+import { getCorsHeaders } from "./cors.js";
 
 export const config = { runtime: "nodejs" };
 
