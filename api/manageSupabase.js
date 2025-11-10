@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import { getCorsHeaders } from "./_cors.js";
+import { getCorsHeaders } from "./cors.js";
 
 export default async function handler(req, res) {
   const origin = req.headers.origin || "*";
