@@ -4,7 +4,7 @@
 // enables RLS, adds an "Allow All Access" policy, and logs usage.
 
 import { createClient } from "@supabase/supabase-js";
-import { getCorsHeaders } from "./_cors.js";
+import { getCorsHeaders } from "./cors.js";
 
 export const config = { runtime: "nodejs" };
 
