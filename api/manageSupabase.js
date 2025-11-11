@@ -1,5 +1,7 @@
-// ✅ /api/manageSupabase.js — Final Stable Version (Direct Admin SQL method)
-// Compatible with Supabase v2 (no execute_sql dependency)
+// ✅ /api/manageSupabase.js — Robust SQL-based Supabase Automation (Phase-2)
+// No schema cache issue, safe for table creation + bulk insert
+// Compatible with Supabase v2 REST SQL API
+// Author: Ready4Exam Automation Phase-2
 
 import { createClient } from "@supabase/supabase-js";
 import { getCorsHeaders } from "./cors.js";
@@ -29,7 +31,7 @@ export default async function handler(req, res) {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // 🧩 Generate a clean table name (2-word chapter slug)
+    // 🧩 Generate clean table name (2-word chapter slug)
     const chapterSlug = chapter
       .toLowerCase()
       .replace(/[^a-z0-9\s]/g, "")
@@ -42,7 +44,7 @@ export default async function handler(req, res) {
     console.log(`🧩 Managing Supabase Table: ${tableName}`);
 
     // ----------------------------
-    // 1️⃣ Force Table Creation using Supabase SQL API
+    // 1️⃣ Table Creation via SQL API
     // ----------------------------
     const sqlCreate = `
       CREATE TABLE IF NOT EXISTS public.${tableName} (
@@ -70,7 +72,7 @@ export default async function handler(req, res) {
       GRANT ALL ON public.${tableName} TO anon;
     `;
 
-    const sqlResponse = await fetch(`${supabaseUrl}/rest/v1/query`, {
+    const createResp = await fetch(`${supabaseUrl}/rest/v1/query`, {
       method: "POST",
       headers: {
         apikey: supabaseKey,
@@ -80,15 +82,16 @@ export default async function handler(req, res) {
       body: JSON.stringify({ query: sqlCreate }),
     });
 
-    if (!sqlResponse.ok) {
-      const errText = await sqlResponse.text();
-      console.warn("⚠️ SQL creation warning:", errText);
+    if (!createResp.ok) {
+      const errText = await createResp.text();
+      console.error("⚠️ SQL creation failed:", errText);
+      throw new Error(errText);
     } else {
       console.log(`✅ Table ${tableName} ensured.`);
     }
 
     // ----------------------------
-    // 2️⃣ Optional Refresh Mode
+    // 2️⃣ Optional Refresh
     // ----------------------------
     if (refresh) {
       console.log(`♻️ Refresh mode: truncating ${tableName}...`);
@@ -104,21 +107,102 @@ export default async function handler(req, res) {
     }
 
     // ----------------------------
-    // 3️⃣ Insert Gemini Data
+    // 3️⃣ Verify table existence before inserting
     // ----------------------------
-console.log(`📥 Waiting for table ${tableName} schema to refresh...`);
-await new Promise(r => setTimeout(r, 2000)); // 2s delay for schema propagation
+    console.log(`🔍 Checking existence of ${tableName}...`);
+    const checkSql = `SELECT to_regclass('public.${tableName}') AS reg;`;
+    let exists = false;
+    const start = Date.now();
+    const timeoutMs = 15000;
 
-// Re-init client to refresh schema cache
-const supabase2 = createClient(supabaseUrl, supabaseKey);
+    while (!exists && Date.now() - start < timeoutMs) {
+      try {
+        const checkResp = await fetch(`${supabaseUrl}/rest/v1/query`, {
+          method: "POST",
+          headers: {
+            apikey: supabaseKey,
+            Authorization: `Bearer ${supabaseKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ query: checkSql }),
+        });
+        const text = await checkResp.text();
+        if (text && text.includes(tableName)) {
+          exists = true;
+          break;
+        }
+      } catch (e) {
+        console.warn("⚠️ Table existence check failed:", e.message || e);
+      }
+      await new Promise((r) => setTimeout(r, 500));
+    }
 
-console.log(`📥 Inserting ${csv.length} rows into ${tableName}`);
-const { error: insertError } = await supabase2.from(tableName).insert(csv);
-if (insertError) throw insertError;
-    console.log(`✅ Inserted ${csv.length} rows into ${tableName}`);
+    if (!exists) console.warn(`⚠️ Table ${tableName} not found after ${timeoutMs}ms — continuing anyway.`);
 
     // ----------------------------
-    // 4️⃣ Log in usage_logs
+    // 4️⃣ Insert rows via SQL (json_to_recordset)
+    // ----------------------------
+    console.log(`📥 Inserting ${csv.length} rows into ${tableName}...`);
+
+    const jsonPayload = JSON.stringify(
+      csv.map((row) => ({
+        difficulty: row.difficulty ?? null,
+        question_type: row.question_type ?? null,
+        question_text: row.question_text ?? null,
+        scenario_reason_text: row.scenario_reason_text ?? null,
+        option_a: row.option_a ?? null,
+        option_b: row.option_b ?? null,
+        option_c: row.option_c ?? null,
+        option_d: row.option_d ?? null,
+        correct_answer_key: row.correct_answer_key ?? null,
+      }))
+    ).replace(/'/g, "''"); // escape single quotes
+
+    const insertSql = `
+      WITH data AS (
+        SELECT *
+        FROM json_to_recordset('${jsonPayload}')
+        AS (
+          difficulty text,
+          question_type text,
+          question_text text,
+          scenario_reason_text text,
+          option_a text,
+          option_b text,
+          option_c text,
+          option_d text,
+          correct_answer_key text
+        )
+      )
+      INSERT INTO public.${tableName} (
+        difficulty, question_type, question_text, scenario_reason_text,
+        option_a, option_b, option_c, option_d, correct_answer_key
+      )
+      SELECT difficulty, question_type, question_text, scenario_reason_text,
+             option_a, option_b, option_c, option_d, correct_answer_key
+      FROM data;
+    `;
+
+    const insertResp = await fetch(`${supabaseUrl}/rest/v1/query`, {
+      method: "POST",
+      headers: {
+        apikey: supabaseKey,
+        Authorization: `Bearer ${supabaseKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ query: insertSql }),
+    });
+
+    if (!insertResp.ok) {
+      const errText = await insertResp.text();
+      console.error("❌ Insert SQL failed:", errText);
+      throw new Error(`Insert failed: ${errText}`);
+    }
+
+    console.log(`✅ Inserted ${csv.length} rows into ${tableName} via SQL.`);
+
+    // ----------------------------
+    // 5️⃣ Log usage
     // ----------------------------
     await supabase
       .from("usage_logs")
@@ -134,6 +218,9 @@ if (insertError) throw insertError;
       })
       .catch(() => console.warn("⚠️ Logging failed."));
 
+    // ----------------------------
+    // ✅ Done
+    // ----------------------------
     return res.status(200).json({
       ok: true,
       message: `${csv.length} questions uploaded to ${tableName}`,
