@@ -132,19 +132,20 @@ export default async function handler(req, res) {
     // ----------------------------
     // 4️⃣ Log usage
     // ----------------------------
-    await supabase
-      .from("usage_logs")
-      .insert({
-        class_name,
-        subject,
-        book,
-        chapter,
-        table_name: tableName,
-        inserted_count: csv.length,
-        refresh,
-        created_at: new Date().toISOString(),
-      })
-      .catch(() => console.warn("⚠️ Logging failed."));
+   const { error: logError } = await supabase
+  .from("usage_logs")
+  .insert({
+    class_name,
+    subject,
+    book,
+    chapter,
+    table_name: tableName,
+    inserted_count: csv.length,
+    refresh,
+    created_at: new Date().toISOString(),
+  });
+
+if (logError) console.warn("⚠️ Logging failed:", logError.message);
 
     // ----------------------------
     // ✅ Done
