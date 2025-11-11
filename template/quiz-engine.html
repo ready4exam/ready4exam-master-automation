@@ -1,173 +1,163 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Ready4Exam | Quiz Engine</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ready4Exam | Quiz Engine</title>
 
-      <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet" />
+  <!-- Tailwind + Fonts -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet" />
 
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          fontFamily: { sans: ['Inter', 'sans-serif'] },
-          colors: {
-            'cbse-blue': '#1a3e6a',
-            'cbse-light': '#f5f7fa',
-            'accent-gold': '#ffb703',
-          }
-        }
-      }
-    }
-  </script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'sans-serif'] },
+          colors: {
+            'cbse-blue': '#1a3e6a',
+            'cbse-light': '#f5f7fa',
+            'accent-gold': '#ffb703',
+          }
+        }
+      }
+    }
+  </script>
 
-  <meta http-equiv="Cross-Origin-Opener-Policy" content="same-origin-allow-popups">
+  <meta http-equiv="Cross-Origin-Opener-Policy" content="same-origin-allow-popups">
 
-  <style>
-    body { font-family: 'Inter', sans-serif; background-color: #f5f7fa; }
-    .option-label { transition: all 0.2s ease; }
-    .option-label.correct { border-color: #16a34a; background-color: #dcfce7; }
-    .option-label.incorrect { border-color: #dc2626; background-color: #fee2e2; }
-    .option-label:hover { border-color: #2563eb; }
-    /* Hide all screens initially, visibility is handled by quiz-engine.js */
-    #paywall-screen, #quiz-content, #results-screen { display: none; }
-  </style>
+  <style>
+    body { font-family: 'Inter', sans-serif; background-color: #f5f7fa; }
+    .option-label { transition: all 0.2s ease; }
+    .option-label.correct { border-color: #16a34a; background-color: #dcfce7; }
+    .option-label.incorrect { border-color: #dc2626; background-color: #fee2e2; }
+    .option-label:hover { border-color: #2563eb; }
+    #paywall-screen, #quiz-content, #results-screen { display: none; }
+  </style>
 </head>
 
 <body class="min-h-screen flex flex-col">
 
-    <header class="bg-cbse-blue shadow-md py-4 px-6 flex justify-between items-center">
-    <div class="flex items-center space-x-4">
-      <a href="index.html"
-         class="p-2 bg-white text-cbse-blue font-semibold rounded-full shadow hover:bg-gray-100 transition">
-        🏠
-      </a>
-      <div class="flex flex-col">
-        <h2 id="chapter-name-display" class="text-xl font-bold text-accent-gold leading-tight"></h2>
-        <p class="text-sm text-white opacity-90 italic mt-1 leading-snug">
-          Ready4Exam helps students excel in school exams — a learning initiative by Ready4Industry.
-        </p>
-      </div>
-    </div>
+  <!-- Header -->
+  <header class="bg-cbse-blue shadow-md py-4 px-6 flex justify-between items-center">
+    <div class="flex items-center space-x-4">
+      <a href="index.html"
+         class="p-2 bg-white text-cbse-blue font-semibold rounded-full shadow hover:bg-gray-100 transition">
+        🏠
+      </a>
+      <div class="flex flex-col">
+        <h2 id="chapter-name-display" class="text-xl font-bold text-accent-gold leading-tight"></h2>
+        <p class="text-sm text-white opacity-90 italic mt-1 leading-snug">
+          Ready4Exam helps students excel in school exams — a learning initiative by Ready4Industry.
+        </p>
+      </div>
+    </div>
 
-    <div id="auth-nav-container" class="flex items-center space-x-4">
-      <span id="welcome-user" class="hidden text-sm text-white"></span>
-      <span id="difficulty-display"
-        class="px-3 py-1 text-sm font-semibold bg-yellow-100 text-yellow-800 rounded-full">
-        Difficulty: Simple
-      </span>
-      <button id="logout-nav-btn"
-        class="hidden px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition">
-        Sign Out
-      </button>
-    </div>
-  </header>
+    <div id="auth-nav-container" class="flex items-center space-x-4">
+      <span id="welcome-user" class="hidden text-sm text-white"></span>
+      <span id="difficulty-display"
+        class="px-3 py-1 text-sm font-semibold bg-yellow-100 text-yellow-800 rounded-full">
+        Difficulty: Simple
+      </span>
+      <button id="logout-nav-btn"
+        class="hidden px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition">
+        Sign Out
+      </button>
+    </div>
+  </header>
 
-    <div id="status-message" class="text-center p-6 font-semibold text-blue-700 hidden"></div>
+  <!-- Status -->
+  <div id="status-message" class="text-center p-6 font-semibold text-blue-700 hidden"></div>
 
-    <div id="paywall-screen"
-       class="flex flex-col items-center justify-center flex-grow p-12 transition-all duration-300 ease-in-out">
-    <div class="bg-white rounded-xl p-10 shadow-xl border border-gray-200 text-center max-w-md">
-      <h2 class="text-2xl font-bold text-gray-800 mb-4">Sign in to Continue</h2>
-      <p class="text-gray-600 mb-6">
-        Access premium quizzes for <b>Ready4Exam</b> by signing in with Google.
-      </p>
-      <button id="google-signin-btn"
-              class="px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition">
-        Sign in with Google
-      </button>
-    </div>
-  </div>
+  <!-- Paywall (Sign-In) -->
+  <div id="paywall-screen"
+       class="flex flex-col items-center justify-center flex-grow p-12 transition-all duration-300 ease-in-out">
+    <div class="bg-white rounded-xl p-10 shadow-xl border border-gray-200 text-center max-w-md">
+      <h2 class="text-2xl font-bold text-gray-800 mb-4">Sign in to Continue</h2>
+      <p class="text-gray-600 mb-6">
+        Access premium quizzes for <b>Ready4Exam</b> by signing in with Google.
+      </p>
+      <button id="google-signin-btn"
+              class="px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition">
+        Sign in with Google
+      </button>
+    </div>
+  </div>
 
-    <main id="quiz-content" class="flex flex-col items-center max-w-4xl mx-auto px-4 py-8">
-    <div id="question-list" class="w-full space-y-6 mb-8"></div>
+  <!-- Quiz Content -->
+  <main id="quiz-content" class="flex flex-col items-center max-w-4xl mx-auto px-4 py-8">
+    <div id="question-list" class="w-full space-y-6 mb-8"></div>
 
-    <div class="w-full flex justify-between items-center bg-white rounded-lg shadow p-4">
-      <button id="prev-btn" class="px-5 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300">Previous</button>
-      <span id="question-counter" class="font-semibold text-gray-700">-- / --</span>
-      <div class="flex space-x-2">
-        <button id="next-btn" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Next</button>
-        <button id="submit-btn"
-                class="hidden px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">Submit Quiz</button>
-      </div>
-    </div>
-  </main>
+    <div class="w-full flex justify-between items-center bg-white rounded-lg shadow p-4">
+      <button id="prev-btn" class="px-5 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300">Previous</button>
+      <span id="question-counter" class="font-semibold text-gray-700">-- / --</span>
+      <div class="flex space-x-2">
+        <button id="next-btn" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Next</button>
+        <button id="submit-btn"
+                class="hidden px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">Submit Quiz</button>
+      </div>
+    </div>
+  </main>
 
-    <section id="results-screen" class="flex flex-col items-center justify-center text-center py-10 px-6">
-    <h2 class="text-3xl font-extrabold text-green-600 mb-4">Quiz Completed!</h2>
-    <p class="text-lg text-gray-700 mb-3">Your final score:</p>
-    <p id="score-display" class="text-5xl font-bold text-blue-700 mb-8">-- / --</p>
-    <div id="review-container" class="w-full max-w-3xl text-left mb-8"></div>
-  </section>
+  <!-- Results -->
+  <section id="results-screen" class="flex flex-col items-center justify-center text-center py-10 px-6">
+    <h2 class="text-3xl font-extrabold text-green-600 mb-4">Quiz Completed!</h2>
+    <p class="text-lg text-gray-700 mb-3">Your final score:</p>
+    <p id="score-display" class="text-5xl font-bold text-blue-700 mb-8">-- / --</p>
+    <div id="review-container" class="w-full max-w-3xl text-left mb-8"></div>
+  </section>
 
-    <footer class="bg-cbse-blue text-white text-center py-6 mt-auto">
-    <small class="opacity-80">© 2025 Ready4Exam Academic Portal. All Rights Reserved.</small>
-  </footer>
+  <!-- Footer -->
+  <footer class="bg-cbse-blue text-white text-center py-6 mt-auto">
+    <small class="opacity-80">© 2025 Ready4Exam Academic Portal. All Rights Reserved.</small>
+  </footer>
 
-    <script>
-    // IMPORTANT: Update these configs with your actual project keys
-    
-    window.__firebase_config = JSON.stringify({
-      "apiKey": "AIzaSyAXdKiYRxBKAj280YcNuNwlKKDp85xpOWQ",
-      "authDomain": "quiz-signon.firebaseapp.com",
-      "projectId": "quiz-signon",
-      "storageBucket": "quiz-signon.firebasestorage.app",
-      "messagingSenderId": "863414222321",
-      "appId": "1:863414222321:web:819f5564825308bcd9d850",
-      "measurementId": "G-4EFDM0CRYY"
-    });
-    
-    // Inject Supabase config (using the URL from the user's logs)
+  <!-- ✅ Firebase & Supabase Config -->
+  <script>
+    window.__firebase_config = JSON.stringify({
+      "apiKey": "AIzaSyAXdKiYRxBKAj280YcNuNwlKKDp85xpOWQ",
+      "authDomain": "quiz-signon.firebaseapp.com",
+      "projectId": "quiz-signon",
+      "storageBucket": "quiz-signon.firebasestorage.app",
+      "messagingSenderId": "863414222321",
+      "appId": "1:863414222321:web:819f5564825308bcd9d850",
+      "measurementId": "G-4EFDM0CRYY"
+    });
+
     window.__supabase_config = {
-        url: 'https://gkyvojcmqsgdynmitcuf.supabase.co',
-        // NOTE: Replace this with your actual Supabase Anon Key
-        anonKey: 'YOUR_SUPABASE_ANON_KEY_HERE', 
+      url: "https://gkyvojcmqsgdynmitcuf.supabase.co",
+      anonKey: "YOUR_SUPABASE_ANON_KEY_HERE"
     };
 
-    console.log("[Quiz Engine] Injected base Firebase and Supabase configs.");
-  </script>
+    console.log("[Quiz Engine] Injected base Firebase and Supabase configs.");
+  </script>
 
-    <script type="module" src="./js/firebaseSwitcher.js"></script>
-  <script type="module" src="./js/config.js"></script>
-  <script type="module" src="./js/auth-paywall.js"></script>
-  <script type="module" src="./js/ui-renderer.js"></script>
-  <script type="module" src="./js/api.js"></script>
+  <!-- ✅ JS Modules (correct order) -->
+  <script type="module" src="./js/firebaseSwitcher.js"></script>
+  <script type="module" src="./js/config.js"></script>
+  <script type="module" src="./js/auth-paywall.js"></script>
+  <script type="module" src="./js/ui-renderer.js"></script>
 
-    <script type="module">
-    const p = new URLSearchParams(location.search);
-    const topic = p.get("topic"); // e.g., "Thermodynamics" or "Kinetic Theory of Gases"
-    
-    let baseTableName;
-    
-    if (topic) {
-      // 1. Replace spaces with underscores and force lowercase
-      const slug = topic.toLowerCase().replace(/ /g, '_');
-      
-      // 2. Split by underscore to count words/parts
-      const parts = slug.split('_');
-      
-      if (parts.length <= 1) {
-        // Case 1: Single word chapter (e.g., thermodynamics) -> thermodynamics
-        baseTableName = parts[0];
-      } else {
-        // Case 2: Multi-word chapter (e.g., kinetic_theory_of_gases) -> kinetic_theory
-        baseTableName = parts.slice(0, 2).join('_');
-      }
-    } else {
-      // Fallback if 'topic' is missing, use 'table' param directly if available
-      baseTableName = p.get("table");
-    }
+  <!-- ✅ Table resolver must come BEFORE api.js -->
+  <script type="module">
+    const p = new URLSearchParams(location.search);
+    const topic = p.get("topic");
+    let baseTableName;
 
-    // Final table name includes the '_quiz' suffix and ensures lowercase
-    // Example: thermodynamics + _quiz = thermodynamics_quiz
-    // Example: kinetic_theory + _quiz = kinetic_theory_quiz
-    window.__quiz_table = `${baseTableName}_quiz`.toLowerCase();
+    if (topic) {
+      const slug = topic.toLowerCase().replace(/ /g, "_");
+      const parts = slug.split("_");
+      baseTableName = parts.length <= 1 ? parts[0] : parts.slice(0, 2).join("_");
+    } else {
+      baseTableName = p.get("table") || "default";
+    }
 
-    console.log("✅ Using table:", window.__quiz_table);
-  </script>
+    window.__quiz_table = `${baseTableName}_quiz`.toLowerCase();
+    console.log("✅ Using table:", window.__quiz_table);
+  </script>
 
-  <script type="module" src="./js/quiz-engine.js"></script>
+  <!-- ✅ Load API & Engine after table resolver -->
+  <script type="module" src="./js/api.js"></script>
+  <script type="module" src="./js/quiz-engine.js"></script>
 </body>
 </html>
