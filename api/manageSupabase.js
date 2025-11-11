@@ -1,9 +1,7 @@
-// ✅ /api/manageSupabase.js
-// Unified Supabase automation for Ready4Exam
-// Creates table (if missing), inserts Gemini-generated data, and updates usage logs.
-
+// ✅ /api/manageSupabase.js — Final stable version (with direct SQL fallback)
 import { createClient } from "@supabase/supabase-js";
 import { getCorsHeaders } from "./cors.js";
+import fetch from "node-fetch";
 
 export const config = { runtime: "nodejs" };
 
@@ -12,35 +10,24 @@ export default async function handler(req, res) {
   const headers = { ...getCorsHeaders(origin), "Content-Type": "application/json" };
   Object.entries(headers).forEach(([k, v]) => res.setHeader(k, v));
 
-  // Handle preflight
   if (req.method === "OPTIONS") return res.status(200).end();
-  if (req.method !== "POST") return res.status(405).json({ error: "Only POST method allowed" });
+  if (req.method !== "POST") return res.status(405).json({ error: "Only POST allowed" });
 
   try {
-    // ----------------------------
-    // Parse and validate input
-    // ----------------------------
     const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
     const { meta = {}, csv = [] } = body;
     const { class_name, subject, book = "", chapter, refresh = false } = meta;
 
-    if (!class_name || !subject || !chapter || !Array.isArray(csv) || csv.length === 0) {
-      console.error("❌ Missing or invalid parameters:", body);
+    if (!class_name || !subject || !chapter || !Array.isArray(csv) || csv.length === 0)
       return res.status(400).json({ error: "Missing or invalid parameters" });
-    }
 
-    // ----------------------------
-    // Supabase credentials
-    // ----------------------------
     const supabaseUrl = process.env.SUPABASE_URL_11;
     const supabaseKey = process.env.SUPABASE_SERVICE_KEY_11;
     if (!supabaseUrl || !supabaseKey) throw new Error("Supabase credentials missing.");
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // ----------------------------
-    // Table name: 2-word chapter slug + "_quiz"
-    // ----------------------------
+    // Create table name (2-word slug)
     const chapterSlug = chapter
       .toLowerCase()
       .replace(/[^a-z0-9\s]/g, "")
@@ -50,12 +37,10 @@ export default async function handler(req, res) {
       .join("_");
 
     const tableName = `${chapterSlug}_quiz`;
-    console.log(`🧩 Table name resolved: ${tableName}`);
+    console.log(`🧩 Processing table: ${tableName}`);
 
-    // ----------------------------
-    // Ensure table exists
-    // ----------------------------
-    const ddl = `
+    // 🧠 Step 1: Create table directly via SQL REST API
+    const sql = `
       CREATE TABLE IF NOT EXISTS public.${tableName} (
         id BIGSERIAL PRIMARY KEY,
         difficulty TEXT,
@@ -70,60 +55,60 @@ export default async function handler(req, res) {
         created_at TIMESTAMP DEFAULT NOW()
       );
       ALTER TABLE public.${tableName} ENABLE ROW LEVEL SECURITY;
-      DO $$
-      BEGIN
-        IF NOT EXISTS (
-          SELECT 1 FROM pg_policies WHERE tablename = '${tableName}' AND policyname = 'Allow All Access'
-        ) THEN
-          EXECUTE format('CREATE POLICY "Allow All Access" ON public.${tableName} FOR ALL USING (true) WITH CHECK (true);');
-        END IF;
-      END $$;
+      CREATE POLICY IF NOT EXISTS "Allow All Access" ON public.${tableName}
+      FOR ALL USING (true) WITH CHECK (true);
       GRANT ALL ON public.${tableName} TO anon;
     `;
 
-    const { error: ddlError } = await supabase.rpc("execute_sql", { query: ddl });
-    if (ddlError) console.warn("⚠️ Table creation via RPC may not be available. Skipping automatic DDL:", ddlError.message);
-
-    // ----------------------------
-    // Refresh (truncate if requested)
-    // ----------------------------
-    if (refresh) {
-      console.log(`♻️ Refreshing table: ${tableName}`);
-      try {
-        await supabase.rpc("execute_sql", { query: `TRUNCATE TABLE public.${tableName};` });
-      } catch {
-        console.warn("⚠️ Could not truncate — continuing with insert.");
-      }
-    }
-
-    // ----------------------------
-    // Insert Gemini-generated rows
-    // ----------------------------
-    console.log(`📥 Inserting ${csv.length} rows into ${tableName}...`);
-    const { error: insertError } = await supabase.from(tableName).insert(csv);
-    if (insertError) throw insertError;
-    console.log(`✅ Inserted ${csv.length} rows into ${tableName}`);
-
-    // ----------------------------
-    // Log usage in 'usage_logs'
-    // ----------------------------
-    const logEntry = {
-      class_name,
-      subject,
-      book,
-      chapter,
-      table_name: tableName,
-      inserted_count: csv.length,
-      refresh,
-      created_at: new Date().toISOString(),
-    };
-    await supabase.from("usage_logs").insert(logEntry).catch(() => {
-      console.warn("⚠️ Failed to log usage entry.");
+    const sqlRes = await fetch(`${supabaseUrl}/rest/v1/rpc/execute_sql`, {
+      method: "POST",
+      headers: {
+        apikey: supabaseKey,
+        Authorization: `Bearer ${supabaseKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ query: sql }),
     });
 
-    // ----------------------------
-    // Response
-    // ----------------------------
+    if (!sqlRes.ok) {
+      console.warn("⚠️ SQL RPC failed, continuing anyway:", await sqlRes.text());
+    }
+
+    // 🧠 Step 2: Refresh mode — truncate if requested
+    if (refresh) {
+      console.log(`♻️ Refreshing ${tableName}...`);
+      await fetch(`${supabaseUrl}/rest/v1/rpc/execute_sql`, {
+        method: "POST",
+        headers: {
+          apikey: supabaseKey,
+          Authorization: `Bearer ${supabaseKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ query: `TRUNCATE TABLE public.${tableName};` }),
+      }).catch(() => console.warn("⚠️ Truncate failed — continuing insert."));
+    }
+
+    // 🧠 Step 3: Insert rows
+    const { error: insertError } = await supabase.from(tableName).insert(csv);
+    if (insertError) throw insertError;
+
+    console.log(`✅ Inserted ${csv.length} rows into ${tableName}`);
+
+    // 🧠 Step 4: Log activity
+    await supabase
+      .from("usage_logs")
+      .insert({
+        class_name,
+        subject,
+        book,
+        chapter,
+        table_name: tableName,
+        inserted_count: csv.length,
+        refresh,
+        created_at: new Date().toISOString(),
+      })
+      .catch(() => console.warn("⚠️ Logging failed."));
+
     return res.status(200).json({
       ok: true,
       message: `${csv.length} questions uploaded to ${tableName}`,
