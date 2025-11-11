@@ -1,6 +1,6 @@
 // js/api.js
 // -----------------------------------------------------------------------------
-// Data layer: Fetch questions (Supabase) + Save results (Firestore + GA4)
+// Data layer: Fetch questions (Supabase via RPC) + Save results (Firestore + GA4)
 // -----------------------------------------------------------------------------
 
 import { getInitializedClients, getAuthUser, logAnalyticsEvent } from "./config.js";
@@ -18,30 +18,24 @@ function getClients() {
 }
 
 // -----------------------------------------------------------------------------
-// Fetch questions from Supabase
+// Fetch questions from Supabase (RPC → bypass schema cache)
 // -----------------------------------------------------------------------------
-export async function fetchQuestions(topic, difficulty) {
+export async function fetchQuestions({ table, difficulty }) {
   const { supabase } = getClients();
   if (!supabase) throw new Error("Supabase not initialized.");
 
-  // ✅ Force use of the correct Supabase table
-  const table = window.__quiz_table?.trim() || `${topic.toLowerCase()}_quiz`;
-  console.log("[API] Fetching from table:", table);
-
-  UI.showStatus(`Loading questions for <b>${table}</b> (${difficulty})...`, "text-blue-600");
+  console.log("[API] Forcing SQL fetch from:", table);
 
   const normalizedDiff =
     difficulty.charAt(0).toUpperCase() + difficulty.slice(1).toLowerCase();
 
-  const { data, error } = await supabase
-    .from(table)
-    .select(`
-      id, question_text, question_type, scenario_reason_text,
-      option_a, option_b, option_c, option_d, correct_answer_key
-    `)
-    .eq("difficulty", normalizedDiff);
+  // ✅ Direct SQL RPC call (no schema cache)
+  const { data, error } = await supabase.rpc("fetch_quiz_questions", {
+    table_name: table,
+    diff_level: normalizedDiff,
+  });
 
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(error.message || "RPC call failed");
   if (!data?.length) throw new Error("No questions found.");
 
   return data.map((q) => ({
