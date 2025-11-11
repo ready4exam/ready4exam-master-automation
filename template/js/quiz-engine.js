@@ -4,8 +4,8 @@
 // -----------------------------------------------------------------------------
 //
 // ✅ Enhanced (non-breaking):
-// - Adds support for Phase-2 Supabase quiz tables via ?table=<table_name>
-// - Keeps all existing logic fully intact
+// - Supports Supabase quiz tables via ?table=<table_name>
+// - Keeps all existing logic intact
 // -----------------------------------------------------------------------------
 
 import { initializeServices, getAuthUser } from "./config.js";
@@ -70,7 +70,6 @@ function findChapterTitle(classId, subject, topicSlug) {
     const subjectBlock = classBlock[subject];
     if (!subjectBlock) return null;
 
-    // Search nested subjects
     if (typeof subjectBlock === "object" && !Array.isArray(subjectBlock)) {
       for (const sub in subjectBlock) {
         const arr = subjectBlock[sub];
@@ -81,7 +80,6 @@ function findChapterTitle(classId, subject, topicSlug) {
       }
     }
 
-    // Direct array
     if (Array.isArray(subjectBlock)) {
       for (const ch of subjectBlock) {
         if (ch?.id === topicSlug) return ch?.title || null;
@@ -120,7 +118,30 @@ function parseUrlParameters() {
 }
 
 // -------------------------------
-// Auth state callback (must be defined before initialization)
+// Load quiz from Supabase
+// -------------------------------
+async function loadQuiz() {
+  try {
+    const table = window.__quiz_table;
+    console.log("[ENGINE] Fetching from table:", table);
+    quizState.questions = await fetchQuestions(table, quizState.difficulty);
+    console.log("[ENGINE] Loaded questions:", quizState.questions.length);
+
+    if (quizState.questions.length > 0) {
+      quizState.currentQuestionIndex = 0;
+      renderQuestion();
+      UI.showView?.("quiz-content");
+    } else {
+      UI.showStatus("No questions found in Supabase.");
+    }
+  } catch (err) {
+    console.error("[ENGINE] loadQuiz failed:", err);
+    UI.showStatus("Failed to load quiz. Check console.");
+  }
+}
+
+// -------------------------------
+// Auth state callback
 // -------------------------------
 async function onAuthChange(user) {
   try {
@@ -231,4 +252,38 @@ async function handleSubmit() {
           percentage,
           mcq_correct: correctTypeCount.mcq,
           ar_correct: correctTypeCount.ar,
-          case_c_
+          case_correct: correctTypeCount.case,
+        });
+      }
+    } catch (e) {
+      console.warn("[ENGINE] GA4 logging failed:", e);
+    }
+  }
+
+  UI.showResults(quizState.score, quizState.questions.length);
+}
+
+// -------------------------------
+// Initialize
+// -------------------------------
+async function initQuizEngine() {
+  try {
+    await initializeServices();
+    parseUrlParameters();
+    initializeAuthListener(onAuthChange);
+    UI.bindControls?.({
+      onNext: () => handleNavigation(1),
+      onPrev: () => handleNavigation(-1),
+      onSubmit: handleSubmit,
+      onSelect: handleAnswerSelection,
+      onRetry: () => loadQuiz(),
+      onLogout: signOut,
+      onGoogleSignIn: signInWithGoogle,
+    });
+  } catch (err) {
+    console.error("[ENGINE] initQuizEngine failed:", err);
+    UI.showStatus("Quiz initialization failed. Check console.");
+  }
+}
+
+initQuizEngine();
