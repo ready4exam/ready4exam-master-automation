@@ -1,8 +1,4 @@
-// ✅ /api/manageSupabase.js — Final Stable RPC Version
-// Uses pg_exec RPC (no schema cache, no deprecated endpoints)
-// Safe for Supabase v2 + Vercel backend automation
-// Author: Ready4Exam Phase-2 Automation
-
+// api/manageSupabase.js
 import { createClient } from "@supabase/supabase-js";
 import { getCorsHeaders } from "./cors.js";
 
@@ -30,7 +26,7 @@ export default async function handler(req, res) {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // 🧩 Generate clean table name (two-word slug)
+    // table name: first two words of chapter slug
     const chapterSlug = chapter
       .toLowerCase()
       .replace(/[^a-z0-9\s]/g, "")
@@ -42,9 +38,7 @@ export default async function handler(req, res) {
 
     console.log(`🧩 Managing table: ${tableName}`);
 
-    // ----------------------------
-    // 1️⃣ Create table + RLS policy via pg_exec
-    // ----------------------------
+    // 1) Create table + RLS + policy
     const sqlCreate = `
       CREATE TABLE IF NOT EXISTS public.${tableName} (
         id BIGSERIAL PRIMARY KEY,
@@ -74,19 +68,14 @@ export default async function handler(req, res) {
     await supabase.rpc("pg_exec", { query: sqlCreate });
     console.log(`✅ Table ${tableName} ensured.`);
 
-    // ----------------------------
-    // 2️⃣ Optional refresh
-    // ----------------------------
+    // 2) Optional refresh (truncate)
     if (refresh) {
       console.log(`♻️ Refresh mode: truncating ${tableName}...`);
       await supabase.rpc("pg_exec", { query: `TRUNCATE TABLE IF EXISTS public.${tableName};` });
     }
 
-    // ----------------------------
-    // 3️⃣ Insert rows via pg_exec (json_to_recordset)
-    // ----------------------------
+    // 3) Insert rows (json_to_recordset via pg_exec)
     console.log(`📥 Preparing to insert ${csv.length} rows into ${tableName}...`);
-
     const jsonPayload = JSON.stringify(
       csv.map((row) => ({
         difficulty: row.difficulty ?? null,
@@ -129,27 +118,19 @@ export default async function handler(req, res) {
     await supabase.rpc("pg_exec", { query: insertSql });
     console.log(`✅ Inserted ${csv.length} rows into ${tableName}`);
 
-    // ----------------------------
-    // 4️⃣ Log usage
-    // ----------------------------
-   const { error: logError } = await supabase
-  .from("usage_logs")
-  .insert({
-    class_name,
-    subject,
-    book,
-    chapter,
-    table_name: tableName,
-    inserted_count: csv.length,
-    refresh,
-    created_at: new Date().toISOString(),
-  });
+    // 4) Log usage into usage_logs
+    const { error: logError } = await supabase.from("usage_logs").insert({
+      class_name,
+      subject,
+      book,
+      chapter,
+      table_name: tableName,
+      inserted_count: csv.length,
+      refresh,
+      created_at: new Date().toISOString(),
+    });
+    if (logError) console.warn("⚠️ Logging failed:", logError.message);
 
-if (logError) console.warn("⚠️ Logging failed:", logError.message);
-
-    // ----------------------------
-    // ✅ Done
-    // ----------------------------
     return res.status(200).json({
       ok: true,
       message: `${csv.length} questions uploaded to ${tableName}`,
