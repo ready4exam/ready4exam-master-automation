@@ -1,14 +1,20 @@
-// api/gemini.js
-import { getCorsHeaders } from "./cors.js";
-export const config = { runtime: "nodejs" };
+// ✅ /api/gemini.js — Final Node Runtime Version
+// Phase-2 Automation: Generate structured MCQs from Gemini 2.5 Flash
+// Compatible with: Vercel NodeJS Runtime + Supabase automation
+// Author: Ready4Exam
 
-const GEMINI_ENDPOINT =
-  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
+import { getCorsHeaders } from "./cors.js";
+
+// ✅ Ensure Vercel runs this as Node (not Edge)
+export const config = {
+  runtime: "nodejs",
+};
 
 export default async function handler(req, res) {
   const origin = req.headers.origin || "*";
   const headers = { ...getCorsHeaders(origin), "Content-Type": "application/json" };
   Object.entries(headers).forEach(([k, v]) => res.setHeader(k, v));
+
   if (req.method === "OPTIONS") return res.status(200).end();
   if (req.method !== "POST") return res.status(405).json({ error: "Only POST allowed" });
 
@@ -17,38 +23,48 @@ export default async function handler(req, res) {
     const { meta = {} } = body;
     const { class_name, subject, book = "", chapter, num = 20, difficulty = "medium" } = meta;
 
-    if (!class_name || !subject || !chapter) return res.status(400).json({ error: "Missing meta" });
+    if (!class_name || !subject || !chapter)
+      return res.status(400).json({ ok: false, error: "Missing meta parameters." });
 
     const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) return res.status(500).json({ error: "GEMINI_API_KEY not configured" });
+    if (!apiKey) throw new Error("Missing GEMINI_API_KEY in environment variables.");
 
-    // Prompt: request strict JSON output
+    const GEMINI_ENDPOINT =
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
+
+    // -------------------------------
+    // 1️⃣ Build generation prompt
+    // -------------------------------
     const userPrompt = `
-Generate ${num} ${difficulty} multiple-choice questions (MCQ) for class ${class_name} — subject: ${subject}, chapter: ${chapter}, book: ${book}.
-Return **ONLY** valid JSON with a single top-level key "questions", which is an array of objects.
-Each object must contain these keys exactly:
-difficulty, question_type (mcq), question_text, scenario_reason_text, option_a, option_b, option_c, option_d, correct_answer_key (one of "a","b","c","d").
+Generate ${num} ${difficulty} level multiple choice questions (MCQs) for:
+Class: ${class_name}
+Subject: ${subject}
+Book: ${book}
+Chapter: ${chapter}
 
-Example output schema:
+Return ONLY valid JSON with this structure:
 {
   "questions": [
     {
       "difficulty": "medium",
       "question_type": "mcq",
-      "question_text": "What ...?",
-      "scenario_reason_text": "Explanation ...",
-      "option_a": "A",
-      "option_b": "B",
-      "option_c": "C",
-      "option_d": "D",
+      "question_text": "What is velocity?",
+      "scenario_reason_text": "Velocity is rate of displacement.",
+      "option_a": "Rate of change of speed",
+      "option_b": "Rate of change of displacement",
+      "option_c": "Rate of change of energy",
+      "option_d": "Rate of change of force",
       "correct_answer_key": "b"
     }
   ]
 }
 
-Create original, curriculum-appropriate questions. Do not include any additional commentary, markdown, or introductions — only the JSON.
+Do not include markdown, commentary, or code fences. Return pure JSON only.
 `;
 
+    // -------------------------------
+    // 2️⃣ Call Gemini API
+    // -------------------------------
     const payload = {
       contents: [
         {
@@ -56,11 +72,13 @@ Create original, curriculum-appropriate questions. Do not include any additional
           parts: [{ text: userPrompt }],
         },
       ],
-      // recommended: set reasonable max output tokens
-      maxOutputTokens: 1200,
+      generationConfig: {
+        temperature: 0.6,
+        maxOutputTokens: 1600,
+      },
     };
 
-    const r = await fetch(GEMINI_ENDPOINT, {
+    const geminiRes = await fetch(GEMINI_ENDPOINT, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -69,58 +87,67 @@ Create original, curriculum-appropriate questions. Do not include any additional
       body: JSON.stringify(payload),
     });
 
-    if (!r.ok) {
-      const t = await r.text();
-      console.error("Gemini error:", t);
-      return res.status(500).json({ ok: false, error: "Gemini API error", detail: t });
+    if (!geminiRes.ok) {
+      const errText = await geminiRes.text();
+      console.error("❌ Gemini API error:", errText);
+      return res.status(500).json({ ok: false, error: "Gemini API request failed.", detail: errText });
     }
 
-    const data = await r.json();
+    const data = await geminiRes.json();
 
-    // === Extract text from Gemini response ===
-    // Response formats vary, but usually `candidates[0].content[0].text` or `output[0].content[0].text`.
-    // We'll search the object for first string-looking piece of text.
+    // -------------------------------
+    // 3️⃣ Extract text response safely
+    // -------------------------------
     let text = null;
-    function findText(obj) {
+    function extractText(obj) {
       if (!obj || typeof obj !== "object") return null;
-      if (typeof obj.text === "string") return obj.text;
-      for (const k of Object.keys(obj)) {
-        const val = obj[k];
+      if (typeof obj.text === "string" && obj.text.trim().startsWith("{")) return obj.text;
+      for (const key of Object.keys(obj)) {
+        const val = obj[key];
         if (typeof val === "string" && val.trim().startsWith("{")) return val;
         if (typeof val === "object") {
-          const found = findText(val);
+          const found = extractText(val);
           if (found) return found;
         }
       }
       return null;
     }
-    text = findText(data) || JSON.stringify(data);
+    text = extractText(data) || "";
 
-    // Try to parse JSON from the model output
-    let parsed = null;
+    // -------------------------------
+    // 4️⃣ Parse and validate JSON
+    // -------------------------------
+    let parsed;
     try {
-      // There may be extra text around JSON; extract the first {...} block
-      const firstBrace = text.indexOf("{");
-      const lastBrace = text.lastIndexOf("}");
-      if (firstBrace !== -1 && lastBrace !== -1) {
-        const candidate = text.slice(firstBrace, lastBrace + 1);
-        parsed = JSON.parse(candidate);
+      const start = text.indexOf("{");
+      const end = text.lastIndexOf("}");
+      if (start !== -1 && end !== -1) {
+        parsed = JSON.parse(text.slice(start, end + 1));
       } else {
         parsed = JSON.parse(text);
       }
     } catch (e) {
-      console.warn("Failed to JSON-parse Gemini output. Returning raw text for debugging.");
-      return res.status(500).json({ ok: false, error: "Failed to parse Gemini output", raw: text });
+      console.error("⚠️ Failed to parse Gemini output:", text);
+      return res.status(500).json({
+        ok: false,
+        error: "Failed to parse Gemini JSON output.",
+        raw: text.slice(0, 500),
+      });
     }
 
-    if (!parsed || !Array.isArray(parsed.questions)) {
-      return res.status(500).json({ ok: false, error: "Invalid Gemini structure", parsed });
-    }
+    if (!parsed || !Array.isArray(parsed.questions))
+      return res.status(500).json({
+        ok: false,
+        error: "Invalid Gemini response structure.",
+        parsed,
+      });
 
-    // Optional: validate/normalize questions (ensure keys exist and correct_answer_key in a-d)
-    const normalized = parsed.questions.map((q) => ({
-      difficulty: q.difficulty ?? difficulty,
-      question_type: q.question_type ?? "mcq",
+    // -------------------------------
+    // 5️⃣ Normalize and sanitize data
+    // -------------------------------
+    const clean = parsed.questions.map((q) => ({
+      difficulty: q.difficulty || difficulty,
+      question_type: q.question_type || "mcq",
       question_text: (q.question_text || "").trim(),
       scenario_reason_text: (q.scenario_reason_text || "").trim(),
       option_a: (q.option_a || "").trim(),
@@ -132,9 +159,13 @@ Create original, curriculum-appropriate questions. Do not include any additional
         : "a"),
     }));
 
-    return res.status(200).json({ ok: true, questions: normalized });
+    // -------------------------------
+    // ✅ Success
+    // -------------------------------
+    console.log(`✅ Gemini generated ${clean.length} questions for ${chapter}`);
+    return res.status(200).json({ ok: true, questions: clean });
   } catch (err) {
-    console.error("gemini.js error:", err);
+    console.error("❌ /api/gemini.js error:", err);
     return res.status(500).json({ ok: false, error: err.message || "Internal server error" });
   }
 }
