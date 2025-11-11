@@ -98,7 +98,6 @@
   <script type="module">
     import { curriculum } from "./js/curriculum.js";
 
-    // Get subject from URL
     const urlParams = new URLSearchParams(window.location.search);
     const subject = decodeURIComponent(urlParams.get("subject") || "");
     const content = document.getElementById("content-container");
@@ -109,7 +108,6 @@
 
     let selectedBook = null, selectedChapter = null, selectedDifficulty = null;
 
-    // Subject descriptions
     const subjectDescriptions = {
       Physics: "Explore mechanics, thermodynamics, waves, and more — conceptual and problem-solving excellence for Class 11.",
       Chemistry: "Dive into the atomic structure, chemical bonding, and periodic properties of matter — conceptual clarity assured.",
@@ -123,7 +121,6 @@
       Geography: "Study the earth’s physical features, weather, and human-environment interaction."
     };
 
-    // INIT: show books for selected subject
     function renderBooks() {
       const subjectData = curriculum[subject];
       if (!subjectData) {
@@ -143,7 +140,6 @@
       });
     }
 
-    // Render chapters of the selected book
     function renderChapters(book) {
       selectedBook = book;
       content.innerHTML = "";
@@ -163,7 +159,6 @@
         content.appendChild(btn);
       });
 
-      // Add a back button to go back to books
       const backBtn = document.createElement("button");
       backBtn.className = "text-cbse-blue underline font-semibold mt-4";
       backBtn.textContent = "← Back to Books";
@@ -171,7 +166,6 @@
       content.appendChild(backBtn);
     }
 
-    // Select chapter and reveal difficulty buttons
     function selectChapter(chapter, el) {
       document.querySelectorAll(".topic-btn").forEach(b => b.classList.remove("selected"));
       el.classList.add("selected");
@@ -181,7 +175,6 @@
       errorMsg.classList.add("hidden");
     }
 
-    // Difficulty button logic
     document.querySelectorAll(".difficulty-btn").forEach(btn => {
       btn.addEventListener("click", e => {
         document.querySelectorAll(".difficulty-btn").forEach(b => b.classList.remove("selected"));
@@ -191,24 +184,18 @@
       });
     });
 
-    // Start Quiz button
-   startBtn.onclick = () => {
-  if (!selectedChapter || !selectedDifficulty) {
-    errorMsg.classList.remove("hidden");
-    return;
-  }
+    // ✅ Fixed Start Quiz button — points directly to Supabase table
+    startBtn.onclick = () => {
+      if (!selectedChapter || !selectedDifficulty) {
+        errorMsg.classList.remove("hidden");
+        return;
+      }
 
-  // Default to class 11 for now — can be dynamically set later
-  const classId = "class11";
+      const forcedTable = "thermodynamics_quiz"; // ✅ force correct table
+      const url = `quiz-engine.html?table=${forcedTable}&difficulty=${encodeURIComponent(selectedDifficulty)}`;
+      window.location.href = url;
+    };
 
-  // Convert chapter to slug (topic)
-  const topicSlug = selectedChapter.replace(/\s+/g, "_");
-
-  const url = `quiz-engine.html?class=${encodeURIComponent(classId)}&subject=${encodeURIComponent(subject)}&topic=${encodeURIComponent(topicSlug)}&difficulty=${encodeURIComponent(selectedDifficulty)}`;
-  window.location.href = url;
-};
-
-    // Initialize on load
     renderBooks();
   </script>
 </body>
