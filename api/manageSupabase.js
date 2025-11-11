@@ -1,11 +1,10 @@
-// ✅ /api/manageSupabase.js — Robust SQL-based Supabase Automation (Phase-2)
-// No schema cache issue, safe for table creation + bulk insert
-// Compatible with Supabase v2 REST SQL API
-// Author: Ready4Exam Automation Phase-2
+// ✅ /api/manageSupabase.js — Final Stable RPC Version
+// Uses pg_exec RPC (no schema cache, no deprecated endpoints)
+// Safe for Supabase v2 + Vercel backend automation
+// Author: Ready4Exam Phase-2 Automation
 
 import { createClient } from "@supabase/supabase-js";
 import { getCorsHeaders } from "./cors.js";
-import fetch from "node-fetch";
 
 export const config = { runtime: "nodejs" };
 
@@ -31,7 +30,7 @@ export default async function handler(req, res) {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // 🧩 Generate clean table name (2-word chapter slug)
+    // 🧩 Generate clean table name (two-word slug)
     const chapterSlug = chapter
       .toLowerCase()
       .replace(/[^a-z0-9\s]/g, "")
@@ -41,10 +40,10 @@ export default async function handler(req, res) {
       .join("_");
     const tableName = `${chapterSlug}_quiz`;
 
-    console.log(`🧩 Managing Supabase Table: ${tableName}`);
+    console.log(`🧩 Managing table: ${tableName}`);
 
     // ----------------------------
-    // 1️⃣ Table Creation via SQL API
+    // 1️⃣ Create table + RLS policy via pg_exec
     // ----------------------------
     const sqlCreate = `
       CREATE TABLE IF NOT EXISTS public.${tableName} (
@@ -72,77 +71,21 @@ export default async function handler(req, res) {
       GRANT ALL ON public.${tableName} TO anon;
     `;
 
-    const createResp = await fetch(`${supabaseUrl}/rest/v1/query`, {
-      method: "POST",
-      headers: {
-        apikey: supabaseKey,
-        Authorization: `Bearer ${supabaseKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ query: sqlCreate }),
-    });
-
-    if (!createResp.ok) {
-      const errText = await createResp.text();
-      console.error("⚠️ SQL creation failed:", errText);
-      throw new Error(errText);
-    } else {
-      console.log(`✅ Table ${tableName} ensured.`);
-    }
+    await supabase.rpc("pg_exec", { query: sqlCreate });
+    console.log(`✅ Table ${tableName} ensured.`);
 
     // ----------------------------
-    // 2️⃣ Optional Refresh
+    // 2️⃣ Optional refresh
     // ----------------------------
     if (refresh) {
       console.log(`♻️ Refresh mode: truncating ${tableName}...`);
-      await fetch(`${supabaseUrl}/rest/v1/query`, {
-        method: "POST",
-        headers: {
-          apikey: supabaseKey,
-          Authorization: `Bearer ${supabaseKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ query: `TRUNCATE TABLE IF EXISTS public.${tableName};` }),
-      }).catch(() => console.warn("⚠️ Table truncate failed — continuing."));
+      await supabase.rpc("pg_exec", { query: `TRUNCATE TABLE IF EXISTS public.${tableName};` });
     }
 
     // ----------------------------
-    // 3️⃣ Verify table existence before inserting
+    // 3️⃣ Insert rows via pg_exec (json_to_recordset)
     // ----------------------------
-    console.log(`🔍 Checking existence of ${tableName}...`);
-    const checkSql = `SELECT to_regclass('public.${tableName}') AS reg;`;
-    let exists = false;
-    const start = Date.now();
-    const timeoutMs = 15000;
-
-    while (!exists && Date.now() - start < timeoutMs) {
-      try {
-        const checkResp = await fetch(`${supabaseUrl}/rest/v1/query`, {
-          method: "POST",
-          headers: {
-            apikey: supabaseKey,
-            Authorization: `Bearer ${supabaseKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ query: checkSql }),
-        });
-        const text = await checkResp.text();
-        if (text && text.includes(tableName)) {
-          exists = true;
-          break;
-        }
-      } catch (e) {
-        console.warn("⚠️ Table existence check failed:", e.message || e);
-      }
-      await new Promise((r) => setTimeout(r, 500));
-    }
-
-    if (!exists) console.warn(`⚠️ Table ${tableName} not found after ${timeoutMs}ms — continuing anyway.`);
-
-    // ----------------------------
-    // 4️⃣ Insert rows via SQL (json_to_recordset)
-    // ----------------------------
-    console.log(`📥 Inserting ${csv.length} rows into ${tableName}...`);
+    console.log(`📥 Preparing to insert ${csv.length} rows into ${tableName}...`);
 
     const jsonPayload = JSON.stringify(
       csv.map((row) => ({
@@ -156,7 +99,7 @@ export default async function handler(req, res) {
         option_d: row.option_d ?? null,
         correct_answer_key: row.correct_answer_key ?? null,
       }))
-    ).replace(/'/g, "''"); // escape single quotes
+    ).replace(/'/g, "''");
 
     const insertSql = `
       WITH data AS (
@@ -183,26 +126,11 @@ export default async function handler(req, res) {
       FROM data;
     `;
 
-    const insertResp = await fetch(`${supabaseUrl}/rest/v1/query`, {
-      method: "POST",
-      headers: {
-        apikey: supabaseKey,
-        Authorization: `Bearer ${supabaseKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ query: insertSql }),
-    });
-
-    if (!insertResp.ok) {
-      const errText = await insertResp.text();
-      console.error("❌ Insert SQL failed:", errText);
-      throw new Error(`Insert failed: ${errText}`);
-    }
-
-    console.log(`✅ Inserted ${csv.length} rows into ${tableName} via SQL.`);
+    await supabase.rpc("pg_exec", { query: insertSql });
+    console.log(`✅ Inserted ${csv.length} rows into ${tableName}`);
 
     // ----------------------------
-    // 5️⃣ Log usage
+    // 4️⃣ Log usage
     // ----------------------------
     await supabase
       .from("usage_logs")
