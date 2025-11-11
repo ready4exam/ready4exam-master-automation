@@ -24,6 +24,8 @@
     }
   </script>
 
+  <meta http-equiv="Cross-Origin-Opener-Policy" content="same-origin-allow-popups">
+
   <style>
     body { font-family: 'Inter', sans-serif; background-color: #f5f7fa; }
     .option-label { transition: all 0.2s ease; }
@@ -129,13 +131,15 @@
   <script type="module" src="./js/auth-paywall.js"></script>
   <script type="module" src="./js/ui-renderer.js"></script>
   <script type="module" src="./js/api.js"></script>
-  <!-- ✅ Final script inclusion (adds backend fetch integration) -->
-<script type="module">
-  // make quiz table param available globally for quiz-engine.js
-  const params = new URLSearchParams(location.search);
-  window.__quiz_table = params.get("table") || null;
-</script>
-<script type="module" src="./js/quiz-engine.js"></script>
 
+  <!-- ✅ Table parameter resolver -->
+  <script type="module">
+    const p = new URLSearchParams(location.search);
+    const topic = p.get("topic");
+    window.__quiz_table = p.get("table") || `${topic}_quiz`;
+    console.log("✅ Using table:", window.__quiz_table);
+  </script>
+
+  <script type="module" src="./js/quiz-engine.js"></script>
 </body>
 </html>
