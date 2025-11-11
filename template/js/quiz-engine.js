@@ -124,7 +124,8 @@ async function loadQuiz() {
   try {
     const table = window.__quiz_table;
     console.log("[ENGINE] Forcing table:", window.__quiz_table);
-    quizState.questions = await fetchQuestions(window.__quiz_table, quizState.difficulty);
+    quizState.questions = await fetchQuestions(table: `${quizState.topicSlug?.toLowerCase() || "default"}_quiz`,
+  difficulty: quizState.difficulty,);
     console.log("[ENGINE] Loaded questions:", quizState.questions.length);
 
     if (quizState.questions.length > 0) {
