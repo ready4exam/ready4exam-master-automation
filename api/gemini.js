@@ -53,21 +53,30 @@ Return ONLY valid JSON array, no markdown, no commentary.
     `;
 
     // ----- Call Gemini 2.5 Flash -----
-    const geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [
+  const geminiRes = await fetch(
+  `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`,
+  {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [
+        {
+          role: "user",
+          parts: [
             {
-              parts: [{ text: prompt }],
-            },
-          ],
-        }),
+              text: prompt
+            }
+          ]
+        }
+      ],
+      generationConfig: {
+        temperature: 0.7,
+        maxOutputTokens: 4096,
+        responseMimeType: "application/json"
       }
-    );
-
+    }),
+  }
+);
     if (!geminiRes.ok) {
       const errText = await geminiRes.text();
       console.error("❌ Gemini returned error:", errText.slice(0, 500));
