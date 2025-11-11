@@ -106,9 +106,15 @@ export default async function handler(req, res) {
     // ----------------------------
     // 3️⃣ Insert Gemini Data
     // ----------------------------
-    console.log(`📥 Inserting ${csv.length} rows into ${tableName}`);
-    const { error: insertError } = await supabase.from(tableName).insert(csv);
-    if (insertError) throw insertError;
+console.log(`📥 Waiting for table ${tableName} schema to refresh...`);
+await new Promise(r => setTimeout(r, 2000)); // 2s delay for schema propagation
+
+// Re-init client to refresh schema cache
+const supabase2 = createClient(supabaseUrl, supabaseKey);
+
+console.log(`📥 Inserting ${csv.length} rows into ${tableName}`);
+const { error: insertError } = await supabase2.from(tableName).insert(csv);
+if (insertError) throw insertError;
     console.log(`✅ Inserted ${csv.length} rows into ${tableName}`);
 
     // ----------------------------
