@@ -1,4 +1,6 @@
-// ✅ /api/manageSupabase.js — Final stable version (with direct SQL fallback)
+// ✅ /api/manageSupabase.js — Final Stable Version (Direct Admin SQL method)
+// Compatible with Supabase v2 (no execute_sql dependency)
+
 import { createClient } from "@supabase/supabase-js";
 import { getCorsHeaders } from "./cors.js";
 import fetch from "node-fetch";
@@ -27,7 +29,7 @@ export default async function handler(req, res) {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Create table name (2-word slug)
+    // 🧩 Generate a clean table name (2-word chapter slug)
     const chapterSlug = chapter
       .toLowerCase()
       .replace(/[^a-z0-9\s]/g, "")
@@ -35,12 +37,14 @@ export default async function handler(req, res) {
       .split(/\s+/)
       .slice(0, 2)
       .join("_");
-
     const tableName = `${chapterSlug}_quiz`;
-    console.log(`🧩 Processing table: ${tableName}`);
 
-    // 🧠 Step 1: Create table directly via SQL REST API
-    const sql = `
+    console.log(`🧩 Managing Supabase Table: ${tableName}`);
+
+    // ----------------------------
+    // 1️⃣ Force Table Creation using Supabase SQL API
+    // ----------------------------
+    const sqlCreate = `
       CREATE TABLE IF NOT EXISTS public.${tableName} (
         id BIGSERIAL PRIMARY KEY,
         difficulty TEXT,
@@ -55,46 +59,61 @@ export default async function handler(req, res) {
         created_at TIMESTAMP DEFAULT NOW()
       );
       ALTER TABLE public.${tableName} ENABLE ROW LEVEL SECURITY;
-      CREATE POLICY IF NOT EXISTS "Allow All Access" ON public.${tableName}
-      FOR ALL USING (true) WITH CHECK (true);
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_policies WHERE tablename = '${tableName}' AND policyname = 'Allow All Access'
+        ) THEN
+          EXECUTE format('CREATE POLICY "Allow All Access" ON public.${tableName} FOR ALL USING (true) WITH CHECK (true);');
+        END IF;
+      END $$;
       GRANT ALL ON public.${tableName} TO anon;
     `;
 
-    const sqlRes = await fetch(`${supabaseUrl}/rest/v1/rpc/execute_sql`, {
+    const sqlResponse = await fetch(`${supabaseUrl}/rest/v1/query`, {
       method: "POST",
       headers: {
         apikey: supabaseKey,
         Authorization: `Bearer ${supabaseKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ query: sql }),
+      body: JSON.stringify({ query: sqlCreate }),
     });
 
-    if (!sqlRes.ok) {
-      console.warn("⚠️ SQL RPC failed, continuing anyway:", await sqlRes.text());
+    if (!sqlResponse.ok) {
+      const errText = await sqlResponse.text();
+      console.warn("⚠️ SQL creation warning:", errText);
+    } else {
+      console.log(`✅ Table ${tableName} ensured.`);
     }
 
-    // 🧠 Step 2: Refresh mode — truncate if requested
+    // ----------------------------
+    // 2️⃣ Optional Refresh Mode
+    // ----------------------------
     if (refresh) {
-      console.log(`♻️ Refreshing ${tableName}...`);
-      await fetch(`${supabaseUrl}/rest/v1/rpc/execute_sql`, {
+      console.log(`♻️ Refresh mode: truncating ${tableName}...`);
+      await fetch(`${supabaseUrl}/rest/v1/query`, {
         method: "POST",
         headers: {
           apikey: supabaseKey,
           Authorization: `Bearer ${supabaseKey}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ query: `TRUNCATE TABLE public.${tableName};` }),
-      }).catch(() => console.warn("⚠️ Truncate failed — continuing insert."));
+        body: JSON.stringify({ query: `TRUNCATE TABLE IF EXISTS public.${tableName};` }),
+      }).catch(() => console.warn("⚠️ Table truncate failed — continuing."));
     }
 
-    // 🧠 Step 3: Insert rows
+    // ----------------------------
+    // 3️⃣ Insert Gemini Data
+    // ----------------------------
+    console.log(`📥 Inserting ${csv.length} rows into ${tableName}`);
     const { error: insertError } = await supabase.from(tableName).insert(csv);
     if (insertError) throw insertError;
-
     console.log(`✅ Inserted ${csv.length} rows into ${tableName}`);
 
-    // 🧠 Step 4: Log activity
+    // ----------------------------
+    // 4️⃣ Log in usage_logs
+    // ----------------------------
     await supabase
       .from("usage_logs")
       .insert({
@@ -116,9 +135,6 @@ export default async function handler(req, res) {
     });
   } catch (err) {
     console.error("❌ manageSupabase.js error:", err);
-    return res.status(500).json({
-      ok: false,
-      error: err.message || "Internal server error",
-    });
+    return res.status(500).json({ ok: false, error: err.message || "Internal server error" });
   }
 }
