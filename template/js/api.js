@@ -42,8 +42,10 @@ export async function fetchQuestions(topic, difficulty) {
   const { supabase } = getClients();
   if (!supabase) throw new Error("Supabase not initialized.");
 
-  const table = getTableName(topic);
-  UI.showStatus(`Loading questions for <b>${topic}</b> (${difficulty})...`, "text-blue-600");
+  // ✅ Prefer explicit table name (Phase-2/3 Supabase automation)
+  const table = window.__quiz_table || getTableName(topic);
+
+  UI.showStatus(`Loading questions for <b>${table}</b> (${difficulty})...`, "text-blue-600");
 
   const normalizedDiff =
     difficulty.charAt(0).toUpperCase() + difficulty.slice(1).toLowerCase();
@@ -86,7 +88,6 @@ export async function saveResult(resultData) {
   }
 
   try {
-    // ✅ Ensure field name matches Firestore rules (user_id)
     await addDoc(collection(db, "quiz_scores"), {
       action: "Quiz Completed",
       user_id: user.uid,
@@ -101,7 +102,6 @@ export async function saveResult(resultData) {
 
     console.log("[API] Quiz result saved to Firestore.");
 
-    // ✅ Also log event to GA4
     logAnalyticsEvent("quiz_completed", {
       user_id: user.uid,
       topic: resultData.topic,
