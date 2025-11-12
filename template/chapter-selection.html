@@ -1,108 +1,161 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Chapter Selection</title>
-  <script type="module">
-    // All logic related to schema cache, Supabase, and navigation is commented out
-    // The only active behavior: when the button is clicked, display "Welcome to the quiz"
-
-    document.addEventListener("DOMContentLoaded", () => {
-      const startBtn = document.getElementById("start-btn");
-
-      // ✅ Minimal behavior: only show message, no navigation or schema call
-      startBtn.onclick = () => {
-        alert("Welcome to the quiz");
-      };
-
-      /* 
-      // ❌ OLD CODE (commented for reference)
-      // This section originally fetched chapter data, built a quiz table name,
-      // and navigated to quiz-engine.html, which triggered Supabase schema cache calls.
-      
-      startBtn.onclick = async () => {
-        const selectedChapters = Array.from(document.querySelectorAll(".chapter-checkbox:checked")).map(
-          (el) => el.value
-        );
-        if (selectedChapters.length === 0) {
-          alert("Please select at least one chapter before starting the quiz.");
-          return;
-        }
-
-        // Original logic: navigate to quiz-engine.html
-        const params = new URLSearchParams({ chapters: selectedChapters.join(",") });
-        window.location.href = `quiz-engine.html?${params.toString()}`;
-      };
-      */
-    });
-  </script>
   <style>
-    body {
-      font-family: system-ui, sans-serif;
-      background-color: #f9fafb;
-      color: #111827;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      height: 100vh;
-      margin: 0;
-    }
-
-    h1 {
-      font-size: 1.75rem;
-      font-weight: 700;
-      margin-bottom: 2rem;
-    }
-
-    .chapters {
-      display: flex;
-      flex-direction: column;
-      gap: 0.75rem;
-      margin-bottom: 2rem;
-    }
-
-    .chapter {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
-
-    button {
-      padding: 0.75rem 1.5rem;
-      font-size: 1rem;
-      font-weight: 600;
-      color: #fff;
-      background-color: #2563eb;
-      border: none;
-      border-radius: 0.5rem;
-      cursor: pointer;
-      transition: background-color 0.2s ease;
-    }
-
-    button:hover {
-      background-color: #1e40af;
-    }
+    body { font-family: system-ui, sans-serif; background:#f7fafc; color:#111827; margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center; }
+    .card { background:#fff; padding:28px; border-radius:12px; box-shadow:0 8px 24px rgba(15,23,42,0.06); width:420px; max-width:92%; }
+    h1 { margin:0 0 16px; font-size:20px; }
+    .chapters { display:flex; flex-direction:column; gap:10px; margin:16px 0; }
+    .chapter { display:flex; align-items:center; gap:10px; }
+    .controls { display:flex; gap:10px; align-items:center; justify-content:flex-end; }
+    button { padding:10px 16px; border-radius:8px; border:0; cursor:pointer; font-weight:600; }
+    .primary { background:#2563eb; color:white; }
+    .secondary { background:#e5e7eb; color:#111827; }
+    .status { margin-top:12px; font-size:14px; color:#374151; min-height:20px; }
+    .hidden { display:none; }
+    .auth-row { display:flex; gap:8px; justify-content:space-between; align-items:center; margin-bottom:6px; font-size:13px; color:#374151; }
   </style>
 </head>
 <body>
-  <h1>Select Chapter(s)</h1>
+  <div class="card" id="page-card">
+    <div class="auth-row">
+      <div id="auth-status">Checking auth...</div>
+      <div id="user-email" class="hidden"></div>
+    </div>
 
-  <!-- Chapters list (static placeholders for now) -->
-  <div class="chapters">
-    <label class="chapter">
-      <input type="checkbox" class="chapter-checkbox" value="chapter1" /> Chapter 1
-    </label>
-    <label class="chapter">
-      <input type="checkbox" class="chapter-checkbox" value="chapter2" /> Chapter 2
-    </label>
-    <label class="chapter">
-      <input type="checkbox" class="chapter-checkbox" value="chapter3" /> Chapter 3
-    </label>
+    <h1>Select Chapter(s) for Quiz</h1>
+
+    <!-- Chapter list (static placeholders; your real app may populate dynamically) -->
+    <div class="chapters" id="chapter-list">
+      <label class="chapter"><input type="checkbox" class="chapter-checkbox" value="chapter1" /> Chapter 1: Basics</label>
+      <label class="chapter"><input type="checkbox" class="chapter-checkbox" value="chapter2" /> Chapter 2: Intermediate</label>
+      <label class="chapter"><input type="checkbox" class="chapter-checkbox" value="chapter3" /> Chapter 3: Advanced</label>
+    </div>
+
+    <div class="controls">
+      <button id="reset-btn" class="secondary">Reset</button>
+      <button id="start-btn" class="primary">Start Quiz</button>
+    </div>
+
+    <div class="status" id="status-message"></div>
   </div>
 
-  <!-- Start Quiz button -->
-  <button id="start-btn">Start Quiz</button>
+  <script type="module">
+    // Keep auth/init intact: we assume your project has config/auth modules.
+    // This page will still allow your auth flow to run (if present).
+    // The only network calls to Supabase are routed through ./js/api.js,
+    // which in the companion file is stubbed to short-circuit and show the message.
+
+    // IMPORTANT: Ensure the relative path matches your project. If your api.js lives at "/js/api.js" this import is correct.
+    import { fetchQuestions, fetchChapters } from './js/api.js';
+
+    // Example: If you have auth module, import it here instead of the mock below:
+    // import { getCurrentUser, onAuthStateChanged } from './js/auth.js';
+
+    // --- Minimal auth-check mock (keeps UI behavior) ---
+    // If you already have auth code, replace this block with your real auth code.
+    function mockAuthCheck() {
+      // Simulate a logged-in user if no real auth module is present.
+      return new Promise((resolve) => {
+        // If real auth exists, its code should call resolve(user) instead
+        setTimeout(() => resolve({ email: 'user@example.com', uid: 'user-stub' }), 250);
+      });
+    }
+
+    // --- Page initialization ---
+    const startBtn = document.getElementById('start-btn');
+    const resetBtn = document.getElementById('reset-btn');
+    const statusMessage = document.getElementById('status-message');
+    const authStatus = document.getElementById('auth-status');
+    const userEmailNode = document.getElementById('user-email');
+
+    async function init() {
+      // 1) Run auth (kept)
+      authStatus.textContent = 'Checking auth...';
+      try {
+        const user = await mockAuthCheck(); // replace with real auth check if present
+        if (user) {
+          authStatus.textContent = 'Signed in';
+          userEmailNode.textContent = user.email;
+          userEmailNode.classList.remove('hidden');
+        } else {
+          authStatus.textContent = 'Not signed in';
+          userEmailNode.classList.add('hidden');
+        }
+      } catch (err) {
+        authStatus.textContent = 'Auth error';
+        console.error('Auth check failed', err);
+      }
+
+      // 2) Optionally populate chapters from server (kept) — but actual fetchChapters is stubbed in js/api.js
+      try {
+        const chapters = await fetchChapters(); // stub returns [] and will show welcome message once when invoked
+        // If fetchChapters returns data, you can render it here. By default (stub), it's [] so we keep static list.
+        if (Array.isArray(chapters) && chapters.length) {
+          renderChapters(chapters);
+        }
+      } catch (err) {
+        console.warn('fetchChapters error (expected if stubbed):', err);
+      }
+
+      statusMessage.textContent = '';
+    }
+
+    function renderChapters(chapters) {
+      const list = document.getElementById('chapter-list');
+      list.innerHTML = '';
+      chapters.forEach((c) => {
+        const label = document.createElement('label');
+        label.className = 'chapter';
+        label.innerHTML = `<input type="checkbox" class="chapter-checkbox" value="${c.id}" /> ${c.title || c.id}`;
+        list.appendChild(label);
+      });
+    }
+
+    // --- Start quiz handler ---
+    startBtn.addEventListener('click', async () => {
+      // Collect selected chapters (keeps existing UX)
+      const selected = Array.from(document.querySelectorAll('.chapter-checkbox:checked')).map((el) => el.value);
+
+      if (selected.length === 0) {
+        statusMessage.textContent = 'Please select at least one chapter.';
+        return;
+      }
+
+      statusMessage.textContent = 'Preparing quiz...';
+
+      // This call normally fetches questions from Supabase.
+      // In our patched api.js, fetchQuestions is stubbed: it will show "Welcome to the quiz"
+      // and return a safe default (empty array or stub question).
+      try {
+        const questions = await fetchQuestions({ chapters: selected });
+        // Post-stub behavior: if questions array non-empty you can navigate/load the quiz engine.
+        // But per your request, we do NOT perform any schema calls. The stub already displayed the message.
+        // If you still want to navigate when real data exists, add logic here:
+        if (Array.isArray(questions) && questions.length > 0 && !window.__QUIZ_STUB_ACTIVE) {
+          // NOTE: only navigate if real questions present and stubbing disabled
+          const params = new URLSearchParams({ chapters: selected.join(',') });
+          window.location.href = `quiz-engine.html?${params.toString()}`;
+        } else {
+          // Stubbed flow: keep user on this page; message already shown by stub.
+          statusMessage.textContent = 'Welcome to the quiz';
+        }
+      } catch (err) {
+        console.error('Error preparing quiz:', err);
+        statusMessage.textContent = 'Error preparing quiz (check console).';
+      }
+    });
+
+    resetBtn.addEventListener('click', () => {
+      document.querySelectorAll('.chapter-checkbox').forEach((el) => (el.checked = false));
+      statusMessage.textContent = '';
+    });
+
+    // Initialize page
+    init();
+  </script>
 </body>
 </html>
