@@ -1,179 +1,91 @@
 // js/quiz-engine.js
-
 // -----------------------------------------------------------------------------
-// Core quiz logic: loading questions, tracking progress, auth state, GA4 logging
+// Ready4Exam Quiz Engine – Mock-Mode (No Supabase calls)
 // -----------------------------------------------------------------------------
-//
-// ✅ Final Stable Version (Phase-3 Integration)
-// - Uses parameterized Supabase fetch (no schema-cache lookups)
-// - Fully compatible with new api.js (table_mappings + _quiz fallback)
-// - Preserves UI + flow from Phase-2
+// This version only verifies the frontend flow up to the “Welcome to the Quiz!”
+// screen. Once confirmed, Supabase queries can be re-enabled.
 // -----------------------------------------------------------------------------
 
-import { initializeServices, getAuthUser } from "./config.js";
-import { fetchQuestions, saveResult } from "./api.js";
-import * as UI from "./ui-renderer.js";
-import {
-  checkAccess,
-  initializeAuthListener,
-  signInWithGoogle,
-  signOut,
-} from "./auth-paywall.js";
-import curriculumData from "./curriculum.js";
+import { initializeAll, getInitializedClients } from "./config.js";
+import { getAuthUser } from "./config.js";
 
-// -------------------------------
-// Global quiz state
-// -------------------------------
-let quizState = {
+// -----------------------------------------------------------------------------
+// State
+// -----------------------------------------------------------------------------
+const quizState = {
   classId: null,
   subject: null,
+  topic: null,
   topicSlug: null,
   difficulty: null,
   questions: [],
-  currentQuestionIndex: 0,
-  userAnswers: {},
-  isSubmitted: false,
-  score: 0,
+  currentIndex: 0,
 };
 
-// -------------------------------
-// Utility: Hash email for GA4
-// -------------------------------
-async function hashEmail(email) {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(email.trim().toLowerCase());
-  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-  return Array.from(new Uint8Array(hashBuffer))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
+// -----------------------------------------------------------------------------
+// Init
+// -----------------------------------------------------------------------------
+export async function initQuizEngine() {
+  console.log("[ENGINE] Initializing Quiz Engine…");
 
-// -------------------------------
-// Convert slug to readable fallback
-// -------------------------------
-function humanizeSlug(slug) {
-  if (!slug) return "";
-  return slug
-    .replace(/_/g, " ")
-    .split(" ")
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(" ");
-}
-
-// -------------------------------
-// Find chapter title from curriculum
-// -------------------------------
-function findChapterTitle(classId, subject, topicSlug) {
-  try {
-    if (!classId || !subject || !topicSlug) return null;
-    const classBlock = curriculumData?.[classId];
-    if (!classBlock) return null;
-    const subjectBlock = classBlock[subject];
-    if (!subjectBlock) return null;
-
-    if (typeof subjectBlock === "object" && !Array.isArray(subjectBlock)) {
-      for (const sub in subjectBlock) {
-        const arr = subjectBlock[sub];
-        if (!Array.isArray(arr)) continue;
-        for (const ch of arr) {
-          if (ch?.id === topicSlug) return ch?.title || null;
-        }
-      }
-    }
-
-    if (Array.isArray(subjectBlock)) {
-      for (const ch of subjectBlock) {
-        if (ch?.id === topicSlug) return ch?.title || null;
-      }
-    }
-
-    return null;
-  } catch (e) {
-    console.warn("[ENGINE] findChapterTitle failed:", e);
-    return null;
-  }
-}
-
-// -------------------------------
-// Parse URL parameters
-// -------------------------------
-function parseUrlParameters() {
-  const urlParams = new URLSearchParams(window.location.search);
-  quizState.classId = urlParams.get("class");
-  quizState.subject = urlParams.get("subject");
-  quizState.topicSlug = urlParams.get("topic");
-  quizState.difficulty = urlParams.get("difficulty");
-
-  if (!quizState.topicSlug && !window.__quiz_table)
-    throw new Error("Missing topic parameter.");
-
-  const displayTitle =
-    findChapterTitle(quizState.classId, quizState.subject, quizState.topicSlug) ||
-    humanizeSlug(quizState.topicSlug) ||
-    humanizeSlug(window.__quiz_table);
-
-  UI.updateHeader(displayTitle, quizState.difficulty);
+  // Parse URL params
+  const p = new URLSearchParams(window.location.search);
+  quizState.classId = p.get("class") || "class11";
+  quizState.subject = p.get("subject") || "Physics";
+  quizState.topic = p.get("topic") || "Default";
+  quizState.difficulty = (p.get("difficulty") || "simple").toLowerCase();
+  quizState.topicSlug = quizState.topic.toLowerCase().replace(/\s+/g, "_");
 
   console.log(
-    "[ENGINE] Initialized quiz parameters →",
-    `class=${quizState.classId}, subject=${quizState.subject}, topic=${quizState.topicSlug}, difficulty=${quizState.difficulty}`
+    `[ENGINE] Initialized quiz parameters → class=${quizState.classId}, subject=${quizState.subject}, topic=${quizState.topic}, difficulty=${quizState.difficulty}`
   );
+
+  // Initialize Firebase + Supabase safely
+  initializeAll(quizState.classId);
+  console.log("[ENGINE] Initialization complete.");
+
+  // Simulate login ready and load quiz
+  onAuthChange();
 }
 
-// -------------------------------
-// Auth state callback
-// -------------------------------
-async function onAuthChange(user) {
-  try {
-    if (user) {
-      UI.updateAuthUI?.(user);
-      const hasAccess = await checkAccess(quizState.topicSlug || window.__quiz_table);
-      if (hasAccess) {
-        await loadQuiz();
-      } else {
-        UI.showView?.("paywall-screen");
-      }
-    } else {
-      UI.updateAuthUI?.(null);
-      UI.showView?.("paywall-screen");
-    }
-  } catch (err) {
-    console.error("[ENGINE] Auth change error:", err);
-  }
+// -----------------------------------------------------------------------------
+// Mock Auth Listener
+// -----------------------------------------------------------------------------
+function onAuthChange() {
+  console.log("[ENGINE] Auth mock listener triggered (skipping real auth).");
+  loadQuiz();
 }
 
-// -------------------------------
-// Load quiz (calls new API with safe table resolution)
-// -------------------------------
+// -----------------------------------------------------------------------------
+// Mock Quiz Loader (displays “Welcome to the Quiz!”)
+// -----------------------------------------------------------------------------
 async function loadQuiz() {
-  try {
-    const params = {
-      table: window.__quiz_table || null,
-      difficulty: quizState.difficulty,
-      classId: quizState.classId,
-      subject: quizState.subject,
-      chapterTitle: quizState.topicSlug,
-      topicSlug: quizState.topicSlug,
-    };
-    console.log("[ENGINE] Requesting quiz with params:", params);
+  console.log("[ENGINE] loadQuiz() called — mock mode active.");
 
-    quizState.questions = await fetchQuestions(params);
+  const paywall = document.getElementById("paywall-screen");
+  const quizContent = document.getElementById("quiz-content");
+  const resultsScreen = document.getElementById("results-screen");
+  const statusMsg = document.getElementById("status-message");
 
-    if (!quizState.questions?.length) {
-      UI.showStatus("No questions found for this topic.", "text-red-600");
-      return;
-    }
+  // Hide other screens
+  paywall.style.display = "none";
+  resultsScreen.style.display = "none";
+  statusMsg.style.display = "none";
 
-    UI.hideStatus();
-    UI.showView?.("quiz-content");
-    renderQuestion();
-  } catch (err) {
-    console.error("[ENGINE] loadQuiz failed:", err);
-    UI.showStatus(`⚠️ ${err.message}`);
-  }
+  // Show quiz content with mock message
+  quizContent.style.display = "flex";
+  quizContent.innerHTML = `
+    <div class="text-center py-20 w-full">
+      <h2 class="text-3xl font-bold text-cbse-blue mb-4">Welcome to the Quiz!</h2>
+      <p class="text-gray-600 text-lg">
+        The quiz system is successfully initialized in mock mode.<br/>
+        Supabase fetch will be re-enabled after connection verification.
+      </p>
+    </div>
+  `;
 }
 
-// -------------------------------
-// Render a question
-// -------------------------------
-function renderQuestion() {
+// -----------------------------------------------------------------------------
+// Auto-initialize when loaded
+// -----------------------------------------------------------------------------
+window.addEventListener("DOMContentLoaded", initQuizEngine);
