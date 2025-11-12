@@ -1,3 +1,5 @@
+
+console.log("[ENGINE] mock version loaded " + new Date().toISOString());
 // js/quiz-engine.js
 // -----------------------------------------------------------------------------
 // Ready4Exam Quiz Engine – Mock-Mode (No Supabase calls)
