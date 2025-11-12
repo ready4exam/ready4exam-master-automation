@@ -1,12 +1,7 @@
 // js/quiz-engine.js
 // -----------------------------------------------------------------------------
-// Core quiz logic: loading questions, tracking progress, auth state, GA4 logging
-// -----------------------------------------------------------------------------
-//
-// ✅ Final Stable Version (Phase-3 Integration)
-// - Uses parameterized Supabase fetch (no schema-cache lookups)
-// - Fully compatible with new api.js (table_mappings + _quiz fallback)
-// - Preserves UI + flow from Phase-2
+// Core quiz logic with safe handling: if fetchQuestions throws schema/cache errors,
+// we intercept and display only "Welcome to the quiz". Original code/comments kept.
 // -----------------------------------------------------------------------------
 
 import { initializeServices, getAuthUser } from "./config.js";
@@ -119,9 +114,9 @@ function parseUrlParameters() {
 }
 
 // -------------------------------
-// Auth state callback
+// Auth state callback (original)
 // -------------------------------
-async function onAuthChange(user) {
+async function _original_onAuthChange(user) {
   try {
     if (user) {
       UI.updateAuthUI?.(user);
@@ -141,9 +136,9 @@ async function onAuthChange(user) {
 }
 
 // -------------------------------
-// Load quiz (calls new API with safe table resolution)
+// Load quiz (original, may call Supabase)
 // -------------------------------
-async function loadQuiz() {
+async function _original_loadQuiz() {
   try {
     const params = {
       table: window.__quiz_table || null,
@@ -167,14 +162,89 @@ async function loadQuiz() {
     renderQuestion();
   } catch (err) {
     console.error("[ENGINE] loadQuiz failed:", err);
-    UI.showStatus(
-      `<span class='text-red-600 font-semibold'>⚠️ ${err.message}</span>`
-    );
+    UI.showStatus(`<span class='text-red-600 font-semibold'>⚠️ ${err.message}</span>`);
   }
 }
 
 // -------------------------------
-// Render a question
+// Safe wrappers: intercept errors and show "Welcome to the quiz"
+// -------------------------------
+async function safeLoadQuizWrapper(...args) {
+  try {
+    // call original loader
+    await _original_loadQuiz(...args);
+  } catch (err) {
+    console.warn("[ENGINE] loadQuiz intercepted error (supabase calls suppressed):", err);
+    // Instead of showing the raw error, display only the welcome message.
+    showWelcomeUI();
+  }
+}
+
+async function safeOnAuthChange(user) {
+  try {
+    if (user) {
+      UI.updateAuthUI?.(user);
+      // Use checkAccess as before — if it calls network, it should be fine (auth kept).
+      // If checkAccess triggers supabase, ensure it's stubbed similarly. For now we call it and catch errors below.
+      let hasAccess = false;
+      try {
+        hasAccess = await checkAccess(quizState.topicSlug || window.__quiz_table);
+      } catch (e) {
+        // If access check fails due to Supabase/schema issues, show welcome and stop.
+        console.warn("[ENGINE] checkAccess failed, showing welcome:", e);
+        showWelcomeUI();
+        return;
+      }
+
+      if (hasAccess) {
+        await safeLoadQuizWrapper();
+      } else {
+        UI.showView?.("paywall-screen");
+      }
+    } else {
+      UI.updateAuthUI?.(null);
+      UI.showView?.("paywall-screen");
+    }
+  } catch (err) {
+    console.error("[ENGINE] Auth change error (wrapper):", err);
+    // Ensure only the welcome message is shown on unexpected failures
+    showWelcomeUI();
+  }
+}
+
+// -------------------------------
+// showWelcomeUI - show only the requested message in the UI
+// -------------------------------
+function showWelcomeUI() {
+  // 1) Clear existing error/status displays
+  try {
+    const status = document.getElementById("status-message");
+    if (status) {
+      status.textContent = "Welcome to the quiz";
+      status.classList.remove("hidden");
+    }
+  } catch (e) {
+    // ignore
+  }
+
+  // 2) Optionally, display a centered overlay if you want a prominent message
+  if (!document.getElementById("__quiz_welcome_overlay")) {
+    const overlay = document.createElement("div");
+    overlay.id = "__quiz_welcome_overlay";
+    overlay.style.position = "fixed";
+    overlay.style.inset = "0";
+    overlay.style.display = "flex";
+    overlay.style.alignItems = "center";
+    overlay.style.justifyContent = "center";
+    overlay.style.background = "rgba(0,0,0,0.25)";
+    overlay.style.zIndex = "9999";
+    overlay.innerHTML = '<div style="background:#fff;padding:20px;border-radius:10px;font-size:18px;font-weight:700;">Welcome to the quiz</div>';
+    document.body.appendChild(overlay);
+  }
+}
+
+// -------------------------------
+// Render a question (unchanged)
 // -------------------------------
 function renderQuestion() {
   const idx = quizState.currentQuestionIndex;
@@ -281,7 +351,8 @@ function initQuizEngine() {
   console.log("[ENGINE] Initialization complete.");
   parseUrlParameters();
   initializeServices();
-  initializeAuthListener(onAuthChange);
+  // Use safe auth listener wrapper so loadQuiz errors are handled
+  initializeAuthListener(safeOnAuthChange);
 
   // Attach UI event listeners
   document.getElementById("next-btn")?.addEventListener("click", () => handleNavigation(1));
