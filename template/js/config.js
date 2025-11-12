@@ -1,7 +1,7 @@
 // js/config.js
 // -----------------------------------------------------------------------------
 // Handles initialization of Firebase, Supabase, and Analytics
-// ✅ Safe-mode version to stop unwanted "public.thermodynamics" schema fetch
+// ✅ Patched to dynamically reload Supabase (class-11) and clear old schema cache
 // -----------------------------------------------------------------------------
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
@@ -16,7 +16,7 @@ let supabase = null;
 let currentClass = null;
 
 // -----------------------------------------------------------------------------
-// Initialize Firebase + Analytics + Supabase (lazy)
+// Initialize Firebase + Analytics
 // -----------------------------------------------------------------------------
 export function initializeServices() {
   console.log("[Config] Initializing services...");
@@ -33,23 +33,30 @@ export function initializeServices() {
   analytics = getAnalytics(app);
 
   console.log("[Config] Firebase + Analytics initialized.");
-
-  // ⚡ Supabase lazy initialization — defer schema hydration until user signs in
-  if (!supabase && window.__supabase_config?.url && window.__supabase_config?.anonKey) {
-    console.log("[Config] Supabase not yet initialized — waiting for user auth.");
-  }
 }
 
 // -----------------------------------------------------------------------------
-// Reinitialize Supabase safely after login (prevents schema-cache fetch)
+// Supabase Safe Init — clears old cache before creating new client
 // -----------------------------------------------------------------------------
 export function initSupabaseSafe() {
-  if (!supabase && window.__supabase_config?.url && window.__supabase_config?.anonKey) {
+  try {
+    // 🔥 Clear any previous session or cached client
+    indexedDB.deleteDatabase("supabase-auth-token");
+    indexedDB.deleteDatabase("localforage");
+    localStorage.removeItem("sb-gkyvojcmqsgdynmitcuf-auth-token");
+  } catch (e) {
+    console.warn("[Config] IndexedDB clear warning:", e);
+  }
+
+  // 🚀 Reinitialize fresh Supabase (class-11 env)
+  if (window.__supabase_config?.url && window.__supabase_config?.anonKey) {
     supabase = createClient(window.__supabase_config.url, window.__supabase_config.anonKey, {
       db: { schema: "public", persistSession: false },
       auth: { autoRefreshToken: false, persistSession: false },
     });
-    console.log("[Config] Supabase initialized (safe mode).");
+    console.log("[Config] Supabase reinitialized:", window.__supabase_config.url);
+  } else {
+    console.error("[Config] Missing Supabase config during init!");
   }
 }
 
@@ -67,21 +74,19 @@ export function switchProjectForClass(classId) {
 // Expose all initialized clients
 // -----------------------------------------------------------------------------
 export function getInitializedClients() {
-  if (!supabase) {
-    initSupabaseSafe();
-  }
+  if (!supabase) initSupabaseSafe();
   return { app, auth, db, supabase };
 }
 
 // -----------------------------------------------------------------------------
-// Get Auth user
+// Get current user
 // -----------------------------------------------------------------------------
 export function getAuthUser() {
   return auth?.currentUser || null;
 }
 
 // -----------------------------------------------------------------------------
-// Analytics event logger
+// Analytics logging
 // -----------------------------------------------------------------------------
 export function logAnalyticsEvent(eventName, data = {}) {
   if (!analytics) return;
@@ -93,7 +98,7 @@ export function logAnalyticsEvent(eventName, data = {}) {
 }
 
 // -----------------------------------------------------------------------------
-// Firebase initialization wrapper (for quiz-engine.js)
+// Combined initializer (called by quiz-engine.js)
 // -----------------------------------------------------------------------------
 export function initializeAll(classId) {
   switchProjectForClass(classId);
