@@ -1,73 +1,160 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Ready4Exam Quiz Engine</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ready4Exam | Quiz Engine</title>
 
-<!-- Tailwind Fonts -->
-<script src="https://cdn.tailwindcss.com"></script>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet" />
+  <!-- Tailwind + Fonts -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet" />
 
-<style>
-  body {
-    font-family: "Inter", sans-serif;
-    background-color: #f5f7fa;
-  }
-  .option-label {
-    transition: all 0.2s ease;
-  }
-  .option-label.correct {
-    border-color: #16a34a;
-    background-color: #dcfce7;
-  }
-  .option-label.incorrect {
-    border-color: #dc2626;
-    background-color: #fee2e2;
-  }
-  .option-label:hover {
-    border-color: #2563eb;
-  }
-  #paywall-screen, #quiz-content, #results-screen {
-    display: none;
-  }
-</style>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'sans-serif'] },
+          colors: {
+            'cbse-blue': '#1a3e6a',
+            'cbse-light': '#f5f7fa',
+            'accent-gold': '#ffb703',
+          }
+        }
+      }
+    }
+  </script>
 
+  <meta http-equiv="Cross-Origin-Opener-Policy" content="same-origin-allow-popups">
+
+  <style>
+    body { font-family: 'Inter', sans-serif; background-color: #f5f7fa; }
+    .option-label { transition: all 0.2s ease; }
+    .option-label.correct { border-color: #16a34a; background-color: #dcfce7; }
+    .option-label.incorrect { border-color: #dc2626; background-color: #fee2e2; }
+    .option-label:hover { border-color: #2563eb; }
+    #paywall-screen, #quiz-content, #results-screen { display: none; }
+  </style>
 </head>
+
 <body class="min-h-screen flex flex-col">
 
-<!-- Header -->
-<header class="bg-cbse-blue shadow-md py-4 px-6 flex justify-between items-center">
-  <div class="flex space-x-4 items-center">
-    <h1 class="text-white font-bold text-xl">Ready4Exam Quiz Engine</h1>
+  <!-- Header -->
+  <header class="bg-cbse-blue shadow-md py-4 px-6 flex justify-between items-center">
+    <div class="flex items-center space-x-4">
+      <a href="index.html"
+         class="p-2 bg-white text-cbse-blue font-semibold rounded-full shadow hover:bg-gray-100 transition">
+        🏠
+      </a>
+      <div class="flex flex-col">
+        <h2 id="chapter-name-display" class="text-xl font-bold text-accent-gold leading-tight"></h2>
+        <p class="text-sm text-white opacity-90 italic mt-1 leading-snug">
+          Ready4Exam helps students excel in school exams — a learning initiative by Ready4Industry.
+        </p>
+      </div>
+    </div>
+
+    <div id="auth-nav-container" class="flex items-center space-x-4">
+      <span id="welcome-user" class="hidden text-sm text-white"></span>
+      <span id="difficulty-display"
+        class="px-3 py-1 text-sm font-semibold bg-yellow-100 text-yellow-800 rounded-full">
+        Difficulty: Simple
+      </span>
+      <button id="logout-nav-btn"
+        class="hidden px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition">
+        Sign Out
+      </button>
+    </div>
+  </header>
+
+  <!-- Status -->
+  <div id="status-message" class="text-center p-6 font-semibold text-blue-700 hidden"></div>
+
+  <!-- Paywall -->
+  <div id="paywall-screen"
+       class="flex flex-col items-center justify-center flex-grow p-12 transition-all duration-300 ease-in-out">
+    <div class="bg-white rounded-xl p-10 shadow-xl border border-gray-200 text-center max-w-md">
+      <h2 class="text-2xl font-bold text-gray-800 mb-4">Sign in to Continue</h2>
+      <p class="text-gray-600 mb-6">
+        Access premium quizzes for <b>Ready4Exam</b> by signing in with Google.
+      </p>
+      <button id="google-signin-btn"
+              class="px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition">
+        Sign in with Google
+      </button>
+    </div>
   </div>
-  <div id="auth-ui" class="text-white cursor-pointer">
-    <!-- Authentication UI goes here -->
-  </div>
-</header>
 
-<!-- Main Quiz Content -->
-<main id="quiz-content" class="flex-grow p-6 max-w-4xl mx-auto">
-  <!-- Quiz questions and navigation will render here -->
-</main>
+  <!-- Quiz Content -->
+  <main id="quiz-content" class="flex flex-col items-center max-w-4xl mx-auto px-4 py-8">
+    <div id="question-list" class="w-full space-y-6 mb-8"></div>
 
-<!-- Paywall Screen -->
-<div id="paywall-screen" class="flex-grow p-6 max-w-4xl mx-auto text-center text-red-600">
-  <h2>Please sign in to access this quiz.</h2>
-</div>
+    <div class="w-full flex justify-between items-center bg-white rounded-lg shadow p-4">
+      <button id="prev-btn" class="px-5 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300">Previous</button>
+      <span id="question-counter" class="font-semibold text-gray-700">-- / --</span>
+      <div class="flex space-x-2">
+        <button id="next-btn" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Next</button>
+        <button id="submit-btn"
+                class="hidden px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">Submit Quiz</button>
+      </div>
+    </div>
+  </main>
 
-<!-- Results Screen -->
-<div id="results-screen" class="flex-grow p-6 max-w-4xl mx-auto text-center">
-  <!-- Results will be shown here -->
-</div>
+  <!-- Results -->
+  <section id="results-screen" class="flex flex-col items-center justify-center text-center py-10 px-6">
+    <h2 class="text-3xl font-extrabold text-green-600 mb-4">Quiz Completed!</h2>
+    <p class="text-lg text-gray-700 mb-3">Your final score:</p>
+    <p id="score-display" class="text-5xl font-bold text-blue-700 mb-8">-- / --</p>
+    <div id="review-container" class="w-full max-w-3xl text-left mb-8"></div>
+  </section>
 
-<!-- Navigation Controls -->
-<div class="max-w-4xl mx-auto py-4 flex justify-between px-6">
-  <button id="prev-btn" class="btn bg-gray-500 text-white rounded px-4 py-2">Previous</button>
-  <button id="submit-btn" class="btn bg-cbse-blue text-white rounded px-4 py-2">Submit</button>
-  <button id="next-btn" class="btn bg-gray-500 text-white rounded px-4 py-2">Next</button>
-</div>
+  <!-- Footer -->
+  <footer class="bg-cbse-blue text-white text-center py-6 mt-auto">
+    <small class="opacity-80">© 2025 Ready4Exam Academic Portal. All Rights Reserved.</small>
+  </footer>
 
-<script type="module" src="./quiz-engine-1.js"></script>
+  <!-- ✅ Load Config from Backend -->
+  <script>
+    (async () => {
+      try {
+        const res = await fetch("https://ready4exam-master-automation.vercel.app/api/config");
+        const cfg = await res.json();
+        window.__firebase_config = JSON.stringify(cfg.firebase);
+        window.__supabase_config = cfg.supabase;
+        console.log("[Config] Loaded Firebase & Supabase from backend /api/config");
+      } catch (e) {
+        console.warn("[Config] Could not load /api/config:", e);
+        window.__firebase_config = "{}";
+        window.__supabase_config = {};
+      }
+    })();
+  </script>
+
+  <!-- ✅ JS Modules -->
+  <script type="module" src="./js/firebaseSwitcher.js"></script>
+  <script type="module" src="./js/config.js"></script>
+  <script type="module" src="./js/auth-paywall.js"></script>
+  <script type="module" src="./js/ui-renderer.js"></script>
+
+  <!-- ✅ Table Resolver -->
+  <script type="module">
+    const p = new URLSearchParams(location.search);
+    const topic = p.get("topic");
+    let baseTableName;
+
+    if (topic) {
+      const slug = topic.toLowerCase().replace(/ /g, "_");
+      const parts = slug.split("_");
+      baseTableName = parts.length <= 1 ? parts[0] : parts.slice(0, 2).join("_");
+    } else {
+      baseTableName = p.get("table") || "default";
+    }
+
+    window.__quiz_table = `${baseTableName}_quiz`.toLowerCase();
+    console.log("✅ Using table:", window.__quiz_table);
+  </script>
+
+  <!-- ✅ Load API & Engine -->
+  <script type="module" src="./js/api.js"></script>
+  <script type="module" src="./js/quiz-engine.js"></script>
 </body>
 </html>
