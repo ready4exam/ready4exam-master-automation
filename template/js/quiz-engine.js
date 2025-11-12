@@ -99,6 +99,7 @@ async function onAuthChange(user) {
   try {
     if (user) {
       UI.updateAuthUI?.(user);
+      getInitializedClients();
       const hasAccess = await checkAccess(quizState.topicSlug || window.__quiz_table);
       if (hasAccess) {
         await loadQuiz();
