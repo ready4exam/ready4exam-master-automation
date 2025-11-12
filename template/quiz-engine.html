@@ -112,49 +112,50 @@
     <small class="opacity-80">© 2025 Ready4Exam Academic Portal. All Rights Reserved.</small>
   </footer>
 
-  <!-- ✅ Load Config from Backend -->
-  <script>
+  <!-- ✅ Smart Bootloader -->
+  <script type="module">
     (async () => {
+      console.log("[Boot] Waiting for /api/config before initializing app...");
       try {
         const res = await fetch("https://ready4exam-master-automation.vercel.app/api/config");
         const cfg = await res.json();
+
         window.__firebase_config = JSON.stringify(cfg.firebase);
         window.__supabase_config = cfg.supabase;
-        console.log("[Config] Loaded Firebase & Supabase from backend /api/config");
-      } catch (e) {
-        console.warn("[Config] Could not load /api/config:", e);
-        window.__firebase_config = "{}";
-        window.__supabase_config = {};
+
+        console.log("[Boot] Loaded Firebase + Supabase from backend /api/config");
+        console.log("[Boot] Supabase URL:", window.__supabase_config.url);
+
+        // ✅ Resolve the quiz table name before loading scripts
+        const p = new URLSearchParams(location.search);
+        const topic = p.get("topic");
+        let baseTableName;
+
+        if (topic) {
+          const slug = topic.toLowerCase().replace(/ /g, "_");
+          const parts = slug.split("_");
+          baseTableName = parts.length <= 1 ? parts[0] : parts.slice(0, 2).join("_");
+        } else {
+          baseTableName = p.get("table") || "default";
+        }
+
+        window.__quiz_table = `${baseTableName}_quiz`.toLowerCase();
+        console.log("✅ Using table:", window.__quiz_table);
+
+        // ✅ Import everything AFTER environment config is ready
+        await import("./js/firebaseSwitcher.js");
+        await import("./js/config.js");
+        await import("./js/auth-paywall.js");
+        await import("./js/ui-renderer.js");
+        await import("./js/api.js");
+        await import("./js/quiz-engine.js");
+
+        console.log("[Boot] All modules loaded successfully.");
+      } catch (err) {
+        console.error("[Boot] Failed to load /api/config:", err);
+        alert("Configuration failed to load. Please retry later.");
       }
     })();
   </script>
-
-  <!-- ✅ JS Modules -->
-  <script type="module" src="./js/firebaseSwitcher.js"></script>
-  <script type="module" src="./js/config.js"></script>
-  <script type="module" src="./js/auth-paywall.js"></script>
-  <script type="module" src="./js/ui-renderer.js"></script>
-
-  <!-- ✅ Table Resolver -->
-  <script type="module">
-    const p = new URLSearchParams(location.search);
-    const topic = p.get("topic");
-    let baseTableName;
-
-    if (topic) {
-      const slug = topic.toLowerCase().replace(/ /g, "_");
-      const parts = slug.split("_");
-      baseTableName = parts.length <= 1 ? parts[0] : parts.slice(0, 2).join("_");
-    } else {
-      baseTableName = p.get("table") || "default";
-    }
-
-    window.__quiz_table = `${baseTableName}_quiz`.toLowerCase();
-    console.log("✅ Using table:", window.__quiz_table);
-  </script>
-
-  <!-- ✅ Load API & Engine -->
-  <script type="module" src="./js/api.js"></script>
-  <script type="module" src="./js/quiz-engine.js"></script>
 </body>
 </html>
