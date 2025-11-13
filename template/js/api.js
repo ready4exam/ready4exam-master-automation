@@ -1,61 +1,46 @@
 // js/api.js
-// -------------------------------------------------------------
-// Phase-3 API Layer: Supabase fetch + Firestore result logging
-// -------------------------------------------------------------
+// -----------------------------------------------------------------------------
+// Phase-3 Clean API Layer
+// - Fetch questions from Supabase (single DB)
+// - Save quiz result to Firestore
+// -----------------------------------------------------------------------------
 
 import { getInitializedClients, getAuthUser, logAnalyticsEvent } from "./config.js";
 import * as UI from "./ui-renderer.js";
 import { cleanKatexMarkers } from "./utils.js";
 import { collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-
-// -------------------------------------------------------------
-// Fetch Questions from Supabase
-// -------------------------------------------------------------
+// -----------------------------------------------------------------------------
+// Fetch questions from Supabase
+// -----------------------------------------------------------------------------
 export async function fetchQuestions({ table, difficulty }) {
   const { supabase } = getInitializedClients();
+  if (!supabase) throw new Error("[API] Supabase not initialized.");
 
-  if (!supabase) throw new Error("Supabase client missing.");
+  console.log("[API] Fetch → Table:", table, "Difficulty:", difficulty);
 
-  console.log("[API] Fetching from table:", table, "| difficulty:", difficulty);
+  UI.showStatus(`Loading questions...`, "text-blue-600");
 
-  UI.showStatus(
-    `Loading questions for <b>${table}</b> (${difficulty})...`,
-    "text-blue-600"
-  );
-
-  const normalizedDiff =
+  const normalizedDifficulty =
     difficulty.charAt(0).toUpperCase() + difficulty.slice(1).toLowerCase();
 
-  // ----------------------------
-  // DIRECT SAFE QUERY
-  // NO schema-cache, NO prefetch
-  // ----------------------------
+  // 🚀 DIRECT table query — no schema cache fallback
   const { data, error } = await supabase
     .from(table)
-    .select(`
-      id,
-      question_text,
-      question_type,
-      scenario_reason_text,
-      option_a,
-      option_b,
-      option_c,
-      option_d,
-      correct_answer_key
-    `)
-    .eq("difficulty", normalizedDiff);
+    .select(
+      "id, question_text, question_type, scenario_reason_text, option_a, option_b, option_c, option_d, correct_answer_key"
+    )
+    .eq("difficulty", normalizedDifficulty);
 
   if (error) {
-    console.error("[API] Supabase Error:", error);
-    throw new Error(error.message);
+    console.error("[API ERROR] Supabase fetch failed:", error);
+    throw new Error(`Supabase Query Failed: ${error.message}`);
   }
 
   if (!data?.length) {
-    throw new Error("No questions found for this chapter & difficulty.");
+    throw new Error("No questions found for this difficulty.");
   }
 
-  // Transform → uniform format for quiz-engine.js
   return data.map((q) => ({
     id: q.id,
     text: cleanKatexMarkers(q.question_text),
@@ -65,18 +50,16 @@ export async function fetchQuestions({ table, difficulty }) {
       C: cleanKatexMarkers(q.option_c),
       D: cleanKatexMarkers(q.option_d),
     },
-    correct_answer: (q.correct_answer_key || "").trim().toUpperCase(),
     scenario_reason: cleanKatexMarkers(q.scenario_reason_text || ""),
-    question_type: (q.question_type || "").trim().toLowerCase(),
+    question_type: (q.question_type || "").toLowerCase(),
+    correct_answer: (q.correct_answer_key || "").trim().toUpperCase(),
   }));
 }
 
-
-
-// -------------------------------------------------------------
-// Save Quiz Result → Firestore (+ Analytics)
-// -------------------------------------------------------------
-export async function saveResult(resultData) {
+// -----------------------------------------------------------------------------
+// Save Results → Firestore + GA4
+// -----------------------------------------------------------------------------
+export async function saveResult(result) {
   const { db } = getInitializedClients();
   const user = getAuthUser();
 
@@ -90,15 +73,25 @@ export async function saveResult(resultData) {
       action: "Quiz Completed",
       user_id: user.uid,
       email: user.email,
-      chapter: resultData.topic,
-      difficulty: resultData.difficulty,
-      score: resultData.score,
-      total: resultData.total,
-      percentage: Math.round((resultData.score / resultData.total) * 100),
+      chapter: result.topic,
+      difficulty: result.difficulty,
+      score: result.score,
+      total: result.total,
+      percentage: Math.round((result.score / result.total) * 100),
       timestamp: serverTimestamp(),
     });
 
-    console.log("[API] Quiz result saved to Firestore.");
+    console.log("[API] Quiz result saved.");
 
     logAnalyticsEvent("quiz_completed", {
-      user_id: u_
+      user_id: user.uid,
+      topic: result.topic,
+      difficulty: result.difficulty,
+      score: result.score,
+      total: result.total,
+      percentage: Math.round((result.score / result.total) * 100),
+    });
+  } catch (err) {
+    console.error("[API] Failed to save Firestore result:", err);
+  }
+}
