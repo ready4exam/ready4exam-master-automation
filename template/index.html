@@ -1,26 +1,205 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Ready4Exam Automation Tool</title>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>CBSE Class 11 Streams — Ready4Exam</title>
+
+  <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            serif: ['Merriweather', 'serif'],
+          },
+          colors: {
+            'cbse-blue': '#1a3e6a',
+            'cbse-light': '#f5f7fa',
+            'accent-gold': '#ffb703',
+            'heading': '#0f172a'
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Merriweather:wght@400;700&display=swap');
+    body { font-family: 'Inter', sans-serif; background-color: #f5f7fa; }
+
+    .subject-card {
+      @apply block p-6 rounded-xl bg-white border border-gray-200 shadow-lg transition-all duration-300 relative overflow-hidden;
+    }
+    .subject-card:hover {
+      transform: translateY(-5px);
+      @apply shadow-2xl border-cbse-blue/50;
+    }
+    .card-header {
+      @apply flex items-center space-x-4 mb-4;
+    }
+    .card-title {
+      @apply text-xl font-extrabold text-heading;
+    }
+    .card-description {
+      @apply text-gray-600 text-sm;
+    }
+    .card-button {
+      @apply px-4 py-2 text-sm font-semibold rounded-lg transition-colors duration-200;
+    }
+    .science { @apply bg-green-600 hover:bg-green-700 text-white; }
+    .commerce { @apply bg-blue-600 hover:bg-blue-700 text-white; }
+    .arts { @apply bg-purple-600 hover:bg-purple-700 text-white; }
+  </style>
 </head>
 
-<body class="bg-gray-50 min-h-screen p-8">
-  <div class="max-w-3xl mx-auto bg-white shadow rounded-lg p-6">
-    <h1 class="text-2xl font-bold text-blue-700 mb-4">
-      Ready4Exam – Automation Panel (Phase-2)
-    </h1>
+<body class="bg-cbse-light min-h-screen flex flex-col">
 
-    <p class="text-gray-600 mb-6">
-      Select Class → Subject → Book → Chapter → Generate → Upload
-    </p>
+  <!-- Header -->
+  <header class="bg-cbse-blue shadow-lg">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
+      <h1 class="text-2xl font-extrabold text-accent-gold tracking-wider">
+        Ready4<span class="text-white">Exam</span>
+      </h1>
+    </div>
+  </header>
 
-    <div id="app"></div>
-  </div>
+  <!-- Main Section -->
+  <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <header class="text-center mb-12">
+      <h2 class="text-4xl font-extrabold text-heading mb-2">CBSE Class 11 Streams</h2>
+      <p class="text-lg text-gray-600">Select your stream to explore subjects and start your chapter-wise quizzes.</p>
+    </header>
 
-  <script type="module" src="./js/config.js?v=1001"></script>
-  <script type="module" src="./js/gemini_frontend.js?v=1001"></script>
+    <!-- Stream Cards -->
+    <div id="stream-section" class="grid grid-cols-1 md:grid-cols-3 gap-8">
+
+      <div onclick="showSubjects('Science')" class="subject-card cursor-pointer">
+        <div class="card-header">
+          <i data-lucide="flask-conical" class="text-green-700 h-8 w-8"></i>
+          <h3 class="card-title">Science Stream</h3>
+        </div>
+        <p class="card-description">
+          Physics, Chemistry, Biology, and Mathematics — explore the foundation of modern science and innovation.
+        </p>
+        <div class="mt-6 text-center">
+          <button class="card-button science">Explore Subjects</button>
+        </div>
+      </div>
+
+      <div onclick="showSubjects('Commerce')" class="subject-card cursor-pointer">
+        <div class="card-header">
+          <i data-lucide="briefcase" class="text-blue-700 h-8 w-8"></i>
+          <h3 class="card-title">Commerce Stream</h3>
+        </div>
+        <p class="card-description">
+          Accountancy, Business Studies, and Economics — master trade, finance, and global business concepts.
+        </p>
+        <div class="mt-6 text-center">
+          <button class="card-button commerce">Explore Subjects</button>
+        </div>
+      </div>
+
+      <div onclick="showSubjects('Humanities')" class="subject-card cursor-pointer">
+        <div class="card-header">
+          <i data-lucide="landmark" class="text-purple-700 h-8 w-8"></i>
+          <h3 class="card-title">Humanities (Arts) Stream</h3>
+        </div>
+        <p class="card-description">
+          History, Political Science, Geography, and Economics — explore human civilization, governance, and society.
+        </p>
+        <div class="mt-6 text-center">
+          <button class="card-button arts">Explore Subjects</button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Subjects Section (hidden by default) -->
+    <div id="subject-section" class="hidden">
+      <button onclick="backToStreams()" class="mb-6 px-4 py-2 bg-cbse-blue text-white rounded-lg hover:bg-blue-800">
+        ← Back to Streams
+      </button>
+
+      <h3 id="selected-stream-title" class="text-3xl font-extrabold text-cbse-blue mb-8 text-center"></h3>
+      <div id="subject-grid" class="grid grid-cols-1 md:grid-cols-3 gap-8"></div>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="bg-cbse-blue mt-16 py-8">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-white">
+      <small class="text-sm opacity-70 block mt-2">© 2025 Ready4Exam Academic Portal. All Rights Reserved.</small>
+    </div>
+  </footer>
+
+  <!-- JS Logic -->
+  <script type="module">
+    import { curriculum } from "./js/curriculum.js";
+
+    const streamSection = document.getElementById("stream-section");
+    const subjectSection = document.getElementById("subject-section");
+    const subjectGrid = document.getElementById("subject-grid");
+    const streamTitle = document.getElementById("selected-stream-title");
+
+    // Show subjects based on selected stream
+    window.showSubjects = function(stream) {
+      streamSection.classList.add("hidden");
+      subjectSection.classList.remove("hidden");
+      streamTitle.textContent = `${stream} Stream — Subjects`;
+
+      const subjects = Object.keys(curriculum);
+      subjectGrid.innerHTML = "";
+
+      const filteredSubjects = subjects.filter(subj => {
+        const subjData = curriculum[subj];
+        for (const book in subjData) {
+          const chapters = subjData[book];
+          if (Array.isArray(chapters) && chapters.some(ch => ch.section.includes(stream))) {
+            return true;
+          }
+        }
+        return false;
+      });
+
+      if (filteredSubjects.length === 0) {
+        subjectGrid.innerHTML = `<p class='text-gray-600 text-center col-span-3'>No subjects found for ${stream}.</p>`;
+        return;
+      }
+
+      filteredSubjects.forEach(subj => {
+        const card = document.createElement("a");
+        card.href = `chapter-selection.html?subject=${encodeURIComponent(subj)}`;
+        card.className = "subject-card";
+        card.innerHTML = `
+          <div class="card-header">
+            <i data-lucide="book-open" class="text-cbse-blue h-8 w-8"></i>
+            <h3 class="card-title">${subj}</h3>
+          </div>
+          <p class="card-description">Explore all books and chapters for ${subj}.</p>
+          <div class="mt-6 text-center">
+            <button class="card-button bg-cbse-blue hover:bg-blue-800 text-white">View Chapters</button>
+          </div>
+        `;
+        subjectGrid.appendChild(card);
+      });
+
+      lucide.createIcons();
+    };
+
+    // Back to stream view
+    window.backToStreams = function() {
+      subjectSection.classList.add("hidden");
+      streamSection.classList.remove("hidden");
+    };
+
+    // Initialize Lucide
+    lucide.createIcons();
+  </script>
 </body>
 </html>
