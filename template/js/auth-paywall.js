@@ -1,64 +1,74 @@
 // js/auth-paywall.js
-// -----------------------------------------------------------------------------
-// Handles Google Sign-In and Auth state for Ready4Exam
-// -----------------------------------------------------------------------------
+// -----------------------------------------------------------
+// Phase-3 Clean Authentication Handler
+// Single Firebase project, no switching.
+// Shows paywall → once signed in → loads quiz.
+// -----------------------------------------------------------
 
-import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, onAuthStateChanged, signOut as fbSignOut } 
-  from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { getInitializedClients } from "./config.js";
 import * as UI from "./ui-renderer.js";
 
-let authListenerInitialized = false;
+// -----------------------------------------------------------
+// DOM references
+// -----------------------------------------------------------
+const paywall = document.getElementById("paywall-screen");
+const quizContent = document.getElementById("quiz-content");
+const googleBtn = document.getElementById("google-signin-btn");
+const logoutBtn = document.getElementById("logout-nav-btn");
+const welcomeUser = document.getElementById("welcome-user");
 
-// -----------------------------------------------------------------------------
-// Initialize Auth Listener
-// -----------------------------------------------------------------------------
-export async function initializeAuthListener(callback) {
-  const { auth } = getInitializedClients();
-  if (authListenerInitialized) return;
-  authListenerInitialized = true;
-
-  onAuthStateChanged(auth, (user) => {
-    console.log("[AUTH-PAYWALL] Auth state changed →", user ? "Signed In" : "Signed Out");
-    callback(user);
-  });
-  console.log("[AUTH-PAYWALL] Auth listener initialized.");
-}
-
-// -----------------------------------------------------------------------------
-// Sign in with Google
-// -----------------------------------------------------------------------------
-export async function signInWithGoogle() {
+// -----------------------------------------------------------
+// Google Sign-In
+// -----------------------------------------------------------
+googleBtn.addEventListener("click", async () => {
   try {
     const { auth } = getInitializedClients();
-    const provider = new GoogleAuthProvider();
-    provider.setCustomParameters({ prompt: "select_account" });
+    if (!auth) return alert("Auth not ready.");
 
-    console.log("[AUTH-PAYWALL] Opening Google Sign-In popup...");
-    await signInWithPopup(auth, provider);
+    const provider = new firebase.auth.GoogleAuthProvider();
+    await auth.signInWithPopup(provider);
+
   } catch (err) {
-    console.warn("[AUTH-PAYWALL] Popup error:", err);
-    if (err.code === "auth/popup-blocked" || err.code === "auth/popup-closed-by-user") {
-      console.warn("[AUTH-PAYWALL] Popup failed — retrying with redirect...");
-      const { auth } = getInitializedClients();
-      const provider = new GoogleAuthProvider();
-      await signInWithRedirect(auth, provider);
-    }
+    console.error("[AUTH] Login failed:", err);
+    alert("Failed to sign in. Try again.");
   }
-}
+});
 
-// -----------------------------------------------------------------------------
-// Sign out
-// -----------------------------------------------------------------------------
-export async function signOut() {
+// -----------------------------------------------------------
+// Logout
+// -----------------------------------------------------------
+logoutBtn.addEventListener("click", async () => {
+  try {
+    const { auth } = getInitializedClients();
+    await auth.signOut();
+    location.reload();
+  } catch (e) {
+    console.error("[AUTH] Logout failed:", e);
+  }
+});
+
+// -----------------------------------------------------------
+// Auth State Listener
+// -----------------------------------------------------------
+export function initAuthListener(onSignedIn) {
   const { auth } = getInitializedClients();
-  await fbSignOut(auth);
-  console.log("[AUTH-PAYWALL] Signed out.");
-}
 
-// -----------------------------------------------------------------------------
-// Check Access (temporary bypass)
-// -----------------------------------------------------------------------------
-export async function checkAccess() {
-  return true; // bypass paywall for testing
+  auth.onAuthStateChanged((user) => {
+    if (!user) {
+      // SHOW PAYWALL
+      UI.showView("paywall-screen");
+      welcomeUser.style.display = "none";
+      logoutBtn.style.display = "none";
+      return;
+    }
+
+    // LOGGED IN — LET QUIZ ENGINE LOAD QUESTIONS
+    welcomeUser.textContent = `Hi, ${user.displayName}`;
+    welcomeUser.style.display = "inline";
+    logoutBtn.style.display = "inline-block";
+
+    UI.showView("quiz-content");
+
+    if (onSignedIn) onSignedIn(user);
+  });
 }
