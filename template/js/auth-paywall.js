@@ -1,74 +1,52 @@
 // js/auth-paywall.js
-// -----------------------------------------------------------
-// Phase-3 Clean Authentication Handler
-// Single Firebase project, no switching.
-// Shows paywall → once signed in → loads quiz.
-// -----------------------------------------------------------
+// ------------------------------------------------------------
+// Phase-3 Auth Handler — No "checkAccess", no roles.
+// Pure Google Sign-In gating.
+// ------------------------------------------------------------
 
-import { getInitializedClients } from "./config.js";
-import * as UI from "./ui-renderer.js";
+import { initializeAll, getInitializedClients } from "./config.js";
 
-// -----------------------------------------------------------
-// DOM references
-// -----------------------------------------------------------
+initializeAll();
+const { auth } = getInitializedClients();
+
+// DOM
 const paywall = document.getElementById("paywall-screen");
 const quizContent = document.getElementById("quiz-content");
 const googleBtn = document.getElementById("google-signin-btn");
 const logoutBtn = document.getElementById("logout-nav-btn");
 const welcomeUser = document.getElementById("welcome-user");
 
-// -----------------------------------------------------------
-// Google Sign-In
-// -----------------------------------------------------------
-googleBtn.addEventListener("click", async () => {
+// ------------------------------------------------------------
+// GOOGLE SIGN-IN
+// ------------------------------------------------------------
+googleBtn.onclick = async () => {
+  const provider = new firebase.auth.GoogleAuthProvider();
   try {
-    const { auth } = getInitializedClients();
-    if (!auth) return alert("Auth not ready.");
-
-    const provider = new firebase.auth.GoogleAuthProvider();
     await auth.signInWithPopup(provider);
-
-  } catch (err) {
-    console.error("[AUTH] Login failed:", err);
-    alert("Failed to sign in. Try again.");
-  }
-});
-
-// -----------------------------------------------------------
-// Logout
-// -----------------------------------------------------------
-logoutBtn.addEventListener("click", async () => {
-  try {
-    const { auth } = getInitializedClients();
-    await auth.signOut();
-    location.reload();
   } catch (e) {
-    console.error("[AUTH] Logout failed:", e);
+    alert("Google Sign-In failed.");
   }
+};
+
+// ------------------------------------------------------------
+// SIGN-OUT
+// ------------------------------------------------------------
+logoutBtn.onclick = () => auth.signOut();
+
+// ------------------------------------------------------------
+// AUTH STATE LISTENER
+// ------------------------------------------------------------
+auth.onAuthStateChanged((user) => {
+  if (!user) {
+    paywall.style.display = "flex";
+    quizContent.style.display = "none";
+    logoutBtn.classList.add("hidden");
+    welcomeUser.classList.add("hidden");
+    return;
+  }
+
+  paywall.style.display = "none";
+  logoutBtn.classList.remove("hidden");
+  welcomeUser.classList.remove("hidden");
+  welcomeUser.textContent = user.email;
 });
-
-// -----------------------------------------------------------
-// Auth State Listener
-// -----------------------------------------------------------
-export function initAuthListener(onSignedIn) {
-  const { auth } = getInitializedClients();
-
-  auth.onAuthStateChanged((user) => {
-    if (!user) {
-      // SHOW PAYWALL
-      UI.showView("paywall-screen");
-      welcomeUser.style.display = "none";
-      logoutBtn.style.display = "none";
-      return;
-    }
-
-    // LOGGED IN — LET QUIZ ENGINE LOAD QUESTIONS
-    welcomeUser.textContent = `Hi, ${user.displayName}`;
-    welcomeUser.style.display = "inline";
-    logoutBtn.style.display = "inline-block";
-
-    UI.showView("quiz-content");
-
-    if (onSignedIn) onSignedIn(user);
-  });
-}
