@@ -1,32 +1,36 @@
 // js/api.js
-// --------------------------------------------------------------
-// FINAL CLEAN VERSION (PHASE-3)
-// - Fetches quiz from Supabase table resolved in quiz-engine.html
-// - No schema-cache issues
-// - No old 9th-class mappings
-// --------------------------------------------------------------
+// -------------------------------------------------------------
+// Phase-3 API Layer: Supabase fetch + Firestore result logging
+// -------------------------------------------------------------
 
 import { getInitializedClients, getAuthUser, logAnalyticsEvent } from "./config.js";
 import * as UI from "./ui-renderer.js";
 import { cleanKatexMarkers } from "./utils.js";
 import { collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-// --------------------------------------------------------------
-// Fetch questions from Supabase (direct table)
-// --------------------------------------------------------------
+
+// -------------------------------------------------------------
+// Fetch Questions from Supabase
+// -------------------------------------------------------------
 export async function fetchQuestions({ table, difficulty }) {
   const { supabase } = getInitializedClients();
 
-  if (!supabase) throw new Error("Supabase client not initialized.");
+  if (!supabase) throw new Error("Supabase client missing.");
 
-  console.log("[API] Fetching from table:", table, "difficulty:", difficulty);
+  console.log("[API] Fetching from table:", table, "| difficulty:", difficulty);
 
-  UI.showStatus(`Loading questions…`, "text-blue-600");
+  UI.showStatus(
+    `Loading questions for <b>${table}</b> (${difficulty})...`,
+    "text-blue-600"
+  );
 
   const normalizedDiff =
-    difficulty.charAt(0).toUpperCase() +
-    difficulty.slice(1).toLowerCase();
+    difficulty.charAt(0).toUpperCase() + difficulty.slice(1).toLowerCase();
 
+  // ----------------------------
+  // DIRECT SAFE QUERY
+  // NO schema-cache, NO prefetch
+  // ----------------------------
   const { data, error } = await supabase
     .from(table)
     .select(`
@@ -43,16 +47,15 @@ export async function fetchQuestions({ table, difficulty }) {
     .eq("difficulty", normalizedDiff);
 
   if (error) {
-    console.error("[API] Supabase error:", error);
+    console.error("[API] Supabase Error:", error);
     throw new Error(error.message);
   }
 
   if (!data?.length) {
-    throw new Error("No questions found in table: " + table);
+    throw new Error("No questions found for this chapter & difficulty.");
   }
 
-  console.log("[API] Loaded questions:", data.length);
-
+  // Transform → uniform format for quiz-engine.js
   return data.map((q) => ({
     id: q.id,
     text: cleanKatexMarkers(q.question_text),
@@ -68,20 +71,23 @@ export async function fetchQuestions({ table, difficulty }) {
   }));
 }
 
-// --------------------------------------------------------------
-// Save results to Firestore + GA4
-// --------------------------------------------------------------
+
+
+// -------------------------------------------------------------
+// Save Quiz Result → Firestore (+ Analytics)
+// -------------------------------------------------------------
 export async function saveResult(resultData) {
   const { db } = getInitializedClients();
   const user = getAuthUser();
 
   if (!user) {
-    console.warn("[API] Not saving — user not logged in.");
+    console.warn("[API] Not saving — user not authenticated.");
     return;
   }
 
   try {
     await addDoc(collection(db, "quiz_scores"), {
+      action: "Quiz Completed",
       user_id: user.uid,
       email: user.email,
       chapter: resultData.topic,
@@ -92,15 +98,7 @@ export async function saveResult(resultData) {
       timestamp: serverTimestamp(),
     });
 
-    console.log("[API] Result saved to Firestore");
+    console.log("[API] Quiz result saved to Firestore.");
 
     logAnalyticsEvent("quiz_completed", {
-      user_id: user.uid,
-      chapter: resultData.topic,
-      difficulty: resultData.difficulty,
-      score: resultData.score,
-    });
-  } catch (e) {
-    console.error("[API] Failed to save result:", e);
-  }
-}
+      user_id: u_
