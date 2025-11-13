@@ -1,6 +1,7 @@
 // firebaseSwitcher.js
 // -----------------------------------------------------------------------------
-// Manages Firebase project initialization — now restricted to Class 11 only
+// FINAL VERSION (No Switching, No Class-9 Leakage, No Cross-Project Override)
+// Always loads ONE Firebase project for the entire quiz engine.
 // -----------------------------------------------------------------------------
 
 import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
@@ -8,62 +9,50 @@ import { getAuth } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth
 import { getFirestore } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 // -----------------------------------------------------------------------------
-// Firebase Configurations (only class 11 active)
+// 🔥 IMPORTANT — INSERT YOUR MAIN FIREBASE PROJECT HERE
+// This is the ONLY Firebase project the quiz engine will use.
 // -----------------------------------------------------------------------------
-const firebaseConfigs = {
-  class11: {
-    apiKey: "AIzaSyCFkuTUao-HGQhX438cVOUvUiS3kT2m7Os",
-    authDomain: "eleventhexam-f0fab.firebaseapp.com",
-    projectId: "eleventhexam-f0fab",
-    storageBucket: "eleventhexam-f0fab.firebasestorage.app",
-    messagingSenderId: "192315627607",
-    appId: "1:192315627607:web:9f2e2794dc42aaa3352b12",
-    measurementId: "G-3GXX6VXYT1",
-  },
+
+const FIREBASE_CONFIG = {
+  apiKey: "YOUR_FIREBASE_API_KEY",
+  authDomain: "YOUR_FIREBASE_AUTH_DOMAIN",
+  projectId: "YOUR_FIREBASE_PROJECT_ID",
+  storageBucket: "YOUR_FIREBASE_STORAGE_BUCKET",
+  messagingSenderId: "YOUR_FIREBASE_SENDER_ID",
+  appId: "YOUR_FIREBASE_APP_ID",
+  measurementId: "YOUR_FIREBASE_MEASUREMENT_ID"
 };
 
 // -----------------------------------------------------------------------------
-// Internal State
+// Internal reference
 // -----------------------------------------------------------------------------
-let currentClassId = "class11";
-let clients = null;
+let firebaseClients = null;
 
 // -----------------------------------------------------------------------------
-// Core: switchFirebaseProject()
+// Initialize Firebase (only once)
 // -----------------------------------------------------------------------------
-export function switchFirebaseProject(classId = "class11") {
+export function initFirebase() {
   try {
-    // Force to class11 only
-    currentClassId = "class11";
-    const config = firebaseConfigs["class11"];
-    if (!config) throw new Error("Firebase config missing for class11");
+    if (!firebaseClients) {
+      const existing = getApps()[0];
+      const app = existing || initializeApp(FIREBASE_CONFIG);
 
-    // Prevent duplicate initialization
-    const existing = getApps().find((a) => a.name === "class11");
-    const app = existing || initializeApp(config, "class11");
-    const auth = getAuth(app);
-    const db = getFirestore(app);
+      const auth = getAuth(app);
+      const db = getFirestore(app);
 
-    clients = { app, auth, db, classId: "class11" };
-    console.log(`[firebaseSwitcher] Active → class11`);
-    return clients;
+      firebaseClients = { app, auth, db };
+      console.log("[firebaseSwitcher] Firebase initialized (single project).");
+    }
+    return firebaseClients;
   } catch (err) {
-    console.error("[firebaseSwitcher] Failed to switch:", err.message);
+    console.error("[firebaseSwitcher] Initialization failed:", err.message);
     return null;
   }
 }
 
 // -----------------------------------------------------------------------------
-// Helper: getCurrentClients()
+// Export getter
 // -----------------------------------------------------------------------------
-export function getCurrentClients() {
-  if (clients) return clients;
-  return switchFirebaseProject("class11");
-}
-
-// -----------------------------------------------------------------------------
-// Helper: getActiveClass()
-// -----------------------------------------------------------------------------
-export function getActiveClass() {
-  return "class11";
+export function getFirebaseClients() {
+  return firebaseClients || initFirebase();
 }
