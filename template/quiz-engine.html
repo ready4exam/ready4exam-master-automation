@@ -24,15 +24,12 @@
     }
   </script>
 
-  <meta http-equiv="Cross-Origin-Opener-Policy" content="same-origin-allow-popups">
-
   <style>
     body { font-family: 'Inter', sans-serif; background-color: #f5f7fa; }
     .option-label { transition: all 0.2s ease; }
     .option-label.correct { border-color: #16a34a; background-color: #dcfce7; }
     .option-label.incorrect { border-color: #dc2626; background-color: #fee2e2; }
     .option-label:hover { border-color: #2563eb; }
-    #paywall-screen, #quiz-content, #results-screen { display: none; }
   </style>
 </head>
 
@@ -85,7 +82,7 @@
   </div>
 
   <!-- Quiz Content -->
-  <main id="quiz-content" class="flex flex-col items-center max-w-4xl mx-auto px-4 py-8">
+  <main id="quiz-content" class="hidden flex flex-col items-center max-w-4xl mx-auto px-4 py-8">
     <div id="question-list" class="w-full space-y-6 mb-8"></div>
 
     <div class="w-full flex justify-between items-center bg-white rounded-lg shadow p-4">
@@ -100,7 +97,7 @@
   </main>
 
   <!-- Results -->
-  <section id="results-screen" class="flex flex-col items-center justify-center text-center py-10 px-6">
+  <section id="results-screen" class="hidden flex flex-col items-center justify-center text-center py-10 px-6">
     <h2 class="text-3xl font-extrabold text-green-600 mb-4">Quiz Completed!</h2>
     <p class="text-lg text-gray-700 mb-3">Your final score:</p>
     <p id="score-display" class="text-5xl font-bold text-blue-700 mb-8">-- / --</p>
@@ -112,44 +109,41 @@
     <small class="opacity-80">© 2025 Ready4Exam Academic Portal. All Rights Reserved.</small>
   </footer>
 
-  <!-- Smart environment loader -->
-  <script type="module">
-    (async () => {
-      console.log("[Boot] Loading /api/config...");
-
-      try {
-        const res = await fetch("https://ready4exam-master-automation.vercel.app/api/config?v=1001");
-        const cfg = await res.json();
-
-        window.__firebase_config = JSON.stringify(cfg.firebase);
-        window.__supabase_config = cfg.supabase;
-
-        console.log("[Boot] Firebase + Supabase loaded");
-
-        // Resolve table name
-        const p = new URLSearchParams(location.search);
-        const topic = p.get("topic");
-        let base = topic ? topic.toLowerCase().replace(/ /g, "_") : "default";
-        const parts = base.split("_");
-        base = parts.length <= 1 ? parts[0] : parts.slice(0, 2).join("_");
-
-        window.__quiz_table = `${base}_quiz`;
-        console.log("Using table:", window.__quiz_table);
-
-        // Load all JS after env ready (cache-busted)
-        await import("./js/firebaseSwitcher.js?v=1001");
-        await import("./js/config.js?v=1001");
-        await import("./js/auth-paywall.js?v=1001");
-        await import("./js/ui-renderer.js?v=1001");
-        await import("./js/api.js?v=1001");
-        await import("./js/quiz-engine.js?v=1001");
-
-      } catch (err) {
-        console.error("[Boot] Failed:", err);
-        alert("Configuration failed. Please retry.");
-      }
-    })();
+  <!-- ✅ Inject Static Firebase Config -->
+  <script>
+    window.__firebase_config = JSON.stringify({
+      "apiKey": "AIzaSyAXdKiYRxBKAj280YcNuNwlKKDp85xpOWQ",
+      "authDomain": "quiz-signon.firebaseapp.com",
+      "projectId": "quiz-signon",
+      "storageBucket": "quiz-signon.firebasestorage.app",
+      "messagingSenderId": "863414222321",
+      "appId": "1:863414222321:web:819f5564825308bcd9d850",
+      "measurementId": "G-4EFDM0CRYY"
+    });
   </script>
+
+  <!-- ✅ Inject Static Supabase Config -->
+  <script>
+    window.__supabase_config = {
+      url: "https://zqhzekzilalbszpfwxhn.supabase.co",
+      anon: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpxaHpla3ppbGFsYnN6cGZ3eGhuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIyNjcyNjcsImV4cCI6MjA3Nzg0MzI2N30.RUa39KAfnBjLgaV9HTRfViPPXB861EOpCT2bv35q6Js"
+    };
+  </script>
+
+  <!-- Compute table name → no schema-cache mistakes -->
+  <script>
+    const p = new URLSearchParams(location.search);
+    const table = p.get("table") || "";
+    window.__quiz_table = table.trim().toLowerCase();
+    console.log("Using quiz table:", window.__quiz_table);
+  </script>
+
+  <!-- JS Modules -->
+  <script type="module" src="./js/config.js"></script>
+  <script type="module" src="./js/auth-paywall.js"></script>
+  <script type="module" src="./js/ui-renderer.js"></script>
+  <script type="module" src="./js/api.js"></script>
+  <script type="module" src="./js/quiz-engine.js"></script>
 
 </body>
 </html>
