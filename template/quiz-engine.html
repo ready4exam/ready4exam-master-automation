@@ -5,9 +5,25 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Ready4Exam | Quiz Engine</title>
 
-  <!-- Tailwind -->
+  <!-- Tailwind + Fonts -->
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet" />
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'sans-serif'] },
+          colors: {
+            'cbse-blue': '#1a3e6a',
+            'cbse-light': '#f5f7fa',
+            'accent-gold': '#ffb703',
+          }
+        }
+      }
+    }
+  </script>
+
   <meta http-equiv="Cross-Origin-Opener-Policy" content="same-origin-allow-popups">
 
   <style>
@@ -22,7 +38,7 @@
 
 <body class="min-h-screen flex flex-col">
 
-  <!-- HEADER -->
+  <!-- Header -->
   <header class="bg-cbse-blue shadow-md py-4 px-6 flex justify-between items-center">
     <div class="flex items-center space-x-4">
       <a href="index.html"
@@ -50,12 +66,10 @@
     </div>
   </header>
 
-
-  <!-- STATUS -->
+  <!-- Status -->
   <div id="status-message" class="text-center p-6 font-semibold text-blue-700 hidden"></div>
 
-
-  <!-- SIGN-IN SCREEN -->
+  <!-- Paywall -->
   <div id="paywall-screen"
        class="flex flex-col items-center justify-center flex-grow p-12 transition-all duration-300 ease-in-out">
     <div class="bg-white rounded-xl p-10 shadow-xl border border-gray-200 text-center max-w-md">
@@ -70,8 +84,7 @@
     </div>
   </div>
 
-
-  <!-- MAIN QUIZ BODY -->
+  <!-- Quiz Content -->
   <main id="quiz-content" class="flex flex-col items-center max-w-4xl mx-auto px-4 py-8">
     <div id="question-list" class="w-full space-y-6 mb-8"></div>
 
@@ -86,8 +99,7 @@
     </div>
   </main>
 
-
-  <!-- RESULTS -->
+  <!-- Results -->
   <section id="results-screen" class="flex flex-col items-center justify-center text-center py-10 px-6">
     <h2 class="text-3xl font-extrabold text-green-600 mb-4">Quiz Completed!</h2>
     <p class="text-lg text-gray-700 mb-3">Your final score:</p>
@@ -95,59 +107,49 @@
     <div id="review-container" class="w-full max-w-3xl text-left mb-8"></div>
   </section>
 
-
-  <!-- FOOTER -->
+  <!-- Footer -->
   <footer class="bg-cbse-blue text-white text-center py-6 mt-auto">
     <small class="opacity-80">© 2025 Ready4Exam Academic Portal. All Rights Reserved.</small>
   </footer>
 
-
-  <!-- 🔥 ENV INJECTION BLOCK (ONLY PLACE TO ADD VALUES) -->
-  <script>
-    window.__firebase_config = JSON.stringify({
-      apiKey: "AIzaSyAXdKiYRxBKAj280YcNuNwlKKDp85xpOWQ",
-      authDomain: "quiz-signon.firebaseapp.com",
-      projectId: "quiz-signon",
-      storageBucket: "quiz-signon.firebasestorage.app",
-      messagingSenderId: "863414222321",
-      appId: "1:863414222321:web:819f5564825308bcd9d850",
-      measurementId: "G-4EFDM0CRYY"
-    });
-
-    /*  👇👇 INSERT YOUR SUPABASE VALUES HERE  👇👇  */
-    window.__supabase_config = {
-      url: "https://zqhzekzilalbszpfwxhn.supabase.co",     // <-- paste from Vercel
-      anonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpxaHpla3ppbGFsYnN6cGZ3eGhuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIyNjcyNjcsImV4cCI6MjA3Nzg0MzI2N30.RUa39KAfnBjLgaV9HTRfViPPXB861EOpCT2bv35q6Js"        // <-- paste from Vercel
-    };
-  </script>
-
-
-  <!-- TABLE NAME DETECTOR -->
+  <!-- Smart environment loader -->
   <script type="module">
-    const p = new URLSearchParams(location.search);
-    const topic = p.get("topic");
-    let baseTableName;
+    (async () => {
+      console.log("[Boot] Loading /api/config...");
 
-    if (topic) {
-      const slug = topic.toLowerCase().replace(/ /g, "_");
-      const parts = slug.split("_");
-      baseTableName = parts.length <= 1 ? parts[0] : parts.slice(0, 2).join("_");
-    } else {
-      baseTableName = p.get("table") || "default";
-    }
+      try {
+        const res = await fetch("https://ready4exam-master-automation.vercel.app/api/config?v=1001");
+        const cfg = await res.json();
 
-    window.__quiz_table = `${baseTableName}_quiz`.toLowerCase();
-    console.log("✅ Using table:", window.__quiz_table);
+        window.__firebase_config = JSON.stringify(cfg.firebase);
+        window.__supabase_config = cfg.supabase;
+
+        console.log("[Boot] Firebase + Supabase loaded");
+
+        // Resolve table name
+        const p = new URLSearchParams(location.search);
+        const topic = p.get("topic");
+        let base = topic ? topic.toLowerCase().replace(/ /g, "_") : "default";
+        const parts = base.split("_");
+        base = parts.length <= 1 ? parts[0] : parts.slice(0, 2).join("_");
+
+        window.__quiz_table = `${base}_quiz`;
+        console.log("Using table:", window.__quiz_table);
+
+        // Load all JS after env ready (cache-busted)
+        await import("./js/firebaseSwitcher.js?v=1001");
+        await import("./js/config.js?v=1001");
+        await import("./js/auth-paywall.js?v=1001");
+        await import("./js/ui-renderer.js?v=1001");
+        await import("./js/api.js?v=1001");
+        await import("./js/quiz-engine.js?v=1001");
+
+      } catch (err) {
+        console.error("[Boot] Failed:", err);
+        alert("Configuration failed. Please retry.");
+      }
+    })();
   </script>
-
-
-  <!-- MODULE LOAD ORDER -->
-  <script type="module" src="./js/firebaseSwitcher.js"></script>
-  <script type="module" src="./js/config.js"></script>
-  <script type="module" src="./js/auth-paywall.js"></script>
-  <script type="module" src="./js/ui-renderer.js"></script>
-  <script type="module" src="./js/api.js"></script>
-  <script type="module" src="./js/quiz-engine.js"></script>
 
 </body>
 </html>
