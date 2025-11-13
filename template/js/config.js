@@ -1,89 +1,93 @@
 // js/config.js
-// -------------------------------------------------------------
-// Phase-3 Config: Firebase + Supabase unified initialization
-// No switching, no schema-polluting calls, safe Supabase init.
-// -------------------------------------------------------------
+// -----------------------------------------------------------------------------
+// Phase-3 Clean Config: Single Firebase + Single Supabase (Class 11 Only)
+// No switching, no schema hydration, no session persistence.
+// -----------------------------------------------------------------------------
 
-import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { getFirestore } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-import { getAnalytics, logEvent } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-analytics.js";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getAnalytics, logEvent } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-analytics.js";
 
-export let app = null;
-export let auth = null;
-export let db = null;
-export let analytics = null;
-export let supabase = null;
+let firebaseApp = null;
+let firebaseAuth = null;
+let firebaseDB = null;
+let analytics = null;
 
-// -------------------------------------------------------------
-// Initialize Firebase
-// -------------------------------------------------------------
+let supabase = null;
+
+// -----------------------------------------------------------------------------
+// Supabase — SINGLE INSTANCE, FIXED URL + ANON KEY
+// -----------------------------------------------------------------------------
+
+// ✅ INSERT YOUR SUPABASE 11 URL + ANON KEY HERE:
+const SUPABASE_URL = "https://zqhzekzilalbszpfwxhn.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpxaHpla3ppbGFsYnN6cGZ3eGhuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIyNjcyNjcsImV4cCI6MjA3Nzg0MzI2N30.RUa39KAfnBjLgaV9HTRfViPPXB861EOpCT2bv35q6Js";
+
+// -----------------------------------------------------------------------------
+// Initialize Firebase (single project only)
+// -----------------------------------------------------------------------------
 export function initFirebase() {
-  if (app) return app;
-
-  try {
-    const cfg = JSON.parse(window.__firebase_config);
-
-    app = initializeApp(cfg);
-    auth = getAuth(app);
-    db = getFirestore(app);
-    analytics = getAnalytics(app);
+  if (!firebaseApp) {
+    firebaseApp = initializeApp(JSON.parse(window.__firebase_config));
+    firebaseAuth = getAuth(firebaseApp);
+    firebaseDB = getFirestore(firebaseApp);
+    analytics = getAnalytics(firebaseApp);
 
     console.log("[Config] Firebase initialized.");
-    return app;
-
-  } catch (err) {
-    console.error("[Config] Firebase init failed:", err);
   }
+  return { firebaseApp, firebaseAuth, firebaseDB };
 }
 
-// -------------------------------------------------------------
-// Initialize Supabase (SAFE MODE → NO SCHEMA PREFETCH)
-// -------------------------------------------------------------
+// -----------------------------------------------------------------------------
+// Initialize Supabase (safe mode – NO schema cache)
+// -----------------------------------------------------------------------------
 export function initSupabase() {
-  if (supabase) return supabase;
-
-  const cfg = window.__supabase_config;
-
-  if (!cfg?.url || !cfg?.anonKey) {
-    console.error("[Config] Missing Supabase env.");
-    return null;
+  if (!supabase) {
+    supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      db: { schema: "public", persistSession: false },
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    console.log("[Config] Supabase initialized:", SUPABASE_URL);
   }
-
-  supabase = createClient(cfg.url, cfg.anonKey, {
-    db: {
-      schema: "public",
-      persistSession: false
-    },
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
-    }
-  });
-
-  console.log("[Config] Supabase initialized:", cfg.url);
   return supabase;
 }
 
-// -------------------------------------------------------------
-// Safe aggregator for quiz-engine.js
-// -------------------------------------------------------------
-export function getInitializedClients() {
-  if (!app) initFirebase();
-  if (!supabase) initSupabase();
-
-  return { app, auth, db, supabase };
+// -----------------------------------------------------------------------------
+// Combined initialization for quiz-engine.js
+// -----------------------------------------------------------------------------
+export function initializeAll() {
+  initFirebase();
+  initSupabase();
 }
 
-// -------------------------------------------------------------
-// GA4 Logging (Silent fail-safe)
-// -------------------------------------------------------------
-export function logAnalyticsEvent(eventName, data = {}) {
+// -----------------------------------------------------------------------------
+// Expose initialized clients
+// -----------------------------------------------------------------------------
+export function getInitializedClients() {
+  return {
+    app: firebaseApp,
+    auth: firebaseAuth,
+    db: firebaseDB,
+    supabase,
+  };
+}
+
+// -----------------------------------------------------------------------------
+// Current authenticated user
+// -----------------------------------------------------------------------------
+export function getAuthUser() {
+  return firebaseAuth?.currentUser || null;
+}
+
+// -----------------------------------------------------------------------------
+// Analytics logger
+// -----------------------------------------------------------------------------
+export function logAnalyticsEvent(event, data = {}) {
   try {
-    if (!analytics) return;
-    logEvent(analytics, eventName, data);
-  } catch (err) {
-    console.warn("[Config] GA log skipped:", err);
+    logEvent(analytics, event, data);
+  } catch (e) {
+    console.warn("[Config] Analytics failed:", e);
   }
 }
