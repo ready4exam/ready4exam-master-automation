@@ -1,93 +1,182 @@
-
-console.log("[ENGINE] mock version loaded " + new Date().toISOString());
 // js/quiz-engine.js
-// -----------------------------------------------------------------------------
-// Ready4Exam Quiz Engine – Mock-Mode (No Supabase calls)
-// -----------------------------------------------------------------------------
-// This version only verifies the frontend flow up to the “Welcome to the Quiz!”
-// screen. Once confirmed, Supabase queries can be re-enabled.
-// -----------------------------------------------------------------------------
+// -----------------------------------------------------------
+// FINAL CLEAN VERSION (PHASE-3)
+// • Loads quiz from Supabase table resolved in quiz-engine.html
+// • DOES NOT use schema cache
+// • No 9th-class fallback
+// • Stable Google login integration
+// -----------------------------------------------------------
 
-import { initializeAll, getInitializedClients } from "./config.js";
-import { getAuthUser } from "./config.js";
+import { initializeAll, getAuthUser } from "./config.js";
+import { fetchQuestions, saveResult } from "./api.js";
+import * as UI from "./ui-renderer.js";
+import { initializeAuthListener, signInWithGoogle, signOut } from "./auth-paywall.js";
 
-// -----------------------------------------------------------------------------
-// State
-// -----------------------------------------------------------------------------
-const quizState = {
+// -----------------------------------------------------------
+// Global quiz state
+// -----------------------------------------------------------
+let quizState = {
   classId: null,
   subject: null,
-  topic: null,
   topicSlug: null,
   difficulty: null,
   questions: [],
-  currentIndex: 0,
+  currentQuestionIndex: 0,
+  userAnswers: {},
+  isSubmitted: false,
+  score: 0,
 };
 
-// -----------------------------------------------------------------------------
-// Init
-// -----------------------------------------------------------------------------
-export async function initQuizEngine() {
-  console.log("[ENGINE] Initializing Quiz Engine…");
+// -----------------------------------------------------------
+// Parse URL parameters
+// -----------------------------------------------------------
+function parseUrl() {
+  const p = new URLSearchParams(location.search);
 
-  // Parse URL params
-  const p = new URLSearchParams(window.location.search);
-  quizState.classId = p.get("class") || "class11";
-  quizState.subject = p.get("subject") || "Physics";
-  quizState.topic = p.get("topic") || "Default";
-  quizState.difficulty = (p.get("difficulty") || "simple").toLowerCase();
-  quizState.topicSlug = quizState.topic.toLowerCase().replace(/\s+/g, "_");
+  quizState.classId = p.get("class");
+  quizState.subject = p.get("subject");
+  quizState.topicSlug = p.get("topic");
+  quizState.difficulty = p.get("difficulty");
 
-  console.log(
-    `[ENGINE] Initialized quiz parameters → class=${quizState.classId}, subject=${quizState.subject}, topic=${quizState.topic}, difficulty=${quizState.difficulty}`
-  );
+  if (!window.__quiz_table) {
+    console.error("No table name provided.");
+  }
 
-  // Initialize Firebase + Supabase safely
-  initializeAll(quizState.classId);
-  console.log("[ENGINE] Initialization complete.");
+  UI.updateHeader(quizState.topicSlug, quizState.difficulty);
 
-  // Simulate login ready and load quiz
-  onAuthChange();
+  console.log("[ENGINE] Initialized quiz parameters →", quizState);
 }
 
-// -----------------------------------------------------------------------------
-// Mock Auth Listener
-// -----------------------------------------------------------------------------
-function onAuthChange() {
-  console.log("[ENGINE] Auth mock listener triggered (skipping real auth).");
-  loadQuiz();
-}
-
-// -----------------------------------------------------------------------------
-// Mock Quiz Loader (displays “Welcome to the Quiz!”)
-// -----------------------------------------------------------------------------
+// -----------------------------------------------------------
+// Load quiz from Supabase
+// -----------------------------------------------------------
 async function loadQuiz() {
-  console.log("[ENGINE] loadQuiz() called — mock mode active.");
+  try {
+    UI.showStatus("Loading quiz…", "text-blue-600");
 
-  const paywall = document.getElementById("paywall-screen");
-  const quizContent = document.getElementById("quiz-content");
-  const resultsScreen = document.getElementById("results-screen");
-  const statusMsg = document.getElementById("status-message");
+    const table = window.__quiz_table;
 
-  // Hide other screens
-  paywall.style.display = "none";
-  resultsScreen.style.display = "none";
-  statusMsg.style.display = "none";
+    console.log("[ENGINE] Loading table:", table);
 
-  // Show quiz content with mock message
-  quizContent.style.display = "flex";
-  quizContent.innerHTML = `
-    <div class="text-center py-20 w-full">
-      <h2 class="text-3xl font-bold text-cbse-blue mb-4">Welcome to the Quiz!</h2>
-      <p class="text-gray-600 text-lg">
-        The quiz system is successfully initialized in mock mode.<br/>
-        Supabase fetch will be re-enabled after connection verification.
-      </p>
-    </div>
-  `;
+    quizState.questions = await fetchQuestions({
+      table,
+      difficulty: quizState.difficulty,
+    });
+
+    console.log("[ENGINE] Quiz loaded:", quizState.questions.length);
+
+    UI.showView("quiz-content");
+    renderQuestion();
+  } catch (err) {
+    console.error("[ENGINE] loadQuiz failed:", err);
+    UI.showStatus("Unable to load quiz. " + err.message, "text-red-600");
+  }
 }
 
-// -----------------------------------------------------------------------------
-// Auto-initialize when loaded
-// -----------------------------------------------------------------------------
-window.addEventListener("DOMContentLoaded", initQuizEngine);
+// -----------------------------------------------------------
+// Rendering the question
+// -----------------------------------------------------------
+function renderQuestion() {
+  const idx = quizState.currentQuestionIndex;
+  const q = quizState.questions[idx];
+
+  if (!q) {
+    UI.showStatus("No question available.", "text-red-600");
+    return;
+  }
+
+  UI.renderQuestion(q, idx + 1, quizState.userAnswers[q.id], quizState.isSubmitted);
+  UI.updateNavigation(idx, quizState.questions.length, quizState.isSubmitted);
+  UI.hideStatus();
+}
+
+// -----------------------------------------------------------
+// Answer selection
+// -----------------------------------------------------------
+function onAnswer(questionId, option) {
+  if (quizState.isSubmitted) return;
+  quizState.userAnswers[questionId] = option;
+  renderQuestion();
+}
+
+// -----------------------------------------------------------
+// Submit quiz
+// -----------------------------------------------------------
+async function submitQuiz() {
+  if (quizState.isSubmitted) return;
+
+  quizState.isSubmitted = true;
+  quizState.score = 0;
+
+  quizState.questions.forEach((q) => {
+    const userAns = quizState.userAnswers[q.id];
+    if (userAns && userAns === q.correct_answer) {
+      quizState.score++;
+    }
+  });
+
+  const user = getAuthUser();
+
+  await saveResult({
+    classId: quizState.classId,
+    subject: quizState.subject,
+    topic: quizState.topicSlug,
+    difficulty: quizState.difficulty,
+    score: quizState.score,
+    total: quizState.questions.length,
+    user_answers: quizState.userAnswers,
+  });
+
+  UI.showResults(quizState.score, quizState.questions.length, quizState);
+}
+
+// -----------------------------------------------------------
+// Navigation
+// -----------------------------------------------------------
+function goNext() {
+  if (quizState.currentQuestionIndex < quizState.questions.length - 1) {
+    quizState.currentQuestionIndex++;
+    renderQuestion();
+  }
+}
+
+function goPrev() {
+  if (quizState.currentQuestionIndex > 0) {
+    quizState.currentQuestionIndex--;
+    renderQuestion();
+  }
+}
+
+// -----------------------------------------------------------
+// Init
+// -----------------------------------------------------------
+export function initQuizEngine() {
+  console.log("[ENGINE] Starting initialization…");
+
+  parseUrl();
+
+  initializeAll(quizState.classId);
+  initializeAuthListener(async (user) => {
+    if (user) {
+      UI.updateAuthUI(user);
+      await loadQuiz();
+    } else {
+      UI.showView("paywall-screen");
+    }
+  });
+
+  // Button bindings
+  document.getElementById("google-signin-btn")?.addEventListener("click", signInWithGoogle);
+  document.getElementById("logout-nav-btn")?.addEventListener("click", signOut);
+
+  document.getElementById("next-btn")?.addEventListener("click", goNext);
+  document.getElementById("prev-btn")?.addEventListener("click", goPrev);
+  document.getElementById("submit-btn")?.addEventListener("click", submitQuiz);
+
+  console.log("[ENGINE] Initialization complete.");
+}
+
+// -----------------------------------------------------------
+// Auto-run
+// -----------------------------------------------------------
+initQuizEngine();
