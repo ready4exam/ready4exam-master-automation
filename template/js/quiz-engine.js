@@ -1,182 +1,180 @@
 // js/quiz-engine.js
-// -----------------------------------------------------------
-// FINAL CLEAN VERSION (PHASE-3)
-// • Loads quiz from Supabase table resolved in quiz-engine.html
-// • DOES NOT use schema cache
-// • No 9th-class fallback
-// • Stable Google login integration
-// -----------------------------------------------------------
+// -----------------------------------------------------------------------------
+// Phase-3 Quiz Engine — Stable, schema-cache-free, class-11 Supabase only
+// -----------------------------------------------------------------------------
 
-import { initializeAll, getAuthUser } from "./config.js";
+import { getAuth } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+import { initializeAll, getInitializedClients } from "./config.js";
 import { fetchQuestions, saveResult } from "./api.js";
 import * as UI from "./ui-renderer.js";
-import { initializeAuthListener, signInWithGoogle, signOut } from "./auth-paywall.js";
 
-// -----------------------------------------------------------
-// Global quiz state
-// -----------------------------------------------------------
-let quizState = {
-  classId: null,
-  subject: null,
-  topicSlug: null,
-  difficulty: null,
-  questions: [],
-  currentQuestionIndex: 0,
-  userAnswers: {},
-  isSubmitted: false,
-  score: 0,
+// -----------------------------------------------------------------------------
+// Boot Parameters
+// -----------------------------------------------------------------------------
+const url = new URL(window.location.href);
+const quizParams = {
+  classId: url.searchParams.get("class") || "class11",
+  subject: url.searchParams.get("subject") || "",
+  topic: url.searchParams.get("topic") || "",
+  difficulty: url.searchParams.get("difficulty") || "simple",
 };
 
-// -----------------------------------------------------------
-// Parse URL parameters
-// -----------------------------------------------------------
-function parseUrl() {
-  const p = new URLSearchParams(location.search);
+console.log(
+  "[ENGINE] Initialized quiz parameters →",
+  quizParams
+);
 
-  quizState.classId = p.get("class");
-  quizState.subject = p.get("subject");
-  quizState.topicSlug = p.get("topic");
-  quizState.difficulty = p.get("difficulty");
+// Expected table name already computed in HTML bootloader
+const TABLE_NAME = window.__quiz_table;
+console.log("[ENGINE] Using table:", TABLE_NAME);
 
-  if (!window.__quiz_table) {
-    console.error("No table name provided.");
-  }
+// -----------------------------------------------------------------------------
+// Internal State
+// -----------------------------------------------------------------------------
+let questions = [];
+let currentIndex = 0;
+let answers = {}; // track user answers
 
-  UI.updateHeader(quizState.topicSlug, quizState.difficulty);
 
-  console.log("[ENGINE] Initialized quiz parameters →", quizState);
-}
-
-// -----------------------------------------------------------
-// Load quiz from Supabase
-// -----------------------------------------------------------
+// -----------------------------------------------------------------------------
+// Load Quiz Once Authenticated
+// -----------------------------------------------------------------------------
 async function loadQuiz() {
   try {
-    UI.showStatus("Loading quiz…", "text-blue-600");
+    UI.showStatus("Loading quiz… please wait.", "text-blue-700");
 
-    const table = window.__quiz_table;
-
-    console.log("[ENGINE] Loading table:", table);
-
-    quizState.questions = await fetchQuestions({
-      table,
-      difficulty: quizState.difficulty,
+    const data = await fetchQuestions({
+      table: TABLE_NAME,
+      difficulty: quizParams.difficulty,
     });
 
-    console.log("[ENGINE] Quiz loaded:", quizState.questions.length);
+    questions = data;
+    UI.hideStatus();
 
-    UI.showView("quiz-content");
+    if (!questions.length) {
+      UI.showStatus("No questions available for this chapter.", "text-red-600");
+      return;
+    }
+
+    console.log("[ENGINE] Loaded", questions.length, "questions.");
+
     renderQuestion();
+    UI.showQuizContent();
+
   } catch (err) {
     console.error("[ENGINE] loadQuiz failed:", err);
-    UI.showStatus("Unable to load quiz. " + err.message, "text-red-600");
+
+    UI.showStatus(
+      "No quiz available for this chapter yet. Our system will generate soon.",
+      "text-red-600"
+    );
   }
 }
 
-// -----------------------------------------------------------
-// Rendering the question
-// -----------------------------------------------------------
+
+// -----------------------------------------------------------------------------
+// Render Question
+// -----------------------------------------------------------------------------
 function renderQuestion() {
-  const idx = quizState.currentQuestionIndex;
-  const q = quizState.questions[idx];
+  if (!questions.length) return;
 
-  if (!q) {
-    UI.showStatus("No question available.", "text-red-600");
-    return;
+  const q = questions[currentIndex];
+  UI.renderQuestion(q, currentIndex, questions.length, answers[q.id] || null);
+
+  // Show submit when last question
+  if (currentIndex === questions.length - 1) {
+    UI.showSubmitButton();
+  } else {
+    UI.hideSubmitButton();
   }
-
-  UI.renderQuestion(q, idx + 1, quizState.userAnswers[q.id], quizState.isSubmitted);
-  UI.updateNavigation(idx, quizState.questions.length, quizState.isSubmitted);
-  UI.hideStatus();
 }
 
-// -----------------------------------------------------------
-// Answer selection
-// -----------------------------------------------------------
-function onAnswer(questionId, option) {
-  if (quizState.isSubmitted) return;
-  quizState.userAnswers[questionId] = option;
-  renderQuestion();
-}
 
-// -----------------------------------------------------------
-// Submit quiz
-// -----------------------------------------------------------
-async function submitQuiz() {
-  if (quizState.isSubmitted) return;
+// -----------------------------------------------------------------------------
+// Event: Record Answer
+// -----------------------------------------------------------------------------
+window.selectOption = function (qid, optionKey) {
+  answers[qid] = optionKey;
+};
 
-  quizState.isSubmitted = true;
-  quizState.score = 0;
 
-  quizState.questions.forEach((q) => {
-    const userAns = quizState.userAnswers[q.id];
-    if (userAns && userAns === q.correct_answer) {
-      quizState.score++;
+// -----------------------------------------------------------------------------
+// Navigation
+// -----------------------------------------------------------------------------
+document.getElementById("next-btn").onclick = () => {
+  if (currentIndex < questions.length - 1) {
+    currentIndex++;
+    renderQuestion();
+  }
+};
+
+document.getElementById("prev-btn").onclick = () => {
+  if (currentIndex > 0) {
+    currentIndex--;
+    renderQuestion();
+  }
+};
+
+
+// -----------------------------------------------------------------------------
+// Submit Quiz
+// -----------------------------------------------------------------------------
+document.getElementById("submit-btn").onclick = () => {
+  let score = 0;
+
+  questions.forEach((q) => {
+    if (answers[q.id] && answers[q.id] === q.correct_answer) {
+      score++;
     }
   });
 
-  const user = getAuthUser();
+  const summary = {
+    topic: quizParams.topic,
+    difficulty: quizParams.difficulty,
+    total: questions.length,
+    score,
+  };
 
-  await saveResult({
-    classId: quizState.classId,
-    subject: quizState.subject,
-    topic: quizState.topicSlug,
-    difficulty: quizState.difficulty,
-    score: quizState.score,
-    total: quizState.questions.length,
-    user_answers: quizState.userAnswers,
+  UI.showResultsScreen(summary, questions, answers);
+
+  saveResult(summary);
+};
+
+
+// -----------------------------------------------------------------------------
+// Auth Listener → Start Quiz
+// -----------------------------------------------------------------------------
+function initAuthListener() {
+  const auth = getAuth();
+
+  auth.onAuthStateChanged(async (user) => {
+    if (!user) {
+      UI.showPaywall();
+      return;
+    }
+
+    UI.showUser(user);
+    UI.hidePaywall();
+
+    await loadQuiz();
   });
-
-  UI.showResults(quizState.score, quizState.questions.length, quizState);
 }
 
-// -----------------------------------------------------------
-// Navigation
-// -----------------------------------------------------------
-function goNext() {
-  if (quizState.currentQuestionIndex < quizState.questions.length - 1) {
-    quizState.currentQuestionIndex++;
-    renderQuestion();
-  }
-}
 
-function goPrev() {
-  if (quizState.currentQuestionIndex > 0) {
-    quizState.currentQuestionIndex--;
-    renderQuestion();
-  }
-}
-
-// -----------------------------------------------------------
-// Init
-// -----------------------------------------------------------
+// -----------------------------------------------------------------------------
+// Initialization
+// -----------------------------------------------------------------------------
 export function initQuizEngine() {
   console.log("[ENGINE] Starting initialization…");
 
-  parseUrl();
+  // Always class11 Supabase (single-instance)
+  initializeAll("class11");
 
-  initializeAll(quizState.classId);
-  initializeAuthListener(async (user) => {
-    if (user) {
-      UI.updateAuthUI(user);
-      await loadQuiz();
-    } else {
-      UI.showView("paywall-screen");
-    }
-  });
-
-  // Button bindings
-  document.getElementById("google-signin-btn")?.addEventListener("click", signInWithGoogle);
-  document.getElementById("logout-nav-btn")?.addEventListener("click", signOut);
-
-  document.getElementById("next-btn")?.addEventListener("click", goNext);
-  document.getElementById("prev-btn")?.addEventListener("click", goPrev);
-  document.getElementById("submit-btn")?.addEventListener("click", submitQuiz);
+  initAuthListener();
 
   console.log("[ENGINE] Initialization complete.");
 }
 
-// -----------------------------------------------------------
-// Auto-run
-// -----------------------------------------------------------
+
+// Auto-start
 initQuizEngine();
