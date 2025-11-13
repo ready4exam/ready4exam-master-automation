@@ -14,13 +14,13 @@ import { getFirestore } from "https://www.gstatic.com/firebasejs/11.6.1/firebase
 // -----------------------------------------------------------------------------
 
 const FIREBASE_CONFIG = {
-  apiKey: "YOUR_FIREBASE_API_KEY",
-  authDomain: "YOUR_FIREBASE_AUTH_DOMAIN",
-  projectId: "YOUR_FIREBASE_PROJECT_ID",
-  storageBucket: "YOUR_FIREBASE_STORAGE_BUCKET",
-  messagingSenderId: "YOUR_FIREBASE_SENDER_ID",
-  appId: "YOUR_FIREBASE_APP_ID",
-  measurementId: "YOUR_FIREBASE_MEASUREMENT_ID"
+  apiKey: "AIzaSyCFkuTUao-HGQhX438cVOUvUiS3kT2m7Os",
+  authDomain: "eleventhexam-f0fab.firebaseapp.com",
+  projectId: "eleventhexam-f0fab",
+  storageBucket: "eleventhexam-f0fab.firebasestorage.app",
+  messagingSenderId: "192315627607",
+  appId: "1:192315627607:web:9f2e2794dc42aaa3352b12",
+  measurementId: "G-3GXX6VXYT1"
 };
 
 // -----------------------------------------------------------------------------
