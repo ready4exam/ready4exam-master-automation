@@ -27,16 +27,26 @@ export default async function handler(req, res) {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // table name: first two words of chapter slug
-    const chapterSlug = chapter
-      .toLowerCase()
-      .replace(/[^a-z0-9\s]/g, "")
-      .trim()
-      .split(/\s+/)
-      .slice(0, 2)
-      .join("_");
-    const tableName = `${chapterSlug}_quiz`;
+   // NEW RULE: first + last word → tableName
+const words = chapter
+  .toLowerCase()
+  .replace(/[^a-z0-9\s]/g, "")
+  .trim()
+  .split(/\s+/);
 
-    console.log(`🧩 Managing table: ${tableName}`);
+let chapterSlug;
+
+if (words.length === 1) {
+  chapterSlug = words[0]; // one-word chapter
+} else {
+  const first = words[0];
+  const last = words[words.length - 1];
+  chapterSlug = `${first}_${last}`;
+}
+
+const tableName = `${chapterSlug}_quiz`;
+
+console.log(`🧩 Managing table: ${tableName}`);
 
     // 1) Create table + RLS + policy
     const sqlCreate = `
