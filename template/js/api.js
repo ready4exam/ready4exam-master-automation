@@ -8,20 +8,33 @@ import { cleanKatexMarkers } from "./utils.js";
 import { collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 // ------------------------------------------------------------
-// FETCH QUESTIONS
+// NORMALIZATION HELPERS
+// ------------------------------------------------------------
+function normalizeDifficulty(d) {
+  d = (d || "").toLowerCase().trim();
+
+  if (d.includes("simple") || d.includes("easy")) return "simple";
+  if (d.includes("medium")) return "medium";
+  if (d.includes("hard") || d.includes("advanced")) return "advanced";
+
+  return "simple"; // fallback-safe
+}
+
+// ------------------------------------------------------------
+// FETCH QUESTIONS (client-side)
 // ------------------------------------------------------------
 export async function fetchQuestions({ table, difficulty }) {
   const { supabase } = getInitializedClients();
   if (!supabase) throw new Error("Supabase not initialized");
 
-  console.log("[API] Fetch →", table);
+  console.log("[API] Fetch →", table, " | difficulty:", difficulty);
 
-  const diff = difficulty.charAt(0).toUpperCase() + difficulty.slice(1);
+  const diff = normalizeDifficulty(difficulty); // strict normalized
 
   const { data, error } = await supabase
     .from(table)
     .select("*")
-    .eq("difficulty", diff);
+    .ilike("difficulty", diff);   // strict matching
 
   if (error) throw new Error(error.message);
   if (!data?.length) throw new Error("No questions found.");
