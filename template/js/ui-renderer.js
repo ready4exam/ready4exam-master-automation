@@ -1,15 +1,16 @@
 // js/ui-renderer.js
 // ------------------------------------------------------------
-// Phase-3 UI Layer (FINAL)
-// Handles:
-// - Quiz question rendering
-// - Option selection highlight
-// - Review answers screen
-// - Retry buttons + go back
+// Phase-3 UI Rendering Layer (Final)
+// Supports:
+// • Option selection highlight
+// • Full results screen
+// • Retry buttons (Simple / Medium / Advanced)
+// • Back to chapter selection
 // ------------------------------------------------------------
 
+
 // ------------------------------------------------------------
-// STATUS MESSAGE
+// STATUS
 // ------------------------------------------------------------
 export function showStatus(msg, cls = "") {
   const el = document.getElementById("status-message");
@@ -23,19 +24,23 @@ export function hideStatus() {
   el.classList.add("hidden");
 }
 
+
 // ------------------------------------------------------------
-// QUIZ VISIBILITY
+// SHOW QUIZ CONTENT
 // ------------------------------------------------------------
 export function showQuiz() {
   document.getElementById("quiz-content").classList.remove("hidden");
 }
 
+
 // ------------------------------------------------------------
-// RENDER A QUESTION
+// RENDER QUESTION
 // ------------------------------------------------------------
 export function renderQuestion(state) {
   const q = state.questions[state.index];
   const wrapper = document.getElementById("question-list");
+
+  if (!wrapper) return;
 
   wrapper.innerHTML = `
     <div class="bg-white rounded-lg shadow p-6 border border-gray-200">
@@ -43,35 +48,18 @@ export function renderQuestion(state) {
 
       ${["A","B","C","D"].map(opt => `
         <label data-option="${opt}"
-          class="option-label block border p-3 rounded mb-2 cursor-pointer">
+          class="option-label block border p-3 rounded mb-2 cursor-pointer 
+          ${state.answers[q.id] === opt ? "border-blue-600 bg-blue-50" : "border-gray-300"}">
           <b>${opt}.</b> ${q.options[opt]}
         </label>
       `).join("")}
     </div>
   `;
 
-  // Update counter
   document.getElementById("question-counter").textContent =
     `${state.index + 1} / ${state.questions.length}`;
-
-  // If previously selected, highlight it
-  const selected = state.answers[q.id];
-  if (selected) highlightSelectedOption(selected);
 }
 
-// ------------------------------------------------------------
-// HIGHLIGHT SELECTED OPTION
-// ------------------------------------------------------------
-export function highlightSelectedOption(option) {
-  document.querySelectorAll(".option-label").forEach(el => {
-    el.classList.remove("bg-blue-100", "border-blue-600");
-  });
-
-  const selectedEl = document.querySelector(`[data-option="${option}"]`);
-  if (selectedEl) {
-    selectedEl.classList.add("bg-blue-100", "border-blue-600");
-  }
-}
 
 // ------------------------------------------------------------
 // SHOW SUBMIT BUTTON
@@ -80,77 +68,83 @@ export function showSubmit() {
   document.getElementById("submit-btn").classList.remove("hidden");
 }
 
+
 // ------------------------------------------------------------
 // RESULTS SCREEN
 // ------------------------------------------------------------
-export function renderResultsScreen(score, total, state) {
+export function renderResultsScreen({ score, total, questions, answers }) {
+  // Hide quiz
   document.getElementById("quiz-content").classList.add("hidden");
 
+  // Show results
   const screen = document.getElementById("results-screen");
   screen.classList.remove("hidden");
 
-  document.getElementById("score-display").textContent = `${score} / ${total}`;
+  // Score
+  const scoreBox = document.getElementById("score-display");
+  scoreBox.textContent = `${score} / ${total}`;
 
-  // REVIEW SECTION
+  // Review
   const review = document.getElementById("review-container");
-  review.innerHTML = state.questions
-    .map((q) => {
-      const userAns = state.answers[q.id] || "-";
-      const ok = userAns === q.correct_answer;
+
+  review.innerHTML = questions
+    .map(q => {
+      const userAns = answers[q.id] || "-";
+      const isCorrect = userAns === q.correct_answer;
 
       return `
-        <div class="bg-white border p-4 rounded mb-4 shadow-sm">
-          <p class="font-bold text-gray-800 mb-2">${q.text}</p>
+        <div class="bg-white border p-4 rounded mb-4">
+          <p class="font-bold mb-2">${q.text}</p>
 
-          <p class="text-sm mt-2">
-            <span class="font-semibold text-gray-700">Your answer:</span>
-            <span class="${ok ? "text-green-700" : "text-red-700"}">
+          <p><span class="font-semibold">Your Answer:</span> 
+            <span class="${isCorrect ? "text-green-600" : "text-red-600"}">
               ${userAns}
             </span>
           </p>
 
-          <p class="text-sm">
-            <span class="font-semibold text-gray-700">Correct answer:</span>
-            <span class="text-blue-700">${q.correct_answer}</span>
+          <p><span class="font-semibold">Correct Answer:</span> 
+            <span class="text-green-700">${q.correct_answer}</span>
           </p>
 
-          <p class="mt-2 ${ok ? "text-green-600" : "text-red-600"} font-semibold">
-            ${ok ? "✔ Correct" : "✘ Incorrect"}
+          <p class="mt-2 ${isCorrect ? "text-green-600" : "text-red-600"} font-semibold">
+            ${isCorrect ? "✔ Correct" : "✘ Incorrect"}
           </p>
         </div>
       `;
     })
     .join("");
 
-  // ------------------------------------------------------------
-  // RETRY BUTTONS + GO BACK
-  // ------------------------------------------------------------
-  review.insertAdjacentHTML(
-    "beforeend",
-    `
-      <div class="mt-8 flex flex-col items-center space-y-4">
+  // Show retry buttons
+  document.getElementById("results-actions").classList.remove("hidden");
+}
 
-        <button onclick="location.href='quiz-engine.html?table=${state.table}&difficulty=simple'"
-          class="px-6 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700">
-          Retry Simple
-        </button>
 
-        <button onclick="location.href='quiz-engine.html?table=${state.table}&difficulty=medium'"
-          class="px-6 py-3 bg-yellow-500 text-white rounded-lg font-semibold hover:bg-yellow-600">
-          Retry Medium
-        </button>
+// ------------------------------------------------------------
+// BUTTON HANDLERS
+// ------------------------------------------------------------
+export function registerResultButtons(currentTable) {
+  const retrySimple = document.getElementById("retry-simple");
+  const retryMedium = document.getElementById("retry-medium");
+  const retryAdvanced = document.getElementById("retry-advanced");
+  const backBtn = document.getElementById("back-to-chapters-btn");
 
-        <button onclick="location.href='quiz-engine.html?table=${state.table}&difficulty=advanced'"
-          class="px-6 py-3 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700">
-          Retry Advanced
-        </button>
+  // Retry → Simple
+  retrySimple.onclick = () => {
+    location.href = `quiz-engine.html?table=${currentTable}&difficulty=simple`;
+  };
 
-        <button onclick="history.back()"
-          class="mt-4 px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700">
-          ← Select Another Chapter
-        </button>
+  // Retry → Medium
+  retryMedium.onclick = () => {
+    location.href = `quiz-engine.html?table=${currentTable}&difficulty=medium`;
+  };
 
-      </div>
-    `
-  );
+  // Retry → Advanced
+  retryAdvanced.onclick = () => {
+    location.href = `quiz-engine.html?table=${currentTable}&difficulty=advanced`;
+  };
+
+  // Back to chapter selection
+  backBtn.onclick = () => {
+    location.href = "chapter-selection.html";
+  };
 }
