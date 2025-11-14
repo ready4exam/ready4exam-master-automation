@@ -1,164 +1,106 @@
 // js/quiz-engine.js
-// ------------------------------------------------------------
-// Phase-3 Stable Quiz Engine (with Review Mode + Retry Buttons)
-// ------------------------------------------------------------
+// -----------------------------------------------------------
+// Phase-3 Updated Final (Synced with ui-renderer.js)
+// -----------------------------------------------------------
 
-import { getInitializedClients } from "./config.js";
-import { fetchQuestions, saveResult } from "./api.js";
 import * as UI from "./ui-renderer.js";
+import { checkAccess } from "./auth-paywall.js";
+import { fetchQuiz } from "./api.js";
 
-// ------------------------------------------------------------
-// STATE
-// ------------------------------------------------------------
-const quizState = {
+let state = {
   questions: [],
-  index: 0,
   answers: {},
-  difficulty: "",
+  index: 0,
   table: "",
-  topicSlug: "",
-  chapterName: ""
+  difficulty: "",
+  topicSlug: ""
 };
 
-// ------------------------------------------------------------
-// READ URL PARAMS
-// ------------------------------------------------------------
-function readParams() {
-  const params = new URLSearchParams(location.search);
-
-  quizState.table = params.get("table") || "";
-  quizState.difficulty = params.get("difficulty") || "simple";
-  quizState.topicSlug = params.get("topic") || "";
-  quizState.chapterName = params.get("chapter") || "";
-
-  console.log("[ENGINE] Params loaded:", quizState);
-
-  const diffBadge = document.getElementById("difficulty-display");
-  if (diffBadge)
-    diffBadge.textContent =
-      "Difficulty: " +
-      quizState.difficulty.charAt(0).toUpperCase() +
-      quizState.difficulty.slice(1);
-
-  const title = document.getElementById("chapter-name-display");
-  if (title)
-    title.textContent = quizState.chapterName || quizState.topicSlug || "";
-}
 
 // ------------------------------------------------------------
-// WAIT FOR AUTH
+// INIT
 // ------------------------------------------------------------
-function waitForAuth() {
-  return new Promise((resolve) => {
-    const { auth } = getInitializedClients();
-
-    auth.onAuthStateChanged((user) => {
-      if (user) {
-        console.log("[ENGINE] Auth ready →", user.email);
-        resolve(user);
-      }
-    });
-  });
-}
-
-// ------------------------------------------------------------
-// LOAD QUIZ
-// ------------------------------------------------------------
-async function loadQuiz() {
-  try {
-    UI.showStatus("Loading your quiz…");
-
-    quizState.questions = await fetchQuestions({
-      table: quizState.table,
-      difficulty: quizState.difficulty
-    });
-
-    console.log("[ENGINE] Loaded:", quizState.questions.length);
-
-    UI.hideStatus();
-    UI.showQuiz();
-    UI.renderQuestion(quizState);
-
-  } catch (err) {
-    console.error("[ENGINE] loadQuiz failed:", err);
-    UI.showStatus(`<span class='text-red-600'>${err.message}</span>`);
-  }
-}
-
-// ------------------------------------------------------------
-// NEXT / PREVIOUS
-// ------------------------------------------------------------
-function next() {
-  if (quizState.index < quizState.questions.length - 1) {
-    quizState.index++;
-    UI.renderQuestion(quizState);
-  } else {
-    UI.showSubmit();
-  }
-}
-
-function prev() {
-  if (quizState.index > 0) {
-    quizState.index--;
-    UI.renderQuestion(quizState);
-  }
-}
-
-// ------------------------------------------------------------
-// SUBMIT QUIZ
-// ------------------------------------------------------------
-async function submitQuiz() {
-  const total = quizState.questions.length;
-  let score = 0;
-
-  for (const q of quizState.questions) {
-    const userAns = quizState.answers[q.id];
-    if (userAns && userAns === q.correct_answer) score++;
-  }
-
-  await saveResult({
-    topic: quizState.topicSlug,
-    difficulty: quizState.difficulty,
-    score,
-    total,
-  });
-
-  UI.renderResultsScreen(score, total, quizState);
-}
-
-// ------------------------------------------------------------
-// OPTION CLICK HANDLER
-// ------------------------------------------------------------
-function registerAnswerHandler() {
-  document.body.addEventListener("click", (e) => {
-    if (!e.target.dataset.option) return;
-
-    const option = e.target.dataset.option;
-    const currentQ = quizState.questions[quizState.index];
-
-    quizState.answers[currentQ.id] = option;
-
-    UI.highlightSelectedOption(option);
-  });
-}
-
-// ------------------------------------------------------------
-// INIT ENGINE
-// ------------------------------------------------------------
-async function initQuizEngine() {
+document.addEventListener("DOMContentLoaded", async () => {
   console.log("[ENGINE] Booting Quiz Engine…");
 
-  readParams();
-  registerAnswerHandler();
+  // parse URL params
+  const params = new URLSearchParams(location.search);
+  state.table = params.get("table");
+  state.difficulty = params.get("difficulty");
 
-  document.getElementById("next-btn").onclick = next;
-  document.getElementById("prev-btn").onclick = prev;
-  document.getElementById("submit-btn").onclick = submitQuiz;
+  console.log("[ENGINE] Params loaded:", state);
 
-  await waitForAuth();
-  await loadQuiz();
+  // Auth + paywall check
+  const ok = await checkAccess();
+  if (!ok) return; // user not logged in → paywall stays
 
-  console.log("[ENGINE] Quiz Ready.");
+  console.log("[ENGINE] Auth ready");
+
+  // fetch quiz
+  const { questions } = await fetchQuiz(state.table, state.difficulty);
+  state.questions = questions;
+
+  console.log("[ENGINE] Loaded:", state.questions.length);
+
+  UI.showQuiz();
+  renderCurrentQuestion();
+});
+
+
+// ------------------------------------------------------------
+// RENDER CURRENT QUESTION
+// ------------------------------------------------------------
+function renderCurrentQuestion() {
+  UI.renderQuestion(state);
+
+  const opts = document.querySelectorAll(".option-label");
+  opts.forEach(label => {
+    label.onclick = () => {
+      const opt = label.getAttribute("data-option");
+      const qid = state.questions[state.index].id;
+
+      state.answers[qid] = opt;
+
+      UI.highlightSelectedOption(qid, opt);
+    };
+  });
 }
 
-initQuizEngine();
+
+// ------------------------------------------------------------
+// NAVIGATION
+// ------------------------------------------------------------
+document.getElementById("next-btn").onclick = () => {
+  if (state.index < state.questions.length - 1) {
+    state.index++;
+    renderCurrentQuestion();
+  }
+};
+
+document.getElementById("prev-btn").onclick = () => {
+  if (state.index > 0) {
+    state.index--;
+    renderCurrentQuestion();
+  }
+};
+
+
+// ------------------------------------------------------------
+// SUBMIT
+// ------------------------------------------------------------
+document.getElementById("submit-btn").onclick = () => {
+  let correct = 0;
+
+  state.questions.forEach(q => {
+    if (state.answers[q.id] === q.correct_answer) correct++;
+  });
+
+  UI.renderResultsScreen({
+    score: correct,
+    total: state.questions.length,
+    questions: state.questions,
+    answers: state.answers
+  });
+
+  UI.registerResultButtons(state.table);
+};
