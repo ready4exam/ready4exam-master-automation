@@ -1,11 +1,6 @@
 // js/ui-renderer.js
 // ------------------------------------------------------------
-// Phase-3 UI Rendering Layer (Final)
-// Supports:
-// • Option selection highlight
-// • Full results screen
-// • Retry buttons (Simple / Medium / Advanced)
-// • Back to chapter selection
+// Phase-3 UI Rendering Layer (Final Synced Version)
 // ------------------------------------------------------------
 
 
@@ -20,8 +15,7 @@ export function showStatus(msg, cls = "") {
 }
 
 export function hideStatus() {
-  const el = document.getElementById("status-message");
-  el.classList.add("hidden");
+  document.getElementById("status-message").classList.add("hidden");
 }
 
 
@@ -62,6 +56,26 @@ export function renderQuestion(state) {
 
 
 // ------------------------------------------------------------
+// HIGHLIGHT SELECTED OPTION (Added to fix errors)
+// ------------------------------------------------------------
+export function highlightSelectedOption(qid, selectedOpt) {
+  const labels = document.querySelectorAll(".option-label");
+
+  labels.forEach(lb => {
+    const opt = lb.getAttribute("data-option");
+
+    if (opt === selectedOpt) {
+      lb.classList.remove("border-gray-300");
+      lb.classList.add("border-blue-600", "bg-blue-50");
+    } else {
+      lb.classList.remove("border-blue-600", "bg-blue-50");
+      lb.classList.add("border-gray-300");
+    }
+  });
+}
+
+
+// ------------------------------------------------------------
 // SHOW SUBMIT BUTTON
 // ------------------------------------------------------------
 export function showSubmit() {
@@ -73,18 +87,13 @@ export function showSubmit() {
 // RESULTS SCREEN
 // ------------------------------------------------------------
 export function renderResultsScreen({ score, total, questions, answers }) {
-  // Hide quiz
   document.getElementById("quiz-content").classList.add("hidden");
 
-  // Show results
   const screen = document.getElementById("results-screen");
   screen.classList.remove("hidden");
 
-  // Score
-  const scoreBox = document.getElementById("score-display");
-  scoreBox.textContent = `${score} / ${total}`;
+  document.getElementById("score-display").textContent = `${score} / ${total}`;
 
-  // Review
   const review = document.getElementById("review-container");
 
   review.innerHTML = questions
@@ -114,37 +123,23 @@ export function renderResultsScreen({ score, total, questions, answers }) {
     })
     .join("");
 
-  // Show retry buttons
   document.getElementById("results-actions").classList.remove("hidden");
 }
 
 
 // ------------------------------------------------------------
-// BUTTON HANDLERS
+// BUTTON HANDLERS FOR RETRY
 // ------------------------------------------------------------
 export function registerResultButtons(currentTable) {
-  const retrySimple = document.getElementById("retry-simple");
-  const retryMedium = document.getElementById("retry-medium");
-  const retryAdvanced = document.getElementById("retry-advanced");
-  const backBtn = document.getElementById("back-to-chapters-btn");
-
-  // Retry → Simple
-  retrySimple.onclick = () => {
+  document.getElementById("retry-simple").onclick = () =>
     location.href = `quiz-engine.html?table=${currentTable}&difficulty=simple`;
-  };
 
-  // Retry → Medium
-  retryMedium.onclick = () => {
+  document.getElementById("retry-medium").onclick = () =>
     location.href = `quiz-engine.html?table=${currentTable}&difficulty=medium`;
-  };
 
-  // Retry → Advanced
-  retryAdvanced.onclick = () => {
+  document.getElementById("retry-advanced").onclick = () =>
     location.href = `quiz-engine.html?table=${currentTable}&difficulty=advanced`;
-  };
 
-  // Back to chapter selection
-  backBtn.onclick = () => {
+  document.getElementById("back-to-chapters-btn").onclick = () =>
     location.href = "chapter-selection.html";
-  };
 }
