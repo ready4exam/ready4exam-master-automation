@@ -1,119 +1,132 @@
-// /api/gemini.js — FINAL VERSION (SAFE, with Universal JSON Extractor)
+// api/gemini.js
+// -------------------------------------------------------------
+// Phase-3 Stable Gemini Question Generator
+// • Strict NCERT/CBSE aligned 60-question CSV
+// • Simple / Medium / Advanced distribution (20 each)
+// • MCQ / AR / Case-Based (10/5/5 each)
+// -------------------------------------------------------------
 
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { getCorsHeaders } from "./cors.js";
+
 export const config = { runtime: "nodejs" };
 
 export default async function handler(req, res) {
   const origin = req.headers.origin || "*";
-  const headers = { ...getCorsHeaders(origin), "Content-Type": "application/json" };
-  
-  for (const [k, v] of Object.entries(headers)) res.setHeader(k, v);
+
+  const headers = {
+    ...getCorsHeaders(origin),
+    "Content-Type": "application/json",
+  };
+
+  for (const [k, v] of Object.entries(headers)) {
+    res.setHeader(k, v);
+  }
 
   if (req.method === "OPTIONS") return res.status(200).end();
-  if (req.method !== "POST") return res.status(405).json({ error: "Only POST allowed" });
+  if (req.method !== "POST")
+    return res.status(405).json({ ok: false, error: "Only POST allowed" });
 
   try {
-    const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+    const { meta } = req.body;
 
-    const { meta } = body || {};
-    if (!meta) throw new Error("Missing meta block.");
+    if (!meta?.class_name || !meta?.subject || !meta?.chapter) {
+      return res.status(400).json({ ok: false, error: "Missing metadata." });
+    }
 
-    const { class_name, subject, book, chapter, num = 60 } = meta;
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
-    if (!class_name || !subject || !chapter)
-      throw new Error("Missing required fields (class_name, subject, chapter)");
-
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) throw new Error("Missing GEMINI_API_KEY");
-
+    // -------------------------------------------------------------
+    // FINAL PHASE-3 QUESTION GENERATION PROMPT
+    // -------------------------------------------------------------
     const prompt = `
-Generate ${num} multiple-choice questions in pure JSON.
-Include fields:
-difficulty, question_type, question_text, scenario_reason_text,
-option_a, option_b, option_c, option_d, correct_answer_key.
+Generate exactly **60 unique quiz questions** strictly from NCERT/CBSE syllabus for:
 
-Subject: ${subject}
-Book: ${book}
-Chapter: ${chapter}
+Class: ${meta.class_name}
+Subject: ${meta.subject}
+Book: ${meta.book}
+Chapter: ${meta.chapter}
 
-Return ONLY valid JSON:
-{
-  "questions":[ ... ]
-}
+Your output must be **pure CSV** with headers:
+
+difficulty,question_type,question_text,scenario_reason_text,option_a,option_b,option_c,option_d,correct_answer_key
+
+NO “id”, NO serial numbers, NO markdown, NO formatting, NO quotes around headers.
+
+Follow EXACT rules below:
+
+------------------------------------------------------------
+🔵 **Distribution Rules (Total 60 Questions)**
+------------------------------------------------------------
+* **Simple:** 20 questions  
+  - 10 MCQ  
+  - 5 AR  
+  - 5 Case-Based  
+
+* **Medium:** 20 questions  
+  - 10 MCQ  
+  - 5 AR  
+  - 5 Case-Based  
+
+* **Advanced:** 20 questions  
+  - 10 MCQ  
+  - 5 AR  
+  - 5 Case-Based  
+
+
+------------------------------------------------------------
+🔵 **SCHEMA RULES (MUST MATCH EXACTLY)**
+------------------------------------------------------------
+difficulty → only “Simple”, “Medium”, “Advanced”  
+question_type → only “MCQ”, “AR”, “Case-Based”
+
+question_text → core question (or Assertion for AR)  
+scenario_reason_text →  
+• for MCQ → keep empty  
+• for AR → Reason (R)  
+• for Case-Based → Scenario/Case paragraph  
+
+option_a / option_b / option_c / option_d →  
+• MCQ → 4 normal options  
+• AR → must ALWAYS use:
+
+A: Both A and R are true, and R is the correct explanation of A.  
+B: Both A and R are true, but R is not the correct explanation of A.  
+C: A is true, but R is false.  
+D: A is false, but R is true.  
+
+correct_answer_key → A/B/C/D (uppercase, no spaces)
+
+------------------------------------------------------------
+❗ IMPORTANT
+------------------------------------------------------------
+• CSV **must contain exactly 60 rows** after the header  
+• DO NOT wrap text in quotes unless required by CSV rules  
+• Ensure strict NCERT language accuracy  
+• Keep all difficulty labels EXACTLY: “Simple”, “Medium”, “Advanced”  
+• Keep all question types EXACTLY: “MCQ”, “AR”, “Case-Based”
+• DO NOT add extra commentary, markdown, or code fences
+
+Now generate ONLY the CSV.
 `;
 
-    // Call Gemini
-    const geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ role: "user", parts: [{ text: prompt }] }],
-        }),
-      }
-    );
+    // -------------------------------------------------------------
+    // CALL GEMINI
+    // -------------------------------------------------------------
+    const result = await model.generateContent(prompt);
+    const text = result.response.text();
 
-    const raw = await geminiRes.text();
-    console.log("🧾 GEMINI RAW RESPONSE:", raw);
-
-    // ================================================================
-    // UNIVERSAL JSON EXTRACTOR — Bulletproof Gemini Response Handling
-    // ================================================================
-    function extractJSON(input) {
-
-      // 1. Direct parse
-      try {
-        return JSON.parse(input);
-      } catch (_) {}
-
-      // 2. ```json Fenced block ```
-      const fenced = input.match(/```(?:json)?([\s\S]*?)```/i);
-      if (fenced) {
-        try {
-          return JSON.parse(fenced[1]);
-        } catch (_) {}
-      }
-
-      // 3. Extract { ... } region
-      const brace = input.match(/\{[\s\S]*\}/);
-      if (brace) {
-        try {
-          return JSON.parse(brace[0]);
-        } catch (_) {}
-      }
-
-      throw new Error("Failed to parse Gemini JSON output.");
-    }
-
-    // Final parse logic
-    let parsed = {};
-
-    try {
-      const outer = JSON.parse(raw);
-
-      const innerText =
-        outer?.candidates?.[0]?.content?.parts?.[0]?.text ||
-        outer?.output_text ||
-        raw;
-
-      parsed = extractJSON(innerText);
-    } catch (err) {
-      parsed = extractJSON(raw);
-    }
-
-    // Extract questions
-    const questions = Array.isArray(parsed?.questions) ? parsed.questions : null;
-    if (!questions) throw new Error("Failed to parse Gemini JSON output.");
-
-    // Return EXACTLY what your frontend expects
+    // -------------------------------------------------------------
+    // Return CSV lines to frontend
+    // -------------------------------------------------------------
     return res.status(200).json({
       ok: true,
-      questions
+      questions: text,
     });
 
   } catch (err) {
-    console.error("❌ /api/gemini.js Error:", err);
+    console.error("❌ Gemini error:", err);
     return res.status(500).json({ ok: false, error: err.message });
   }
 }
