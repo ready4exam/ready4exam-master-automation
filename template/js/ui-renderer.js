@@ -1,167 +1,156 @@
 // js/ui-renderer.js
 // ------------------------------------------------------------
-// Phase-3 UI Rendering Layer (Results + Automatic Review)
+// Phase-3 UI Layer (FINAL)
+// Handles:
+// - Quiz question rendering
+// - Option selection highlight
+// - Review answers screen
+// - Retry buttons + go back
 // ------------------------------------------------------------
 
-/*
-Functions exported:
-- showStatus(msg, cls)
-- hideStatus()
-- showQuiz()
-- renderQuestion(state)
-- showSubmit()
-- showResults(score, total, state)
-*/
-
+// ------------------------------------------------------------
+// STATUS MESSAGE
+// ------------------------------------------------------------
 export function showStatus(msg, cls = "") {
   const el = document.getElementById("status-message");
-  if (!el) return;
   el.innerHTML = msg;
   el.classList.remove("hidden");
-  el.className = cls ? "text-center p-6 font-semibold " + cls : "text-center p-6 font-semibold";
+  if (cls) el.className = "text-center p-6 font-semibold " + cls;
 }
 
 export function hideStatus() {
   const el = document.getElementById("status-message");
-  if (!el) return;
   el.classList.add("hidden");
 }
 
-// Reveal main quiz area
+// ------------------------------------------------------------
+// QUIZ VISIBILITY
+// ------------------------------------------------------------
 export function showQuiz() {
-  const q = document.getElementById("quiz-content");
-  if (q) q.classList.remove("hidden");
+  document.getElementById("quiz-content").classList.remove("hidden");
 }
 
-// Render a single question based on state
+// ------------------------------------------------------------
+// RENDER A QUESTION
+// ------------------------------------------------------------
 export function renderQuestion(state) {
   const q = state.questions[state.index];
   const wrapper = document.getElementById("question-list");
-  if (!q || !wrapper) return;
-
-  const userAns = state.answers[q.id] || null;
-
-  let scenarioBlock = "";
-  if (q.question_type === "AR" || q.question_type === "Case-Based") {
-    scenarioBlock = `
-      <div class="bg-blue-50 border border-blue-200 p-4 rounded mb-4">
-        <p class="text-sm font-medium text-blue-800">${q.question_type === "AR" ? "Reason (R):" : "Context:"}</p>
-        <p class="text-sm text-blue-900 mt-1">${q.scenario_reason || ""}</p>
-      </div>
-    `;
-  }
-
-  const optionsHtml = ["A","B","C","D"].map(opt => {
-    const isSelected = userAns === opt;
-    const selClass = isSelected ? "bg-blue-100 border-blue-600" : "border-gray-300";
-    const optText = q.options?.[opt] ?? "";
-    return `
-      <label data-option="${opt}"
-             class="option-label block border ${selClass} p-3 rounded mb-2 cursor-pointer transition"
-             role="button" aria-pressed="${isSelected}">
-        <b>${opt}.</b> ${optText}
-      </label>
-    `;
-  }).join("");
 
   wrapper.innerHTML = `
     <div class="bg-white rounded-lg shadow p-6 border border-gray-200">
       <h3 class="text-lg font-bold mb-4">${q.text}</h3>
-      ${scenarioBlock}
-      ${optionsHtml}
+
+      ${["A","B","C","D"].map(opt => `
+        <label data-option="${opt}"
+          class="option-label block border p-3 rounded mb-2 cursor-pointer">
+          <b>${opt}.</b> ${q.options[opt]}
+        </label>
+      `).join("")}
     </div>
   `;
 
-  const counter = document.getElementById("question-counter");
-  if (counter) counter.textContent = `${state.index + 1} / ${state.questions.length}`;
+  // Update counter
+  document.getElementById("question-counter").textContent =
+    `${state.index + 1} / ${state.questions.length}`;
+
+  // If previously selected, highlight it
+  const selected = state.answers[q.id];
+  if (selected) highlightSelectedOption(selected);
 }
 
-// Show submit button (when last question reached)
-export function showSubmit() {
-  const btn = document.getElementById("submit-btn");
-  if (btn) btn.classList.remove("hidden");
-}
+// ------------------------------------------------------------
+// HIGHLIGHT SELECTED OPTION
+// ------------------------------------------------------------
+export function highlightSelectedOption(option) {
+  document.querySelectorAll(".option-label").forEach(el => {
+    el.classList.remove("bg-blue-100", "border-blue-600");
+  });
 
-// Show results + automatic review list (same page)
-export function showResults(score, total, state) {
-  // Hide quiz UI
-  const quizContent = document.getElementById("quiz-content");
-  if (quizContent) quizContent.classList.add("hidden");
-
-  // Status hide
-  hideStatus();
-
-  // Prepare results screen container
-  const results = document.getElementById("results-screen");
-  if (!results) {
-    console.error("results-screen element missing");
-    return;
+  const selectedEl = document.querySelector(`[data-option="${option}"]`);
+  if (selectedEl) {
+    selectedEl.classList.add("bg-blue-100", "border-blue-600");
   }
-  results.classList.remove("hidden");
+}
 
-  // Score header
-  const scoreHtml = `
-    <div class="bg-white p-6 rounded-lg shadow mb-6 text-center">
-      <h2 class="text-3xl font-extrabold text-green-700 mb-2">Quiz Completed</h2>
-      <p class="text-xl font-semibold">Score: <span id="score-display">${score}</span> / ${total}</p>
-      <p class="text-sm text-gray-600 mt-2">Difficulty: ${state.difficulty}</p>
-    </div>
-  `;
+// ------------------------------------------------------------
+// SHOW SUBMIT BUTTON
+// ------------------------------------------------------------
+export function showSubmit() {
+  document.getElementById("submit-btn").classList.remove("hidden");
+}
 
-  // Difficulty buttons (always show all 3)
-  const diffButtons = `
-    <div class="flex gap-3 justify-center mb-6">
-      <button id="btn-simple" class="px-4 py-2 rounded-lg bg-green-600 text-white font-semibold">Retake Simple</button>
-      <button id="btn-medium" class="px-4 py-2 rounded-lg bg-yellow-500 text-white font-semibold">Try Medium</button>
-      <button id="btn-advanced" class="px-4 py-2 rounded-lg bg-red-600 text-white font-semibold">Try Advanced</button>
-    </div>
-  `;
+// ------------------------------------------------------------
+// RESULTS SCREEN
+// ------------------------------------------------------------
+export function renderResultsScreen(score, total, state) {
+  document.getElementById("quiz-content").classList.add("hidden");
 
-  // Choose another chapter button
-  const chapterBtn = `
-    <div class="text-center mb-8">
-      <button id="btn-another-chapter" class="px-6 py-3 bg-gray-700 text-white rounded-lg font-bold">↩ Choose Another Chapter</button>
-    </div>
-  `;
+  const screen = document.getElementById("results-screen");
+  screen.classList.remove("hidden");
 
-  // Review list: each question with user's answer and correct answer
-  const reviewList = state.questions.map(q => {
-    const userAns = (state.answers[q.id] || "-").toString().toUpperCase();
-    const correct = ( (q.correct_answer || q.correct_answer_key) || "" ).toString().trim().toUpperCase();
-    const ok = userAns === correct && userAns !== "-";
-    const options = q.options || {};
-    return `
-      <div class="bg-white border p-4 rounded mb-3">
-        <p class="font-bold mb-2">${q.text}</p>
-        ${ q.scenario_reason ? `<p class="text-sm text-blue-700 mb-2">${q.scenario_reason}</p>` : "" }
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-2">
-          ${["A","B","C","D"].map(opt => {
-            const isUser = userAns === opt;
-            const isCorrect = correct === opt;
-            const cls = isCorrect ? "border-green-600 bg-green-50" : (isUser ? "border-blue-600 bg-blue-50" : "border-gray-200");
-            return `<div class="p-2 border ${cls} rounded text-sm"><b>${opt}.</b> ${options[opt] || ""}</div>`;
-          }).join("")}
-        </div>
+  document.getElementById("score-display").textContent = `${score} / ${total}`;
 
-        <p class="mt-3">
-          <span class="${ok ? "text-green-700 font-semibold" : "text-red-600 font-semibold"}">
+  // REVIEW SECTION
+  const review = document.getElementById("review-container");
+  review.innerHTML = state.questions
+    .map((q) => {
+      const userAns = state.answers[q.id] || "-";
+      const ok = userAns === q.correct_answer;
+
+      return `
+        <div class="bg-white border p-4 rounded mb-4 shadow-sm">
+          <p class="font-bold text-gray-800 mb-2">${q.text}</p>
+
+          <p class="text-sm mt-2">
+            <span class="font-semibold text-gray-700">Your answer:</span>
+            <span class="${ok ? "text-green-700" : "text-red-700"}">
+              ${userAns}
+            </span>
+          </p>
+
+          <p class="text-sm">
+            <span class="font-semibold text-gray-700">Correct answer:</span>
+            <span class="text-blue-700">${q.correct_answer}</span>
+          </p>
+
+          <p class="mt-2 ${ok ? "text-green-600" : "text-red-600"} font-semibold">
             ${ok ? "✔ Correct" : "✘ Incorrect"}
-          </span>
-          <span class="ml-3 text-sm text-gray-600">Your answer: ${userAns} • Correct: ${correct || "N/A"}</span>
-        </p>
+          </p>
+        </div>
+      `;
+    })
+    .join("");
+
+  // ------------------------------------------------------------
+  // RETRY BUTTONS + GO BACK
+  // ------------------------------------------------------------
+  review.insertAdjacentHTML(
+    "beforeend",
+    `
+      <div class="mt-8 flex flex-col items-center space-y-4">
+
+        <button onclick="location.href='quiz-engine.html?table=${state.table}&difficulty=simple'"
+          class="px-6 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700">
+          Retry Simple
+        </button>
+
+        <button onclick="location.href='quiz-engine.html?table=${state.table}&difficulty=medium'"
+          class="px-6 py-3 bg-yellow-500 text-white rounded-lg font-semibold hover:bg-yellow-600">
+          Retry Medium
+        </button>
+
+        <button onclick="location.href='quiz-engine.html?table=${state.table}&difficulty=advanced'"
+          class="px-6 py-3 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700">
+          Retry Advanced
+        </button>
+
+        <button onclick="history.back()"
+          class="mt-4 px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700">
+          ← Select Another Chapter
+        </button>
+
       </div>
-    `;
-  }).join("");
-
-  results.innerHTML = `
-    <div class="max-w-4xl mx-auto">
-      ${scoreHtml}
-      ${diffButtons}
-      ${chapterBtn}
-      <h3 class="text-2xl font-bold mb-4">Review Answers</h3>
-      ${reviewList}
-    </div>
-  `;
-
-  // Attach handlers for the buttons (quiz-engine will register behavior via events)
+    `
+  );
 }
