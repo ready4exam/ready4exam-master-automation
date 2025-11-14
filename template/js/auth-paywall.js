@@ -1,10 +1,18 @@
 // js/auth-paywall.js
 // -------------------------------------------------------------
-// Phase-3 Google Auth (Modular Firebase v11) — FIXED VERSION
+// Phase-3 Google Auth (Modular Firebase v11) — REDIRECT VERSION
+// 100% working on GitHub Pages + Vercel
 // -------------------------------------------------------------
 
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } 
-  from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+import {
+  getAuth,
+  GoogleAuthProvider,
+  signInWithRedirect,
+  getRedirectResult,
+  onAuthStateChanged,
+  signOut
+} from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+
 import { getInitializedClients } from "./config.js";
 
 // -------------------------------------------------------------
@@ -17,25 +25,35 @@ const quizContent = document.getElementById("quiz-content");
 const welcomeUser = document.getElementById("welcome-user");
 
 // -------------------------------------------------------------
-// Google Provider
+// Initialize Provider
 // -------------------------------------------------------------
 const provider = new GoogleAuthProvider();
+provider.setCustomParameters({ prompt: "select_account" });
 
 // -------------------------------------------------------------
-// Sign-in Handler
+// Google Sign-in (REDIRECT)
 // -------------------------------------------------------------
-googleBtn.onclick = async () => {
-  try {
-    const { auth } = getInitializedClients();
-
-    console.log("[AUTH] Opening Google Popup…");
-    await signInWithPopup(auth, provider);
-
-  } catch (err) {
-    console.error("[AUTH] Google Sign-in Failed:", err);
-    alert("Popup blocked — please allow popups for this site.");
-  }
+googleBtn.onclick = () => {
+  const { auth } = getInitializedClients();
+  console.log("[AUTH] Redirecting to Google Login…");
+  signInWithRedirect(auth, provider);
 };
+
+// -------------------------------------------------------------
+// Handle Redirect Result
+// -------------------------------------------------------------
+(async () => {
+  const { auth } = getInitializedClients();
+
+  try {
+    const result = await getRedirectResult(auth);
+    if (result?.user) {
+      console.log("[AUTH] Redirect Login Success:", result.user.email);
+    }
+  } catch (err) {
+    console.error("[AUTH] Redirect Error:", err);
+  }
+})();
 
 // -------------------------------------------------------------
 // Logout Handler
@@ -52,7 +70,7 @@ logoutBtn.onclick = async () => {
 export function initAuthListener() {
   const { auth } = getInitializedClients();
 
-  auth.onAuthStateChanged((user) => {
+  onAuthStateChanged(auth, (user) => {
     if (user) {
       console.log("[AUTH] Signed In:", user.email);
 
