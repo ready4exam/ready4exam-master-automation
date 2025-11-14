@@ -5,28 +5,27 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Select Book, Chapter & Difficulty</title>
   <script src="https://cdn.tailwindcss.com"></script>
+
   <script>
     tailwind.config = {
       theme: {
         extend: {
           fontFamily: {
             sans: ['Inter', 'sans-serif'],
-            serif: ['Merriweather', 'serif'],
           },
           colors: {
             'cbse-blue': '#1a3e6a',
             'cbse-light': '#f5f7fa',
             'accent-gold': '#ffb703',
-            'heading': '#0f172a',
           }
         }
       }
     }
   </script>
-  <script src="https://unpkg.com/lucide@latest"></script>
 
   <style>
     body { font-family: 'Inter', sans-serif; background-color: #f5f7fa; }
+
     .topic-btn {
       display: block;
       width: 100%;
@@ -45,6 +44,7 @@
       border-color: #1a3e6a;
       background: #eff6ff;
     }
+
     .difficulty-btn {
       padding: .6rem 1.25rem;
       border-radius: .75rem;
@@ -52,6 +52,7 @@
       cursor: pointer;
       transition: .2s;
     }
+
     .difficulty-btn.selected {
       box-shadow: 0 6px 18px rgba(26, 62, 106, .14);
     }
@@ -59,22 +60,27 @@
 </head>
 
 <body class="bg-cbse-light min-h-screen flex flex-col">
+
+  <!-- HEADER -->
   <header class="bg-cbse-blue shadow-lg">
-    <div class="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
+    <div class="max-w-6xl mx-auto px-6 py-4 flex justify-between items-center">
       <h1 class="text-2xl font-extrabold text-accent-gold tracking-wider">
         Ready4<span class="text-white">Exam</span>
       </h1>
-      <button onclick="window.location.href='index.html'" class="text-white text-sm underline">← Back</button>
+      <button onclick="window.location.href='index.html'" class="text-white underline">← Back</button>
     </div>
   </header>
 
-  <main class="flex-grow max-w-4xl mx-auto px-4 py-10">
-    <h2 id="page-title" class="text-3xl font-extrabold text-cbse-blue mb-8 text-center">Select Book / Chapter</h2>
+  <!-- MAIN -->
+  <main class="flex-grow max-w-3xl mx-auto px-4 py-8">
+
+    <h2 id="page-title" class="text-3xl font-extrabold text-cbse-blue mb-6 text-center">Select Book / Chapter</h2>
     <p id="subject-desc" class="text-center text-gray-600 mb-8"></p>
-    <div id="content-container" class="space-y-5 mb-10"></div>
+
+    <div id="content-container" class="space-y-4 mb-10"></div>
 
     <div id="difficulty-container" class="hidden mb-10 text-center">
-      <h3 class="text-2xl font-bold text-cbse-blue mb-4">Select Quiz Difficulty</h3>
+      <h3 class="text-2xl font-bold text-cbse-blue mb-4">Select Difficulty</h3>
       <div class="flex flex-wrap justify-center gap-4">
         <button data-diff="simple" class="difficulty-btn bg-green-600 text-white">Simple</button>
         <button data-diff="medium" class="difficulty-btn bg-yellow-500 text-white">Medium</button>
@@ -82,56 +88,68 @@
       </div>
     </div>
 
-    <p id="error-msg" class="hidden text-center text-red-500 mb-4 font-semibold">Please select both a chapter and difficulty.</p>
+    <p id="error-msg" class="hidden text-center text-red-500 mb-4 font-semibold"></p>
 
     <div class="text-center">
-      <button id="start-quiz" disabled class="px-8 py-3 bg-cbse-blue text-white rounded-lg font-bold hover:bg-blue-700 transition disabled:opacity-50">
+      <button id="start-quiz"
+        disabled
+        class="px-8 py-3 bg-cbse-blue text-white rounded-lg font-bold hover:bg-blue-700 transition disabled:opacity-50">
         Start Quiz
       </button>
     </div>
+
   </main>
 
   <footer class="bg-cbse-blue py-6 text-center text-white">
     <small>© 2025 Ready4Exam Academic Portal</small>
   </footer>
 
+  <!-- SCRIPT -->
   <script type="module">
     import { curriculum } from "./js/curriculum.js";
 
-    const urlParams = new URLSearchParams(window.location.search);
-    const subject = decodeURIComponent(urlParams.get("subject") || "");
+    const params = new URLSearchParams(window.location.search);
+    const subject = decodeURIComponent(params.get("subject") || "");
+
     const content = document.getElementById("content-container");
     const diffContainer = document.getElementById("difficulty-container");
     const startBtn = document.getElementById("start-quiz");
     const errorMsg = document.getElementById("error-msg");
     const subjectDesc = document.getElementById("subject-desc");
 
-    let selectedBook = null, selectedChapter = null, selectedDifficulty = null;
+    let selectedBook = null;
+    let selectedChapter = null;
+    let selectedDifficulty = null;
 
     const subjectDescriptions = {
-      Physics: "Explore mechanics, thermodynamics, waves, and more — conceptual and problem-solving excellence for Class 11.",
-      Chemistry: "Dive into the atomic structure, chemical bonding, and periodic properties of matter — conceptual clarity assured.",
-      Biology: "Study the living world, plant and animal anatomy, and physiological systems — essential for NEET and school exams.",
-      Mathematics: "Understand functions, trigonometry, calculus, and algebraic reasoning — essential for both Science and Commerce.",
-      Accountancy: "Learn principles of accounting, ledger maintenance, and financial reporting — key for Commerce students.",
-      "Business Studies": "Understand business operations, ethics, and decision-making processes for future entrepreneurs.",
-      Economics: "Analyze market behavior, national income, and statistical tools — relevant for both Commerce and Humanities.",
-      History: "Explore ancient civilizations, revolutions, and world transitions shaping modern societies.",
-      "Political Science": "Understand the constitution, rights, federalism, and global political thought.",
-      Geography: "Study the earth’s physical features, weather, and human-environment interaction."
+      Physics: "Explore mechanics, thermodynamics, waves, and more.",
+      Chemistry: "Study atoms, bonding, and chemical reactions.",
+      Biology: "Learn about cells, plants, animals, and human physiology.",
+      Mathematics: "Functions, trigonometry, algebra, geometry for Class 11.",
+      Accountancy: "Journals, ledgers, reconciliation, depreciation & more.",
+      "Business Studies": "Business concepts and organizational fundamentals.",
+      Economics: "Statistics, Indian economic development & market concepts.",
+      History: "Global events shaping civilization.",
+      "Political Science": "Government, democracy, constitution & rights.",
+      Geography: "Earth systems, climate, landforms and human geography."
     };
 
+    // ---------------------------------------------------------------------
+    // STEP 1: Render Books
+    // ---------------------------------------------------------------------
     function renderBooks() {
-      const subjectData = curriculum[subject];
-      if (!subjectData) {
-        content.innerHTML = `<p class='text-gray-600 text-center'>No books found for ${subject}.</p>`;
-        return;
-      }
+      const data = curriculum[subject];
       document.getElementById("page-title").textContent = `Select Book for ${subject}`;
       subjectDesc.textContent = subjectDescriptions[subject] || "";
 
       content.innerHTML = "";
-      Object.keys(subjectData).forEach(book => {
+
+      if (!data) {
+        content.innerHTML = `<p class='text-center text-gray-600'>No books found.</p>`;
+        return;
+      }
+
+      Object.keys(data).forEach(book => {
         const btn = document.createElement("button");
         btn.className = "topic-btn";
         btn.textContent = book;
@@ -140,63 +158,92 @@
       });
     }
 
+    // ---------------------------------------------------------------------
+    // STEP 2: Render Chapters
+    // ---------------------------------------------------------------------
     function renderChapters(book) {
       selectedBook = book;
       content.innerHTML = "";
-      const chapters = curriculum[subject][book];
-      if (!chapters?.length) {
-        content.innerHTML = `<p class='text-gray-600 text-center'>No chapters found for ${book}.</p>`;
-        return;
-      }
 
+      const chapters = curriculum[subject][book];
       document.getElementById("page-title").textContent = `${book} — Chapters`;
+
       chapters.forEach(ch => {
-        const name = ch.chapter_title || ch.title || ch;
+        const title = ch.chapter_title || ch.title || ch;
         const btn = document.createElement("button");
         btn.className = "topic-btn";
-        btn.textContent = name;
-        btn.onclick = e => selectChapter(name, e.currentTarget);
+        btn.textContent = title;
+        btn.onclick = e => selectChapter(title, e.currentTarget);
         content.appendChild(btn);
       });
 
-      const backBtn = document.createElement("button");
-      backBtn.className = "text-cbse-blue underline font-semibold mt-4";
-      backBtn.textContent = "← Back to Books";
-      backBtn.onclick = renderBooks;
-      content.appendChild(backBtn);
+      // Back button
+      const back = document.createElement("button");
+      back.className = "text-cbse-blue underline font-semibold mt-4";
+      back.textContent = "← Back to Books";
+      back.onclick = renderBooks;
+      content.appendChild(back);
     }
 
-    function selectChapter(chapter, el) {
+    // ---------------------------------------------------------------------
+    // STEP 3: Select Chapter
+    // ---------------------------------------------------------------------
+    function selectChapter(title, el) {
       document.querySelectorAll(".topic-btn").forEach(b => b.classList.remove("selected"));
       el.classList.add("selected");
-      selectedChapter = chapter;
+
+      selectedChapter = title;
+      errorMsg.classList.add("hidden");
       diffContainer.classList.remove("hidden");
       startBtn.disabled = true;
-      errorMsg.classList.add("hidden");
     }
 
+    // ---------------------------------------------------------------------
+    // STEP 4: Difficulty Selection
+    // ---------------------------------------------------------------------
     document.querySelectorAll(".difficulty-btn").forEach(btn => {
-      btn.addEventListener("click", e => {
+      btn.onclick = e => {
         document.querySelectorAll(".difficulty-btn").forEach(b => b.classList.remove("selected"));
         e.target.classList.add("selected");
+
         selectedDifficulty = e.target.dataset.diff;
         startBtn.disabled = !selectedChapter;
-      });
+      };
     });
 
-    // ✅ Fixed Start Quiz button — points directly to Supabase table
+    // ---------------------------------------------------------------------
+    // TABLE NAME BUILDER (Final)
+    // ---------------------------------------------------------------------
+    function buildTableName(chapterTitle) {
+      const parts = chapterTitle
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, "")
+        .trim()
+        .split(/\s+/);
+
+      if (parts.length === 1) return `${parts[0]}_quiz`;
+      return `${parts[0]}_${parts[parts.length - 1]}_quiz`;
+    }
+
+    // ---------------------------------------------------------------------
+    // STEP 5: Start Quiz
+    // ---------------------------------------------------------------------
     startBtn.onclick = () => {
       if (!selectedChapter || !selectedDifficulty) {
+        errorMsg.textContent = "Please select both a chapter and a difficulty.";
         errorMsg.classList.remove("hidden");
         return;
       }
 
-      const forcedTable = "thermodynamics_quiz"; // ✅ force correct table
-      const url = `quiz-engine.html?table=${forcedTable}&difficulty=${encodeURIComponent(selectedDifficulty)}`;
+      const table = buildTableName(selectedChapter);
+
+      const url = `quiz-engine.html?table=${table}&difficulty=${selectedDifficulty}`;
       window.location.href = url;
     };
 
+    // INIT
     renderBooks();
   </script>
+
 </body>
 </html>
