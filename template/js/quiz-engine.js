@@ -1,13 +1,9 @@
 // js/quiz-engine.js
 // ------------------------------------------------------------
-// Phase-3 Clean Quiz Engine
-// • Wait for Firebase Auth
-// • Load Supabase questions
-// • Render quiz
-// • Submit → Score → Review
+// Phase-3 Clean Quiz Engine (Fixed for eager config.js)
 // ------------------------------------------------------------
 
-import { initializeAll, getInitializedClients } from "./config.js";
+import { getInitializedClients } from "./config.js";
 import { fetchQuestions, saveResult } from "./api.js";
 import * as UI from "./ui-renderer.js";
 
@@ -118,7 +114,6 @@ async function submitQuiz() {
 
   UI.showResults(score, total, quizState);
 
-  // Save to Firestore
   await saveResult({
     topic: quizState.topicSlug,
     difficulty: quizState.difficulty,
@@ -135,7 +130,6 @@ function registerEvents() {
   document.getElementById("prev-btn").onclick = prev;
   document.getElementById("submit-btn").onclick = submitQuiz;
 
-  // Capture answer selections
   document.body.addEventListener("click", (e) => {
     if (e.target.dataset && e.target.dataset.option) {
       const option = e.target.dataset.option;
@@ -153,7 +147,6 @@ async function initQuizEngine() {
 
   readParams();
   registerEvents();
-  initializeAll();
 
   await waitForAuth();
   await loadQuiz();
