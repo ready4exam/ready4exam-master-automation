@@ -1,12 +1,13 @@
-// ✅ Universal CORS Handler for Ready4Exam Automation (Node + Edge Compatible)
-// Works for all backend routes like /api/manageSupabase, /api/gemini, etc.
+// /api/corsHandler.js
+// ✅ Universal CORS handler (Node + Edge compatible)
+// Works for all backend routes in Ready4Exam Automation
 
 export function getCorsHeaders(origin = "") {
   const allowedOrigins = [
-    "https://tableautomation-5iuc.vercel.app",  // frontend developer tool
-    "https://ready4exam.github.io",             // public GitHub frontend (if used)
-    "http://localhost:3000",                    // local dev (Vercel preview)
-    "http://127.0.0.1:5500"                     // local file testing
+    "https://tableautomation-5iuc.vercel.app",
+    "https://ready4exam.github.io",
+    "http://localhost:3000",
+    "http://127.0.0.1:5500"
   ];
 
   const allowOrigin = allowedOrigins.includes(origin) ? origin : "*";
@@ -14,11 +15,11 @@ export function getCorsHeaders(origin = "") {
   return {
     "Access-Control-Allow-Origin": allowOrigin,
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization"
   };
 }
 
-// ✅ Direct access (for testing CORS route manually)
+// ✅ Optional direct access (for testing route manually)
 export default async function handler(req, res) {
   const origin = req.headers.origin || "*";
   const headers = getCorsHeaders(origin);
@@ -34,6 +35,6 @@ export default async function handler(req, res) {
   res.status(200).json({
     ok: true,
     message: "CORS preflight handled successfully.",
-    origin,
+    origin
   });
 }
