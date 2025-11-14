@@ -1,100 +1,117 @@
 // js/auth-paywall.js
-// -------------------------------------------------------------
-// Phase-3 Google Auth (Modular Firebase v11) — REDIRECT VERSION
-// 100% working on GitHub Pages + Vercel
-// -------------------------------------------------------------
+// ------------------------------------------------------------
+// Phase-3 Auth + Paywall Handler (Compatible with quiz-engine.html)
+// ------------------------------------------------------------
 
 import {
-  getAuth,
-  GoogleAuthProvider,
-  signInWithRedirect,
-  getRedirectResult,
-  onAuthStateChanged,
-  signOut
-} from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+  getInitializedClients,
+  getAuthUser,
+  setAuthUser,
+  logAnalyticsEvent
+} from "./config.js";
 
-import { getInitializedClients } from "./config.js";
-
-// -------------------------------------------------------------
-// Elements
-// -------------------------------------------------------------
+// DOM ELEMENTS (match EXACT IDs in quiz-engine.html)
+const paywallScreen = document.getElementById("paywall-screen");
+const quizContent = document.getElementById("quiz-content");
 const googleBtn = document.getElementById("google-signin-btn");
 const logoutBtn = document.getElementById("logout-nav-btn");
-const paywall = document.getElementById("paywall-screen");
-const quizContent = document.getElementById("quiz-content");
 const welcomeUser = document.getElementById("welcome-user");
 
-// -------------------------------------------------------------
-// Initialize Provider
-// -------------------------------------------------------------
-const provider = new GoogleAuthProvider();
-provider.setCustomParameters({ prompt: "select_account" });
+// ------------------------------------------------------------
+// UPDATE UI BASED ON AUTH STATE
+// ------------------------------------------------------------
+function updateUI(user) {
+  if (!user) {
+    // NOT SIGNED IN → Show Paywall
+    paywallScreen.classList.remove("hidden");
+    quizContent.classList.add("hidden");
 
-// -------------------------------------------------------------
-// Google Sign-in (REDIRECT)
-// -------------------------------------------------------------
-googleBtn.onclick = () => {
-  const { auth } = getInitializedClients();
-  console.log("[AUTH] Redirecting to Google Login…");
-  signInWithRedirect(auth, provider);
-};
-
-// -------------------------------------------------------------
-// Handle Redirect Result
-// -------------------------------------------------------------
-(async () => {
-  const { auth } = getInitializedClients();
-
-  try {
-    const result = await getRedirectResult(auth);
-    if (result?.user) {
-      console.log("[AUTH] Redirect Login Success:", result.user.email);
-    }
-  } catch (err) {
-    console.error("[AUTH] Redirect Error:", err);
+    if (welcomeUser) welcomeUser.classList.add("hidden");
+    if (logoutBtn) logoutBtn.classList.add("hidden");
+    return;
   }
-})();
 
-// -------------------------------------------------------------
-// Logout Handler
-// -------------------------------------------------------------
-logoutBtn.onclick = async () => {
+  // SIGNED IN → Hide Paywall, Show Quiz
+  paywallScreen.classList.add("hidden");
+  quizContent.classList.remove("hidden");
+
+  if (welcomeUser) {
+    welcomeUser.textContent = `Welcome, ${user.email}`;
+    welcomeUser.classList.remove("hidden");
+  }
+
+  if (logoutBtn) logoutBtn.classList.remove("hidden");
+}
+
+// ------------------------------------------------------------
+// SIGN-IN WITH GOOGLE
+// ------------------------------------------------------------
+async function doGoogleLogin() {
+  try {
+    const { auth, provider } = getInitializedClients();
+    const res = await auth.signInWithPopup(provider);
+
+    const user = res.user;
+    setAuthUser(user);
+    logAnalyticsEvent("login_success", { email: user.email });
+
+    console.log("[AUTH] Signed In:", user.email);
+
+    updateUI(user);
+  } catch (err) {
+    console.error("Google login failed:", err);
+    alert("Login failed. Please try again.");
+  }
+}
+
+// ------------------------------------------------------------
+// LOG OUT
+// ------------------------------------------------------------
+async function doLogout() {
+  try {
+    const { auth } = getInitializedClients();
+    await auth.signOut();
+
+    console.log("[AUTH] User signed out.");
+
+    updateUI(null);
+  } catch (err) {
+    console.error("Logout failed:", err);
+  }
+}
+
+// ------------------------------------------------------------
+// AUTH STATE LISTENER
+// ------------------------------------------------------------
+function attachAuthListener() {
   const { auth } = getInitializedClients();
-  await signOut(auth);
-  location.reload();
-};
 
-// -------------------------------------------------------------
-// Auth State Listener
-// -------------------------------------------------------------
-export function initAuthListener() {
-  const { auth } = getInitializedClients();
-
-  onAuthStateChanged(auth, (user) => {
+  auth.onAuthStateChanged((user) => {
     if (user) {
-      console.log("[AUTH] Signed In:", user.email);
-
-      welcomeUser.innerText = "Hi, " + (user.displayName || "Student");
-      welcomeUser.classList.remove("hidden");
-
-      logoutBtn.classList.remove("hidden");
-      paywall.style.display = "none";
-      quizContent.style.display = "flex";
-
-      // Notify quiz-engine.js
-      document.dispatchEvent(new CustomEvent("r4e-auth-ready"));
-
+      setAuthUser(user);
+      console.log("[AUTH] Logged in →", user.email);
+      updateUI(user);
     } else {
-      console.log("[AUTH] Signed Out");
-
-      welcomeUser.classList.add("hidden");
-      logoutBtn.classList.add("hidden");
-
-      paywall.style.display = "flex";
-      quizContent.style.display = "none";
+      console.log("[AUTH] Logged out");
+      updateUI(null);
     }
   });
 }
 
-// Auto-start listener
-initAuthListener();
+// ------------------------------------------------------------
+// SAFE EVENT BINDING (Avoid null errors)
+// ------------------------------------------------------------
+if (googleBtn) {
+  googleBtn.onclick = doGoogleLogin;
+}
+
+if (logoutBtn) {
+  logoutBtn.onclick = doLogout;
+}
+
+// ------------------------------------------------------------
+// INIT
+// ------------------------------------------------------------
+attachAuthListener();
+
+console.log("[AUTH] Paywall system initialized.");
