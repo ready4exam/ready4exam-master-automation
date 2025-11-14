@@ -1,13 +1,13 @@
 // api/fetchQuiz.js
 // -------------------------------------------------------------
-// Phase-3 Final Version — Fetch quiz rows for Quiz Engine
+// Phase-3 Final Version — Fetch quiz rows for Quiz Engine (updated)
+// • Uses corsHandler.js
 // • Case-insensitive difficulty filtering (ilike)
-// • Safe CORS
 // • Stable with Supabase_11 (service key)
 // -------------------------------------------------------------
 
 import { createClient } from "@supabase/supabase-js";
-import { getCorsHeaders } from "./cors.js";
+import { getCorsHeaders } from "./corsHandler.js";
 
 export const config = { runtime: "nodejs" };
 
@@ -19,6 +19,7 @@ export default async function handler(req, res) {
     "Content-Type": "application/json",
   };
 
+  // Always set CORS headers first
   for (const [k, v] of Object.entries(headers)) {
     res.setHeader(k, v);
   }
@@ -28,15 +29,16 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Only GET allowed" });
 
   try {
-    const { table, difficulty = "" } = req.query;
+    let { table, difficulty = "" } = req.query;
 
     if (!table) {
       return res.status(400).json({ error: "Missing table parameter" });
     }
 
-    // -------------------------------------------------------------
-    // Supabase Init (server-side, safe with service key)
-    // -------------------------------------------------------------
+    // normalize difficulty to safe lower-case token used by frontend
+    difficulty = (difficulty || "").toString().toLowerCase().trim();
+
+    // Server-side supabase init (service role key)
     const supabaseUrl = process.env.SUPABASE_URL_11;
     const supabaseKey = process.env.SUPABASE_SERVICE_KEY_11;
 
@@ -46,16 +48,24 @@ export default async function handler(req, res) {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // -------------------------------------------------------------
-    // Fetch rows (difficulty = ilike ensures case-insensitive match)
-    // -------------------------------------------------------------
-    const { data, error } = await supabase
+    // Use ilike with wildcard so matching is case-insensitive
+    // If difficulty is empty string, match all rows
+    const query = supabase
       .from(table)
       .select("*")
-      .ilike("difficulty", `%${difficulty}%`) // <-- CRITICAL FIX
       .order("id", { ascending: true })
       .limit(500);
 
+    if (difficulty) {
+      // match 'simple' | 'medium' | 'advanced' regardless of case or minor variations
+      await (async () => {
+        // Use ilike pattern
+        const pattern = `%${difficulty}%`;
+        query.ilike("difficulty", pattern);
+      })();
+    }
+
+    const { data, error } = await query;
     if (error) throw error;
 
     if (!data || data.length === 0) {
