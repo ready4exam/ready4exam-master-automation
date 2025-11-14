@@ -1,10 +1,9 @@
 // js/quiz-engine.js
 // ------------------------------------------------------------
-// Phase-3 Clean Quiz Engine (Fixed for eager config.js)
+// Phase-3 Clean Quiz Engine (Final Stable Version)
 // ------------------------------------------------------------
 
 import { getInitializedClients } from "./config.js";
-import { fetchQuestions, saveResult } from "./api.js";
 import * as UI from "./ui-renderer.js";
 
 // ------------------------------------------------------------
@@ -15,24 +14,19 @@ const quizState = {
   index: 0,
   answers: {},
   difficulty: "",
-  topicSlug: "",
-  table: ""
+  table: "",
+  chapter: "",
 };
 
 // ------------------------------------------------------------
-// INIT — READ URL PARAMS
+// READ PARAMS
 // ------------------------------------------------------------
 function readParams() {
   const params = new URLSearchParams(location.search);
 
-  quizState.table =
-    params.get("table") ||
-    (window.__quiz_table || "").toLowerCase();
-
-  quizState.difficulty = params.get("difficulty") || "simple";
-
-  const topic = params.get("topic") || "";
-  quizState.topicSlug = topic.replace(/_/g, " ");
+  quizState.table = params.get("table") || "";
+  quizState.difficulty = params.get("difficulty") || "Simple";
+  quizState.chapter = params.get("chapter") || "";
 
   console.log("[ENGINE] Params loaded:", quizState);
 }
@@ -55,18 +49,24 @@ function waitForAuth() {
 }
 
 // ------------------------------------------------------------
-// LOAD QUIZ FROM SUPABASE
+// FETCH QUESTIONS FROM BACKEND
 // ------------------------------------------------------------
 async function loadQuiz() {
   UI.showStatus("Loading your quiz…", "text-blue-600");
 
   try {
-    quizState.questions = await fetchQuestions({
-      table: quizState.table,
-      difficulty: quizState.difficulty,
-    });
+    const url = `https://ready4exam-master-automation.vercel.app/api/fetchQuiz?table=${quizState.table}&difficulty=${quizState.difficulty}`;
+    const res = await fetch(url);
+    const json = await res.json();
+
+    if (!json.ok) throw new Error(json.error);
+
+    quizState.questions = json.rows;
 
     console.log("[ENGINE] Loaded questions:", quizState.questions.length);
+
+    if (!quizState.questions.length)
+      throw new Error("No questions found.");
 
     UI.hideStatus();
     UI.showQuiz();
@@ -74,15 +74,12 @@ async function loadQuiz() {
 
   } catch (err) {
     console.error("[ENGINE] loadQuiz failed:", err);
-    UI.showStatus(
-      `<span class='text-red-600'>${err.message}</span>`,
-      "text-red-600"
-    );
+    UI.showStatus(`<span class='text-red-600'>${err.message}</span>`);
   }
 }
 
 // ------------------------------------------------------------
-// NAVIGATION
+// NAVIGATION CONTROLS
 // ------------------------------------------------------------
 function next() {
   if (quizState.index < quizState.questions.length - 1) {
@@ -101,55 +98,75 @@ function prev() {
 }
 
 // ------------------------------------------------------------
-// SUBMIT QUIZ
+// QUIZ SUBMIT
 // ------------------------------------------------------------
-async function submitQuiz() {
+function submitQuiz() {
   const total = quizState.questions.length;
   let score = 0;
 
   for (const q of quizState.questions) {
-    const userAns = quizState.answers[q.id];
-    if (userAns && userAns === q.correct_answer) score++;
+    const ans = quizState.answers[q.id];
+    if (ans && ans === q.correct_answer_key) score++;
   }
 
   UI.showResults(score, total, quizState);
-
-  await saveResult({
-    topic: quizState.topicSlug,
-    difficulty: quizState.difficulty,
-    score,
-    total,
-  });
 }
 
 // ------------------------------------------------------------
-// EVENT LISTENERS
+// OPTION SELECTION HANDLER
 // ------------------------------------------------------------
-function registerEvents() {
-  document.getElementById("next-btn").onclick = next;
-  document.getElementById("prev-btn").onclick = prev;
-  document.getElementById("submit-btn").onclick = submitQuiz;
-
+function registerOptionSelection() {
   document.body.addEventListener("click", (e) => {
     if (e.target.dataset && e.target.dataset.option) {
       const option = e.target.dataset.option;
       const qid = quizState.questions[quizState.index].id;
+
       quizState.answers[qid] = option;
+
+      // highlight selected
+      document
+        .querySelectorAll(".option-label")
+        .forEach((el) => el.classList.remove("selected-option"));
+
+      e.target.classList.add("selected-option");
     }
   });
 }
 
 // ------------------------------------------------------------
-// MAIN BOOT LOGIC
+// EXTRA NAVIGATION BUTTONS
+// ------------------------------------------------------------
+function registerPostQuizButtons() {
+  document.getElementById("retry-level").onclick = () => {
+    location.href = `quiz-engine.html?table=${quizState.table}&difficulty=${quizState.difficulty}&chapter=${quizState.chapter}`;
+  };
+
+  document.getElementById("retry-other").onclick = () => {
+    location.href = `chapter-selection.html?subject=${quizState.subject}`;
+  };
+
+  document.getElementById("retry-chapter").onclick = () => {
+    location.href = "chapter-selection.html";
+  };
+}
+
+// ------------------------------------------------------------
+// MAIN INIT
 // ------------------------------------------------------------
 async function initQuizEngine() {
   console.log("[ENGINE] Booting Quiz Engine…");
 
   readParams();
-  registerEvents();
+  registerOptionSelection();
+
+  document.getElementById("next-btn").onclick = next;
+  document.getElementById("prev-btn").onclick = prev;
+  document.getElementById("submit-btn").onclick = submitQuiz;
 
   await waitForAuth();
   await loadQuiz();
+
+  registerPostQuizButtons();
 
   console.log("[ENGINE] Quiz Ready.");
 }
