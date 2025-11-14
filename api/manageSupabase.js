@@ -1,114 +1,59 @@
-// api/manageSupabase.js
+// /api/manageSupabase.js
 // -------------------------------------------------------------
-// Phase-3 Stable Version
-// • Strict difficulty normalization
-// • Strict question_type normalization
-// • AR + Case-Based auto-correction
-// • Full table replace (delete → insert)
-// • Zero side-effects to existing flows
+// Phase-3 Final Version
+// • Normalize difficulty & question_type
+// • Normalize table name (first + last + "_quiz")
+// • Truncate old rows → insert new rows
+// • Uses Supabase_11 service key
+// • Full CORS
 // -------------------------------------------------------------
 
 import { createClient } from "@supabase/supabase-js";
-import { getCorsHeaders } from "./cors.js";
+import { getCorsHeaders } from "./corsHandler.js";
 
 export const config = { runtime: "nodejs" };
 
 // -------------------------------------------------------------
-// NORMALIZATION HELPERS
+// HELPERS
 // -------------------------------------------------------------
+
+// Normalize difficulty → TitleCase
 function normalizeDifficulty(d) {
   if (!d) return "Simple";
-
   d = d.toLowerCase().trim();
-
-  if (["simple", "easy", "basic"].includes(d)) return "Simple";
-  if (["medium", "med", "moderate"].includes(d)) return "Medium";
-  if (["hard", "advanced", "adv"].includes(d)) return "Advanced";
-
-  return "Simple"; // fallback
+  if (["simple", "easy"].includes(d)) return "Simple";
+  if (["medium", "moderate"].includes(d)) return "Medium";
+  if (["advanced", "hard"].includes(d)) return "Advanced";
+  return "Simple";
 }
 
-function normalizeType(t) {
+// Normalize question types
+function normalizeQType(t) {
   if (!t) return "MCQ";
-
   t = t.toLowerCase().trim();
 
-  if (["mcq", "multiple", "objective"].includes(t)) return "MCQ";
-  if (["ar", "assertionreason", "assertion-reason", "assertion_reason"].includes(t))
-    return "AR";
-  if (
-    ["case", "case-based", "casebased", "case study", "casestudy"].includes(t)
-  )
-    return "Case-Based";
+  if (["mcq", "objective", "multiple choice"].includes(t)) return "MCQ";
+  if (["ar", "assertion-reason", "assertion"].includes(t)) return "AR";
+  if (["case", "case-based", "case study"].includes(t)) return "Case-Based";
 
   return "MCQ";
 }
 
-// -------------------------------------------------------------
-// AR Auto-correct (Assertion / Reason detection)
-// -------------------------------------------------------------
-function fixAR(question) {
-  // If AR but Reason missing → extract from question_text
-  if (question.question_type !== "AR") return question;
+// Convert "Sets" → "sets_quiz"
+// Convert "Complex Numbers and Quadratic Equations" → "complex_equations_quiz"
+function buildTableName(chapter) {
+  const slug = chapter
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, "")
+    .trim()
+    .split(/\s+/);
 
-  let A = question.question_text || "";
-  let R = question.scenario_reason_text || "";
+  if (slug.length === 1) return `${slug[0]}_quiz`;
 
-  // Auto-extract if Gemini merged A & R
-  if (!R && A.includes("Reason")) {
-    const parts = A.split(/Reason[:\-]/i);
-    A = parts[0].replace(/Assertion[:\-]/i, "").trim();
-    R = parts[1]?.trim() || "";
-  }
+  const first = slug[0];
+  const last = slug[slug.length - 1];
 
-  // Standard AR options
-  return {
-    ...question,
-    question_text: A,
-    scenario_reason_text: R,
-    option_a: "Both A and R are true, and R is the correct explanation of A.",
-    option_b: "Both A and R are true, but R is not the correct explanation of A.",
-    option_c: "A is true, but R is false.",
-    option_d: "A is false, but R is true."
-  };
-}
-
-// -------------------------------------------------------------
-// Case-Based Auto-correct
-// -------------------------------------------------------------
-function fixCaseBased(question) {
-  if (question.question_type !== "Case-Based") return question;
-
-  // Ensure scenario present
-  if (!question.scenario_reason_text) {
-    question.scenario_reason_text =
-      "Read the following case carefully and answer the question.";
-  }
-
-  return question;
-}
-
-// -------------------------------------------------------------
-// MCQ Auto-correct
-// -------------------------------------------------------------
-function fixMCQ(question) {
-  if (question.question_type !== "MCQ") return question;
-  question.scenario_reason_text = "";
-  return question;
-}
-
-// -------------------------------------------------------------
-// APPLY NORMALIZATION PIPELINE
-// -------------------------------------------------------------
-function normalizeRow(row) {
-  const q = { ...row };
-
-  q.difficulty = normalizeDifficulty(q.difficulty);
-  q.question_type = normalizeType(q.question_type);
-
-  if (q.question_type === "AR") return fixAR(q);
-  if (q.question_type === "Case-Based") return fixCaseBased(q);
-  return fixMCQ(q);
+  return `${first}_${last}_quiz`;
 }
 
 // -------------------------------------------------------------
@@ -118,65 +63,76 @@ export default async function handler(req, res) {
   const origin = req.headers.origin || "*";
   const headers = {
     ...getCorsHeaders(origin),
-    "Content-Type": "application/json",
+    "Content-Type": "application/json"
   };
-  Object.entries(headers).forEach(([k, v]) => res.setHeader(k, v));
+
+  for (const [k, v] of Object.entries(headers)) {
+    res.setHeader(k, v);
+  }
 
   if (req.method === "OPTIONS") return res.status(200).end();
   if (req.method !== "POST")
-    return res.status(405).json({ error: "Only POST allowed" });
+    return res.status(405).json({ ok: false, error: "Only POST allowed" });
 
   try {
     const { meta, csv } = req.body;
-
     if (!meta || !csv)
-      return res.status(400).json({
-        ok: false,
-        error: "Missing meta or csv in request body",
-      });
+      return res.status(400).json({ ok: false, error: "Missing meta or csv data" });
 
+    const chapter = meta.chapter;
+    const table = buildTableName(chapter);
+
+    // -------------------------------------------------------------
+    // Supabase Connection (Class 11 unified DB)
+    // -------------------------------------------------------------
     const supabase = createClient(
       process.env.SUPABASE_URL_11,
       process.env.SUPABASE_SERVICE_KEY_11
     );
 
-    // -------------------------------------------------------------
-    // Build table name (first + last word style)
-    // -------------------------------------------------------------
-    const slug = meta.chapter
-      .toLowerCase()
-      .replace(/[^a-z0-9\s]/g, "")
-      .trim()
-      .split(/\s+/);
-
-    const table =
-      slug.length === 1
-        ? `${slug[0]}_quiz`
-        : `${slug[0]}_${slug[slug.length - 1]}_quiz`;
+    if (!supabase) throw new Error("Supabase init failed.");
 
     // -------------------------------------------------------------
-    // Normalize rows
+    // Ensure table exists (id = PK, auto-increment)
     // -------------------------------------------------------------
-    const cleanRows = csv.map((row) => normalizeRow(row));
+    await supabase.rpc("ensure_table_exists", { table_name: table });
 
     // -------------------------------------------------------------
-    // Replace-mode upload
+    // DELETE EXISTING ROWS
     // -------------------------------------------------------------
     await supabase.from(table).delete().neq("id", 0);
 
-    const { error: insertErr } = await supabase.from(table).insert(cleanRows);
+    // -------------------------------------------------------------
+    // INSERT NEW ROWS
+    // -------------------------------------------------------------
+    const rows = csv.map((row) => ({
+      difficulty: normalizeDifficulty(row.difficulty),
+      question_type: normalizeQType(row.question_type),
+      question_text: row.question_text?.trim() || "",
+      scenario_reason_text: row.scenario_reason_text?.trim() || "",
+      option_a: row.option_a || "",
+      option_b: row.option_b || "",
+      option_c: row.option_c || "",
+      option_d: row.option_d || "",
+      correct_answer_key: (row.correct_answer_key || "").trim().toUpperCase(),
+    }));
 
-    if (insertErr) throw insertErr;
+    const { error } = await supabase.from(table).insert(rows);
+
+    if (error) throw error;
 
     return res.status(200).json({
       ok: true,
+      message: "Table updated successfully.",
       table,
-      inserted: cleanRows.length,
+      inserted: rows.length
     });
+
   } catch (err) {
-    console.error("❌ manageSupabase.js error:", err);
-    return res
-      .status(500)
-      .json({ ok: false, error: err.message || "Internal server error" });
+    console.error("❌ manageSupabase error:", err);
+    return res.status(500).json({
+      ok: false,
+      error: err.message || "Internal error"
+    });
   }
 }
