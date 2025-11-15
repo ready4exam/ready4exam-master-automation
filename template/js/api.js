@@ -21,7 +21,7 @@ function normalizeDifficulty(d) {
 }
 
 // ------------------------------------------------------------
-// FETCH QUESTIONS (client-side)
+// FETCH QUESTIONS (client-side main function)
 // ------------------------------------------------------------
 export async function fetchQuestions({ table, difficulty }) {
   const { supabase } = getInitializedClients();
@@ -77,3 +77,10 @@ export async function saveResult({ topic, difficulty, score, total }) {
 
   logAnalyticsEvent("quiz_completed", { topic, difficulty, score, total });
 }
+
+// ------------------------------------------------------------
+// BACKWARD COMPATIBILITY: Phase-1/Phase-2/Phase-3
+// ------------------------------------------------------------
+// quiz-engine.js imports `fetchQuiz`, so we export it safely.
+// This adds NO breaking changes, NO cascading impact.
+export const fetchQuiz = fetchQuestions;
