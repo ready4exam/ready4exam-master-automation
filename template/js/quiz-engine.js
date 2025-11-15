@@ -29,9 +29,12 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // AUTH CHECK
   const ok = await checkAccess();
-  if (!ok) return;
+  if (!ok) {
+    console.log("[ENGINE] Waiting for login…");
+    return;
+  }
 
-  console.log("[ENGINE] Auth OK");
+  console.log("[ENGINE] Auth OK, loading quiz…");
 
   // FETCH QUIZ
   const { questions } = await fetchQuiz(state.table, state.difficulty);
@@ -47,19 +50,25 @@ document.addEventListener("DOMContentLoaded", async () => {
 // RENDER CURRENT QUESTION
 // -----------------------------------------------------------
 function renderCurrentQuestion() {
+  const q = state.questions[state.index];
+
   UI.renderQuestion(state);
 
+  // handle option selection
   const labels = document.querySelectorAll(".option-label");
   labels.forEach((lb) => {
     lb.onclick = () => {
       const selected = lb.getAttribute("data-option");
-      const qid = state.questions[state.index].id;
+      state.answers[q.id] = selected;
 
-      state.answers[qid] = selected;
-
-      UI.highlightSelectedOption(qid, selected);
+      UI.highlightSelectedOption(q.id, selected);
     };
   });
+
+  // show submit button when on last question
+  if (state.index === state.questions.length - 1) {
+    UI.showSubmit();
+  }
 }
 
 // -----------------------------------------------------------
