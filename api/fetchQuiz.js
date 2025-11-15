@@ -1,13 +1,6 @@
 // api/fetchQuiz.js
-// -------------------------------------------------------------
-// Phase-3 Final Version — Fetch quiz rows for Quiz Engine (updated)
-// • Uses corsHandler.js
-// • Case-insensitive difficulty filtering (ilike)
-// • Stable with Supabase_11 (service key)
-// -------------------------------------------------------------
-
 import { createClient } from "@supabase/supabase-js";
-import { getCorsHeaders } from "./corsHandler.js";
+import { getCorsHeaders } from "./cors.js";
 
 export const config = { runtime: "nodejs" };
 
@@ -19,7 +12,6 @@ export default async function handler(req, res) {
     "Content-Type": "application/json",
   };
 
-  // Always set CORS headers first
   for (const [k, v] of Object.entries(headers)) {
     res.setHeader(k, v);
   }
@@ -35,12 +27,10 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Missing table parameter" });
     }
 
-    // normalize difficulty to safe lower-case token used by frontend
     difficulty = (difficulty || "").toString().toLowerCase().trim();
 
-    // Server-side supabase init (service role key)
-    const supabaseUrl = process.env.SUPABASE_URL_11;
-    const supabaseKey = process.env.SUPABASE_SERVICE_KEY_11;
+    const supabaseUrl = process.env.SUPABASE_URL_11 || process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_KEY_11 || process.env.SUPABASE_SERVICE_KEY;
 
     if (!supabaseUrl || !supabaseKey) {
       throw new Error("Supabase credentials missing.");
@@ -48,8 +38,6 @@ export default async function handler(req, res) {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Use ilike with wildcard so matching is case-insensitive
-    // If difficulty is empty string, match all rows
     const query = supabase
       .from(table)
       .select("*")
@@ -57,12 +45,8 @@ export default async function handler(req, res) {
       .limit(500);
 
     if (difficulty) {
-      // match 'simple' | 'medium' | 'advanced' regardless of case or minor variations
-      await (async () => {
-        // Use ilike pattern
-        const pattern = `%${difficulty}%`;
-        query.ilike("difficulty", pattern);
-      })();
+      const pattern = `%${difficulty}%`;
+      query.ilike("difficulty", pattern);
     }
 
     const { data, error } = await query;
