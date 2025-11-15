@@ -1,4 +1,4 @@
-// /api/corsHandler.js
+// /api/cors.js
 // ✅ Universal CORS handler (Node + Edge compatible)
 // Works for all backend routes in Ready4Exam Automation
 
