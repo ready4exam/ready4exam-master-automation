@@ -1,6 +1,6 @@
 // js/quiz-engine.js
 // -----------------------------------------------------------
-// Phase-3 Updated Final (Synced with ui-renderer.js)
+// Phase-3 Quiz Engine (Final Synced Build)
 // -----------------------------------------------------------
 
 import * as UI from "./ui-renderer.js";
@@ -13,63 +13,58 @@ let state = {
   index: 0,
   table: "",
   difficulty: "",
-  topicSlug: ""
 };
 
-
-// ------------------------------------------------------------
+// -----------------------------------------------------------
 // INIT
-// ------------------------------------------------------------
+// -----------------------------------------------------------
 document.addEventListener("DOMContentLoaded", async () => {
-  console.log("[ENGINE] Booting Quiz Engine…");
+  console.log("[ENGINE] Starting Quiz Engine…");
 
-  // parse URL params
   const params = new URLSearchParams(location.search);
   state.table = params.get("table");
   state.difficulty = params.get("difficulty");
 
-  console.log("[ENGINE] Params loaded:", state);
+  console.log("[ENGINE] Params:", state);
 
-  // Auth + paywall check
+  // AUTH CHECK
   const ok = await checkAccess();
-  if (!ok) return; // user not logged in → paywall stays
+  if (!ok) return;
 
-  console.log("[ENGINE] Auth ready");
+  console.log("[ENGINE] Auth OK");
 
-  // fetch quiz
+  // FETCH QUIZ
   const { questions } = await fetchQuiz(state.table, state.difficulty);
   state.questions = questions;
 
-  console.log("[ENGINE] Loaded:", state.questions.length);
+  console.log("[ENGINE] Loaded Questions:", questions.length);
 
   UI.showQuiz();
   renderCurrentQuestion();
 });
 
-
-// ------------------------------------------------------------
+// -----------------------------------------------------------
 // RENDER CURRENT QUESTION
-// ------------------------------------------------------------
+// -----------------------------------------------------------
 function renderCurrentQuestion() {
   UI.renderQuestion(state);
 
-  const opts = document.querySelectorAll(".option-label");
-  opts.forEach(label => {
-    label.onclick = () => {
-      const opt = label.getAttribute("data-option");
+  const labels = document.querySelectorAll(".option-label");
+  labels.forEach((lb) => {
+    lb.onclick = () => {
+      const selected = lb.getAttribute("data-option");
       const qid = state.questions[state.index].id;
 
-      state.answers[qid] = opt;
+      state.answers[qid] = selected;
 
-      UI.highlightSelectedOption(qid, opt);
+      UI.highlightSelectedOption(qid, selected);
     };
   });
 }
 
-
-// ------------------------------------------------------------
+// -----------------------------------------------------------
 // NAVIGATION
-// ------------------------------------------------------------
+// -----------------------------------------------------------
 document.getElementById("next-btn").onclick = () => {
   if (state.index < state.questions.length - 1) {
     state.index++;
@@ -84,22 +79,21 @@ document.getElementById("prev-btn").onclick = () => {
   }
 };
 
-
-// ------------------------------------------------------------
+// -----------------------------------------------------------
 // SUBMIT
-// ------------------------------------------------------------
+// -----------------------------------------------------------
 document.getElementById("submit-btn").onclick = () => {
-  let correct = 0;
+  let score = 0;
 
-  state.questions.forEach(q => {
-    if (state.answers[q.id] === q.correct_answer) correct++;
+  state.questions.forEach((q) => {
+    if (state.answers[q.id] === q.correct_answer) score++;
   });
 
   UI.renderResultsScreen({
-    score: correct,
+    score,
     total: state.questions.length,
     questions: state.questions,
-    answers: state.answers
+    answers: state.answers,
   });
 
   UI.registerResultButtons(state.table);
