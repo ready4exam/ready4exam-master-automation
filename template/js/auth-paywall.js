@@ -1,88 +1,65 @@
 // js/auth-paywall.js
-// -----------------------------------------------------------
-// Phase-3 Auth Paywall (Stable - popup flow, single-file fix)
-// - Uses firebaseAuth from config.js (no changes to config.js)
-// - Uses paywall-screen id from quiz-engine.html
-// - Exports checkAccess() used by quiz-engine.js
-// -----------------------------------------------------------
+// ------------------------------------------------------------
+// Phase-3 AUTH PAYWALL (REDIRECT VERSION — REQUIRED FOR GITHUB PAGES)
+// ------------------------------------------------------------
 
-import { firebaseAuth } from "./config.js";
+import {
+  firebaseAuth,
+} from "./config.js";
+
 import {
   GoogleAuthProvider,
-  signInWithPopup,
-  onAuthStateChanged,
+  signInWithRedirect,
+  getRedirectResult,
+  onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
-// Ensure handlers attach after DOM is ready
-function onReady(fn) {
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", fn);
-  } else {
-    fn();
-  }
-}
+const paywall = document.getElementById("paywall-screen");
+const googleBtn = document.getElementById("google-signin-btn");
 
-// -----------------------------------------------------------
-// SHOW / HIDE PAYWALL (match HTML id "paywall-screen")
-// -----------------------------------------------------------
-function showPaywall() {
-  const el = document.getElementById("paywall-screen");
-  if (el) el.classList.remove("hidden");
-}
+const provider = new GoogleAuthProvider();
+provider.setCustomParameters({ prompt: "select_account" });
 
-function hidePaywall() {
-  const el = document.getElementById("paywall-screen");
-  if (el) el.classList.add("hidden");
-}
-
-// -----------------------------------------------------------
-// CHECK ACCESS - exported for quiz-engine.js
-// Resolves true when user is signed in, false otherwise.
-// -----------------------------------------------------------
+// ------------------------------------------------------------
+// CHECK ACCESS (consumer for quiz-engine.js)
+// ------------------------------------------------------------
 export async function checkAccess() {
-  return new Promise((resolve) => {
-    // onAuthStateChanged will fire immediately with current state
-    onAuthStateChanged(firebaseAuth, (user) => {
-      if (user) {
-        hidePaywall();
-        resolve(true);
-      } else {
-        showPaywall();
-        resolve(false);
+  return new Promise(resolve => {
+    onAuthStateChanged(firebaseAuth, async user => {
+
+      // 1️⃣ Handle redirect callback (user returns from Google)
+      try {
+        const result = await getRedirectResult(firebaseAuth);
+        if (result?.user) {
+          // hide paywall and continue
+          paywall.classList.add("hidden");
+          resolve(true);
+          return;
+        }
+      } catch (e) {
+        console.warn("[AUTH] Redirect result error:", e);
       }
-    }, (err) => {
-      console.error("[AUTH] onAuthStateChanged error:", err);
-      showPaywall();
+
+      // 2️⃣ If already logged in, allow access
+      if (user) {
+        paywall.classList.add("hidden");
+        resolve(true);
+        return;
+      }
+
+      // 3️⃣ If NOT logged in, keep paywall visible
+      paywall.classList.remove("hidden");
       resolve(false);
     });
   });
 }
 
-// -----------------------------------------------------------
-// GOOGLE SIGN-IN (popup)
-// Attach handler safely after DOM is ready
-// -----------------------------------------------------------
-onReady(() => {
-  const btn = document.getElementById("google-signin-btn");
-  if (!btn) return;
-
-  btn.addEventListener("click", async (e) => {
-    e.preventDefault();
-    try {
-      const provider = new GoogleAuthProvider();
-      // popup will be blocked if not triggered by user gesture; this is fine here
-      await signInWithPopup(firebaseAuth, provider);
-      // onAuthStateChanged will handle hiding the paywall and resolving checkAccess
-      hidePaywall();
-    } catch (err) {
-      // log full error for debugging; do not throw
-      console.error("[AUTH] Google Sign-In Failed:", err);
-      // keep paywall visible; show a friendly status if available
-      const status = document.getElementById("status-message");
-      if (status) {
-        status.textContent = "Google Sign-In failed. Please try again.";
-        status.classList.remove("hidden");
-      }
-    }
-  });
-});
+// ------------------------------------------------------------
+// SIGN-IN HANDLER (REDIRECT)
+// ------------------------------------------------------------
+if (googleBtn) {
+  googleBtn.onclick = () => {
+    console.log("[AUTH] Triggering Google Redirect Login…");
+    signInWithRedirect(firebaseAuth, provider);
+  };
+}
