@@ -18,36 +18,41 @@ const paywall = document.getElementById("paywall-screen");
 const googleBtn = document.getElementById("google-signin-btn");
 
 const provider = new GoogleAuthProvider();
+
+// Always show Google account selector
 provider.setCustomParameters({ prompt: "select_account" });
 
 // ------------------------------------------------------------
-// CHECK ACCESS (consumer for quiz-engine.js)
+// CHECK ACCESS (called by quiz-engine.js)
 // ------------------------------------------------------------
 export async function checkAccess() {
   return new Promise(resolve => {
     onAuthStateChanged(firebaseAuth, async user => {
-
-      // 1️⃣ Handle redirect callback (user returns from Google)
+      
+      // 1️⃣ Handle redirect callback when user returns after login
       try {
         const result = await getRedirectResult(firebaseAuth);
         if (result?.user) {
-          // hide paywall and continue
+          console.log("[AUTH] Redirect complete. User logged in:", result.user.email);
+
           paywall.classList.add("hidden");
           resolve(true);
           return;
         }
-      } catch (e) {
-        console.warn("[AUTH] Redirect result error:", e);
+      } catch (err) {
+        console.warn("[AUTH] Redirect result error:", err);
       }
 
-      // 2️⃣ If already logged in, allow access
+      // 2️⃣ User already logged in → allow access
       if (user) {
+        console.log("[AUTH] User already logged in:", user.email);
         paywall.classList.add("hidden");
         resolve(true);
         return;
       }
 
-      // 3️⃣ If NOT logged in, keep paywall visible
+      // 3️⃣ No user → keep paywall visible
+      console.log("[AUTH] No user. Showing paywall.");
       paywall.classList.remove("hidden");
       resolve(false);
     });
@@ -55,11 +60,11 @@ export async function checkAccess() {
 }
 
 // ------------------------------------------------------------
-// SIGN-IN HANDLER (REDIRECT)
+// SIGN-IN BUTTON → Redirect Google Login
 // ------------------------------------------------------------
 if (googleBtn) {
   googleBtn.onclick = () => {
-    console.log("[AUTH] Triggering Google Redirect Login…");
+    console.log("[AUTH] Starting Google Redirect Login…");
     signInWithRedirect(firebaseAuth, provider);
   };
 }
