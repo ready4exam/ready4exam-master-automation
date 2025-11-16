@@ -91,7 +91,7 @@ export default async function handler(req, res) {
     const { meta } = body || {};
     if (!meta) return res.status(400).json({ ok: false, error: "Missing meta in body." });
 
-    const API_KEY = process.env.google_api || process.env.GEMINI_API_KEY;
+    const API_KEY = process.env.GEMINI_API_KEY || process.env.google_api;
     if (!API_KEY) throw new Error("Missing Gemini API key in environment.");
 
     const genAI = new GoogleGenerativeAI(API_KEY);
