@@ -1,37 +1,26 @@
 import { Octokit } from "@octokit/rest";
 import { getCorsHeaders } from "./cors.js";
-// ---- CORS preflight handling ----
-const origin = req.headers.origin || "*";
-const headers = getCorsHeaders(origin);
-Object.entries(headers).forEach(([k, v]) => res.setHeader(k, v));
-
-if (req.method === "OPTIONS") {
-  return res.status(200).end();
-}
-
 
 export const config = { runtime: "nodejs" };
 
+// Helper: find & update chapter's table_id
 function findAndUpdateChapter(curriculumObj, subject, book, chapterTitle, newTableId) {
-  // Try hinted subject/book first, then fallback to full search
   const subjects = Object.keys(curriculumObj || {});
-  const candidates = [];
+  const subjCandidates = [];
 
   if (subject) {
     const exact = subjects.find((s) => s.toLowerCase() === subject.toLowerCase());
-    if (exact) candidates.push(exact);
+    if (exact) subjCandidates.push(exact);
     else {
       const loose = subjects.find((s) => s.toLowerCase().includes(subject.toLowerCase()));
-      if (loose) candidates.push(loose);
+      if (loose) subjCandidates.push(loose);
     }
   }
-  for (const s of subjects) {
-    if (!candidates.includes(s)) candidates.push(s);
-  }
+  for (const s of subjects) if (!subjCandidates.includes(s)) subjCandidates.push(s);
 
-  for (const subjKey of candidates) {
+  for (const subjKey of subjCandidates) {
     const books = curriculumObj[subjKey];
-    if (!books || typeof books !== "object") continue;
+    if (!books) continue;
 
     const bookKeys = Object.keys(books);
     const bookCandidates = [];
@@ -44,25 +33,26 @@ function findAndUpdateChapter(curriculumObj, subject, book, chapterTitle, newTab
         if (looseB) bookCandidates.push(looseB);
       }
     }
-    for (const bk of bookKeys) {
-      if (!bookCandidates.includes(bk)) bookCandidates.push(bk);
-    }
+    for (const b of bookKeys) if (!bookCandidates.includes(b)) bookCandidates.push(b);
 
     for (const bk of bookCandidates) {
       const chapters = books[bk];
       if (!Array.isArray(chapters)) continue;
+
       for (let i = 0; i < chapters.length; i++) {
-        const ch = chapters[i];
-        if (!ch || !ch.chapter_title) continue;
-        if (ch.chapter_title.trim().toLowerCase() === chapterTitle.trim().toLowerCase()) {
-          const old = ch.table_id;
-          ch.table_id = newTableId;
+        if (
+          chapters[i]?.chapter_title?.trim().toLowerCase() ===
+          chapterTitle.trim().toLowerCase()
+        ) {
+          const oldTableId = chapters[i].table_id;
+          chapters[i].table_id = newTableId;
+
           return {
             updated: true,
             subjectKey: subjKey,
             bookKey: bk,
             chapterIndex: i,
-            oldTableId: old,
+            oldTableId,
             newTableId
           };
         }
@@ -73,107 +63,109 @@ function findAndUpdateChapter(curriculumObj, subject, book, chapterTitle, newTab
 }
 
 export default async function handler(req, res) {
+  // ---- CORS MUST RUN INSIDE HANDLER ----
   const origin = req.headers.origin || "*";
-  const headers = { ...getCorsHeaders(origin), "Content-Type": "application/json" };
-  Object.entries(headers).forEach(([k, v]) => res.setHeader(k, v));
+  Object.entries(getCorsHeaders(origin)).forEach(([k, v]) =>
+    res.setHeader(k, v)
+  );
+  res.setHeader("Access-Control-Max-Age", "86400");
 
-  if (req.method === "OPTIONS") return res.status(200).end();
-  if (req.method !== "POST") return res.status(405).json({ ok: false, error: "Only POST allowed" });
+  if (req.method.toUpperCase() === "OPTIONS") {
+    res.status(200).end();
+    return;
+  }
+
+  if (req.method.toUpperCase() !== "POST") {
+    res.status(405).json({ ok: false, error: "Only POST allowed" });
+    return;
+  }
 
   try {
     const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
-    let { class_name, subject, book, chapter, new_table_id } = body || {};
+    const { class_name, subject, book, chapter, new_table_id } = body || {};
 
     if (!class_name || !chapter || !new_table_id) {
-      return res.status(400).json({
+      res.status(400).json({
         ok: false,
-        error: "Missing parameters. Required: class_name, chapter, new_table_id. Optional: subject, book."
+        error: "Missing parameters. Required: class_name, chapter, new_table_id"
       });
+      return;
     }
 
     const token = process.env.GITHUB_TOKEN;
     const owner = process.env.GITHUB_OWNER;
-    if (!token || !owner) {
-      return res.status(500).json({ ok: false, error: "Server misconfigured: missing GITHUB_TOKEN or GITHUB_OWNER." });
-    }
+    if (!token || !owner) throw new Error("GitHub credentials missing");
 
     const repo = `ready4exam-${class_name}`;
     const path = "js/curriculum.js";
     const octokit = new Octokit({ auth: token });
 
+    // Load current file
     const { data } = await octokit.repos.getContent({ owner, repo, path });
     const fileSha = data.sha;
     const raw = Buffer.from(data.content, "base64").toString("utf-8");
 
-    // Extract object literal after "export const curriculum ="
-    const exportMarker = /export\s+const\s+curriculum\s*=\s*/m;
-    let objText = null;
+    // Find JSON object inside curriculum.js
+    const marker = /export\s+const\s+curriculum\s*=\s*/m;
+    const startIdx = raw.search(marker);
+    if (startIdx === -1) {
+      throw new Error("Could not locate curriculum object in curriculum.js");
+    }
 
-    if (exportMarker.test(raw)) {
-      const idx = raw.search(exportMarker);
-      const after = raw.slice(idx);
-      const braceStart = after.indexOf("{");
-      if (braceStart === -1) throw new Error("Malformed curriculum.js: object not found after export const curriculum");
-      let open = 0;
-      let i = braceStart;
-      for (; i < after.length; i++) {
-        const ch = after[i];
-        if (ch === "{") open++;
-        else if (ch === "}") {
-          open--;
-          if (open === 0) {
-            objText = after.slice(braceStart, i + 1);
-            break;
-          }
-        }
+    const after = raw.slice(startIdx);
+    const braceStart = after.indexOf("{");
+    if (braceStart === -1) throw new Error("Malformed curriculum.js");
+
+    // Extract JSON block
+    let open = 0;
+    let endIdx = braceStart;
+    for (; endIdx < after.length; endIdx++) {
+      if (after[endIdx] === "{") open++;
+      else if (after[endIdx] === "}") {
+        open--;
+        if (open === 0) break;
       }
-      if (!objText) throw new Error("Failed to extract curriculum object");
-    } else {
-      throw new Error("Unsupported curriculum.js format: expected 'export const curriculum = ...'");
     }
+    const objText = after.slice(braceStart, endIdx + 1);
 
-    let curriculumObj;
-    try {
-      curriculumObj = JSON.parse(objText);
-    } catch (err) {
-      throw new Error("Failed to JSON-parse curriculum object: " + err.message);
-    }
+    let curriculumObj = JSON.parse(objText);
 
+    // Update matching chapter table_id
     const updateInfo = findAndUpdateChapter(curriculumObj, subject, book, chapter, new_table_id);
     if (!updateInfo.updated) {
-      return res.status(404).json({
-        ok: false,
-        error: `Chapter "${chapter}" not found in repo ${repo}.`,
-        subject_hint: subject || null,
-        book_hint: book || null
-      });
+      res.status(404).json({ ok: false, error: "Chapter not found" });
+      return;
     }
 
     const newObjText = JSON.stringify(curriculumObj, null, 2);
-    const headerSplitIdx = raw.search(exportMarker);
-    const header = headerSplitIdx === -1 ? "" : raw.slice(0, headerSplitIdx);
-    const newFileContent =
-      `${header}// Auto-updated by MasterAutomation on ${new Date().toISOString()}\n` +
-      `export const curriculum = ${newObjText};\n\n` +
-      `export default curriculum;\n`;
 
+    const header = raw.slice(0, startIdx);
+
+    const newFile =
+`${header}// Auto-updated by MasterAutomation on ${new Date().toISOString()}
+export const curriculum = ${newObjText};
+
+export default curriculum;
+`;
+
+    // Push changes
     await octokit.repos.createOrUpdateFileContents({
       owner,
       repo,
       path,
-      message: `🔄 Update table_id for chapter "${chapter}" to "${new_table_id}"`,
-      content: Buffer.from(newFileContent).toString("base64"),
+      message: `🔄 Update table_id for ${chapter}`,
+      content: Buffer.from(newFile).toString("base64"),
       sha: fileSha
     });
 
-    return res.status(200).json({
+    res.status(200).json({
       ok: true,
-      message: `Curriculum updated for chapter "${chapter}" in ${repo}.`,
       repo,
       updated: updateInfo
     });
+
   } catch (err) {
     console.error("❌ updateCurriculum error:", err);
-    return res.status(500).json({ ok: false, error: err.message || "Internal error" });
+    res.status(500).json({ ok: false, error: err.message });
   }
 }
