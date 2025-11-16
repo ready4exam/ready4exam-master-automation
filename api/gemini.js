@@ -34,7 +34,9 @@ function normalize(q) {
     question_type: (q.question_type || "").trim(),
     question_text: (q.question_text || "").trim(),
     scenario_reason_text:
-      q.question_type?.toUpperCase() === "MCQ" ? "" : (q.scenario_reason_text || "").trim(),
+      (q.question_type || "").toUpperCase() === "MCQ"
+        ? ""
+        : (q.scenario_reason_text || "").trim(),
     option_a: (q.option_a || "").trim(),
     option_b: (q.option_b || "").trim(),
     option_c: (q.option_c || "").trim(),
@@ -65,7 +67,7 @@ export default async function handler(req, res) {
     const prompt = `
 Return ONLY valid JSON. No markdown. No text outside JSON.
 
-Generate exactly 60 NCERT exam-grade questions for:
+Generate exactly 60+ NCERT exam-grade questions for:
 Class: ${class_name}
 Subject: ${subject}
 Chapter: ${chapter}
@@ -116,8 +118,16 @@ option_a, option_b, option_c, option_d, correct_answer_key
     const parsed = extractJSON(innerText);
     const questions = parsed?.questions || [];
 
-    if (questions.length !== 60) {
-      throw new Error(`Expected 60 questions but received ${questions.length}. Re-run Automation.`);
+    // 🔴 OLD (too strict):
+    // if (questions.length !== 60) {
+    //   throw new Error(`Expected 60 questions but received ${questions.length}. Re-run Automation.`);
+    // }
+
+    // 🟢 NEW: allow 60 or more, only fail if less than 60
+    if (questions.length < 60) {
+      throw new Error(
+        `Gemini returned only ${questions.length} questions (need at least 60). Please re-run Automation.`
+      );
     }
 
     for (const q of questions) {
