@@ -5,6 +5,7 @@ export const config = {
   runtime: "nodejs"
 };
 
+// Helper function to parse one CSV line
 function parseCSVLine(line) {
   const cols = [];
   let cur = "";
@@ -29,6 +30,7 @@ function parseCSVLine(line) {
   return cols.map((s) => s.trim());
 }
 
+// Parse entire CSV
 function parseCSV(csvText) {
   const lines = csvText.split(/\r?\n/).filter((l) => l.trim().length > 0);
   if (!lines.length) return [];
@@ -70,16 +72,22 @@ Rules:
 }
 
 export default async function handler(req, res) {
+  // Apply CORS headers FIRST
   const origin = req.headers.origin || "*";
-  const headers = { ...getCorsHeaders(origin), "Content-Type": "application/json" };
+  const headers = {
+    ...getCorsHeaders(origin),
+    "Content-Type": "application/json",
+    "Access-Control-Max-Age": "86400"
+  };
   Object.entries(headers).forEach(([k, v]) => res.setHeader(k, v));
 
-  if (req.method === "OPTIONS") {
+  // Correct OPTIONS handling
+  if (req.method.toUpperCase() === "OPTIONS") {
     res.status(200).end();
     return;
   }
 
-  if (req.method !== "POST") {
+  if (req.method.toUpperCase() !== "POST") {
     res.status(405).json({ ok: false, error: "Only POST allowed" });
     return;
   }
