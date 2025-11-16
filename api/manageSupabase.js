@@ -1,11 +1,13 @@
+// /api/manageSupabase.js
 import { createClient } from "@supabase/supabase-js";
 import { getCorsHeaders } from "./cors.js";
 
 export const config = { runtime: "nodejs" };
 
+// Normalize DB fields
 function normalizeDifficulty(d) {
   if (!d) return "Simple";
-  d = d.toString().toLowerCase().trim();
+  d = d.toLowerCase().trim();
   if (["simple", "easy"].includes(d)) return "Simple";
   if (["medium", "moderate"].includes(d)) return "Medium";
   if (["advanced", "hard"].includes(d)) return "Advanced";
@@ -14,69 +16,66 @@ function normalizeDifficulty(d) {
 
 function normalizeQType(t) {
   if (!t) return "MCQ";
-  t = t.toString().toLowerCase().trim();
-  if (["mcq", "objective", "multiple choice"].includes(t)) return "MCQ";
-  if (["ar", "assertion-reason", "assertion"].includes(t)) return "AR";
+  t = t.toLowerCase().trim();
+  if (["mcq", "multiple choice", "objective"].includes(t)) return "MCQ";
+  if (["ar", "assertion", "assertion-reason"].includes(t)) return "AR";
   if (["case", "case-based", "case study"].includes(t)) return "Case-Based";
   return "MCQ";
 }
 
-// Build table slug from subject+chapter
+// ⭐ Final Table Naming: first + last word ONLY
+// If single word: <word>_quiz
 function buildTableName(meta) {
-  const subjPart = (meta.subject || "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
-  const chapPart = (meta.chapter || "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
-  const parts = [];
-  if (subjPart) parts.push(subjPart);
-  if (chapPart) parts.push(chapPart);
-  if (!parts.length) return "quiz_table";
-  return `${parts.join("_")}_quiz`;
+  let chapter = (meta.chapter || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, "")
+    .trim();
+
+  const words = chapter.split(/\s+/).filter(Boolean);
+  if (words.length === 0) return "quiz_table";
+
+  const first = words[0];
+  const last = words.length > 1 ? words[words.length - 1] : first;
+
+  return `${first}_${last}_quiz`
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
 }
 
 export default async function handler(req, res) {
-  // ---- CORS must run inside handler ----
   const origin = req.headers.origin || "*";
   Object.entries(getCorsHeaders(origin)).forEach(([k, v]) => res.setHeader(k, v));
   res.setHeader("Access-Control-Max-Age", "86400");
 
-  if (req.method.toUpperCase() === "OPTIONS") {
-    res.status(200).end();
-    return;
-  }
-
-  if (req.method.toUpperCase() !== "POST") {
-    res.status(405).json({ ok: false, error: "Only POST allowed" });
-    return;
-  }
+  if (req.method === "OPTIONS") return res.status(200).end();
+  if (req.method !== "POST") return res.status(405).json({ ok: false, error: "Only POST allowed" });
 
   try {
     const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
     const { meta, csv } = body || {};
     if (!meta || !csv || !Array.isArray(csv)) {
-      res.status(400).json({ ok: false, error: "Missing meta or csv (array) in request body." });
-      return;
+      return res.status(400).json({ ok: false, error: "Missing meta/csv array." });
     }
 
     const supabaseUrl = process.env.SUPABASE_URL_11 || process.env.SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_KEY_11 || process.env.SUPABASE_SERVICE_KEY;
     if (!supabaseUrl || !supabaseKey) {
-      res.status(500).json({ ok: false, error: "Supabase credentials missing on server." });
-      return;
+      return res.status(500).json({ ok: false, error: "Supabase config missing." });
     }
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Decide table name:
-    let table = meta.table_id && isNaN(Number(meta.table_id))
-      ? meta.table_id
-      : buildTableName(meta);
+    // 🎯 Final decision — always chapter-based table name
+    const table = buildTableName(meta);
 
-    // Ensure table exists — requires RPC `ensure_table_exists`
+    // Ensure table exists via RPC
     const rpcRes = await supabase.rpc("ensure_table_exists", { table_name: table });
     if (rpcRes.error) throw rpcRes.error;
 
-    // Overwrite: delete all existing rows
+    // Clear existing records
     await supabase.from(table).delete().neq("id", 0);
 
+    // Insert clean normalized rows
     const rows = csv.map((row) => ({
       difficulty: normalizeDifficulty(row.difficulty),
       question_type: normalizeQType(row.question_type),
@@ -92,15 +91,15 @@ export default async function handler(req, res) {
     const { data, error } = await supabase.from(table).insert(rows);
     if (error) throw error;
 
-    res.status(200).json({
+    return res.status(200).json({
       ok: true,
       message: "Table updated successfully.",
       new_table_id: table,
-      inserted: (data || rows).length
+      inserted: data?.length || rows.length
     });
 
   } catch (err) {
     console.error("❌ manageSupabase error:", err);
-    res.status(500).json({ ok: false, error: err.message || "Internal error" });
+    return res.status(500).json({ ok: false, error: err.message || "Server error" });
   }
 }
