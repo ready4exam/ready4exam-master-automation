@@ -1,5 +1,14 @@
 import { Octokit } from "@octokit/rest";
 import { getCorsHeaders } from "./cors.js";
+// ---- CORS preflight handling ----
+const origin = req.headers.origin || "*";
+const headers = getCorsHeaders(origin);
+Object.entries(headers).forEach(([k, v]) => res.setHeader(k, v));
+
+if (req.method === "OPTIONS") {
+  return res.status(200).end();
+}
+
 
 export const config = { runtime: "nodejs" };
 
