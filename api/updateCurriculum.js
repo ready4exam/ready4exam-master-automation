@@ -1,52 +1,37 @@
+// /api/updateCurriculum.js
 import { Octokit } from "@octokit/rest";
 import { getCorsHeaders } from "./cors.js";
 
 export const config = { runtime: "nodejs" };
 
-// Helper to locate & update chapter table_id
-function findAndUpdateChapter(curriculumObj, subject, book, chapterTitle, newTableId) {
+// Replace table_id in curriculum object
+function updateTableId(curriculumObj, subject, book, chapterTitle, newTableId) {
   const subjects = Object.keys(curriculumObj || {});
-  const subjCandidates = [];
+  for (const subjKey of subjects) {
+    if (subject &&
+      subjKey.toLowerCase() !== subject.toLowerCase() &&
+      !subjKey.toLowerCase().includes(subject.toLowerCase())) continue;
 
-  if (subject) {
-    const exact = subjects.find((s) => s.toLowerCase() === subject.toLowerCase());
-    if (exact) subjCandidates.push(exact);
-    else {
-      const loose = subjects.find((s) => s.toLowerCase().includes(subject.toLowerCase()));
-      if (loose) subjCandidates.push(loose);
-    }
-  }
-  for (const s of subjects) if (!subjCandidates.includes(s)) subjCandidates.push(s);
-
-  for (const subjKey of subjCandidates) {
     const books = curriculumObj[subjKey];
     if (!books) continue;
 
     const bookKeys = Object.keys(books);
-    const bookCandidates = [];
+    for (const bookKey of bookKeys) {
+      if (book &&
+        bookKey.toLowerCase() !== book.toLowerCase() &&
+        !bookKey.toLowerCase().includes(book.toLowerCase())) continue;
 
-    if (book) {
-      const exactB = bookKeys.find((b) => b.toLowerCase() === book.toLowerCase());
-      if (exactB) bookCandidates.push(exactB);
-      else {
-        const looseB = bookKeys.find((b) => b.toLowerCase().includes(book.toLowerCase()));
-        if (looseB) bookCandidates.push(looseB);
-      }
-    }
-    for (const bk of bookKeys) if (!bookCandidates.includes(bk)) bookCandidates.push(bk);
-
-    for (const bk of bookCandidates) {
-      const chapters = books[bk];
+      const chapters = books[bookKey];
       if (!Array.isArray(chapters)) continue;
 
       for (let i = 0; i < chapters.length; i++) {
-        if (
-          chapters[i]?.chapter_title?.trim().toLowerCase() ===
-          chapterTitle.trim().toLowerCase()
-        ) {
-          const old = chapters[i].table_id;
-          chapters[i].table_id = newTableId;
-          return { updated: true, subjectKey: subjKey, bookKey: bk, chapterIndex: i, oldTableId: old, newTableId };
+        const ch = chapters[i];
+        if (!ch?.chapter_title) continue;
+
+        if (ch.chapter_title.trim().toLowerCase() === chapterTitle.trim().toLowerCase()) {
+          const old = ch.table_id;
+          ch.table_id = newTableId;
+          return { updated: true, subjectKey: subjKey, bookKey, chapterIndex: i, oldTableId: old, newTableId };
         }
       }
     }
@@ -55,18 +40,17 @@ function findAndUpdateChapter(curriculumObj, subject, book, chapterTitle, newTab
 }
 
 export default async function handler(req, res) {
-  // CORS must run now — inside handler
   const origin = req.headers.origin || "*";
   const headers = { ...getCorsHeaders(origin), "Content-Type": "application/json" };
   Object.entries(headers).forEach(([k, v]) => res.setHeader(k, v));
-  res.setHeader("Access-Control-Max-Age", "86400");
 
   if (req.method === "OPTIONS") return res.status(200).end();
-  if (req.method !== "POST") return res.status(405).json({ ok: false, error: "Only POST allowed" });
+  if (req.method !== "POST")
+    return res.status(405).json({ ok: false, error: "Only POST allowed" });
 
   try {
-    const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
-    const { class_name, subject, book, chapter, new_table_id } = body || {};
+    const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body || {};
+    const { class_name, subject, book, chapter, new_table_id } = body;
 
     if (!class_name || !chapter || !new_table_id)
       return res.status(400).json({ ok: false, error: "Missing class_name, chapter or new_table_id" });
@@ -77,41 +61,28 @@ export default async function handler(req, res) {
 
     const repo = `ready4exam-${class_name}`;
     const path = "js/curriculum.js";
+
     const octokit = new Octokit({ auth: token });
 
     const { data } = await octokit.repos.getContent({ owner, repo, path });
     const fileSha = data.sha;
     const raw = Buffer.from(data.content, "base64").toString("utf-8");
 
-    const marker = /export\s+const\s+curriculum\s*=\s*/m;
-    const startIdx = raw.search(marker);
-    if (startIdx === -1) throw new Error("curriculum.js format incorrect");
+    const regex = /export\s+const\s+curriculum\s*=\s*(\{[\s\S]*?})(?=\s*;)/m;
+    const match = raw.match(regex);
+    if (!match) throw new Error("Invalid curriculum.js format — missing export");
 
-    const after = raw.slice(startIdx);
-    const braceStart = after.indexOf("{");
-    let open = 0, endIdx = braceStart;
-
-    for (; endIdx < after.length; endIdx++) {
-      if (after[endIdx] === "{") open++;
-      else if (after[endIdx] === "}") {
-        open--;
-        if (open === 0) break;
-      }
-    }
-
-    const objText = after.slice(braceStart, endIdx + 1);
+    const objText = match[1];
     const curriculumObj = JSON.parse(objText);
 
-    const updateInfo = findAndUpdateChapter(curriculumObj, subject, book, chapter, new_table_id);
-    if (!updateInfo.updated)
+    const info = updateTableId(curriculumObj, subject, book, chapter, new_table_id);
+    if (!info.updated)
       return res.status(404).json({ ok: false, error: `Chapter not found: ${chapter}` });
 
-    const newObj = JSON.stringify(curriculumObj, null, 2);
-    const newFile =
-`${raw.slice(0, startIdx)}// Auto-updated by MasterAutomation
-export const curriculum = ${newObj};
+    const newObjString = JSON.stringify(curriculumObj, null, 2);
 
-export default curriculum;
+    const newFile =
+`${raw.replace(regex, `export const curriculum = ${newObjString}`)}
 `;
 
     await octokit.repos.createOrUpdateFileContents({
@@ -123,11 +94,7 @@ export default curriculum;
       sha: fileSha
     });
 
-    return res.status(200).json({
-      ok: true,
-      repo,
-      updated: updateInfo
-    });
+    return res.status(200).json({ ok: true, repo, updated: info });
 
   } catch (err) {
     console.error("❌ updateCurriculum error:", err);
