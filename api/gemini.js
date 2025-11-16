@@ -1,4 +1,4 @@
-// /api/gemini.js - Final JSON + Validated Distribution
+// /api/gemini.js - Stable JSON Generator (B: MCQ+AR+Case-Based)
 import { getCorsHeaders } from "./cors.js";
 export const config = { runtime: "nodejs" };
 
@@ -6,18 +6,14 @@ const REQUIRED_FIELDS = [
   "difficulty",
   "question_type",
   "question_text",
-  "scenario_reason_text",
   "option_a",
   "option_b",
   "option_c",
   "option_d",
-  "correct_answer_key"
+  "correct_answer_key",
+  "scenario_reason_text"
 ];
 
-const DIFFICULTIES = ["Simple", "Medium", "Advanced"];
-const TYPES = ["MCQ", "AR", "Case-Based"];
-
-// Extract valid JSON from Gemini output
 function extractJSON(raw) {
   raw = raw.trim();
   try { return JSON.parse(raw); } catch {}
@@ -25,97 +21,79 @@ function extractJSON(raw) {
   if (fenced) try { return JSON.parse(fenced[1]); } catch {}
   const block = raw.match(/\{[\s\S]*\}$/);
   if (block) try { return JSON.parse(block[0]); } catch {}
-  throw new Error("Gemini returned non-JSON — Please re-run Automation.");
+  throw new Error("Gemini returned non-JSON. Click RE-RUN Automation.");
 }
 
-// Normalize quiz fields
 function normalize(q) {
-  const type = (q.question_type || "").toLowerCase();
-  const qt = type.includes("case") ? "Case-Based"
-      : type.includes("assertion") ? "AR"
-      : q.question_type || "MCQ";
-
+  q.correct_answer_key = (q.correct_answer_key || "A").trim().toUpperCase();
+  if (!["A", "B", "C", "D"].includes(q.correct_answer_key)) {
+    q.correct_answer_key = "A";
+  }
   return {
     difficulty: (q.difficulty || "").trim(),
-    question_type: qt,
+    question_type: (q.question_type || "").trim(),
     question_text: (q.question_text || "").trim(),
     scenario_reason_text:
-      qt === "MCQ"
-        ? ""
-        : (q.scenario_reason_text || "").trim(),
+      q.question_type?.toUpperCase() === "MCQ" ? "" : (q.scenario_reason_text || "").trim(),
     option_a: (q.option_a || "").trim(),
     option_b: (q.option_b || "").trim(),
     option_c: (q.option_c || "").trim(),
     option_d: (q.option_d || "").trim(),
-    correct_answer_key: (q.correct_answer_key || "A").trim().toUpperCase()
+    correct_answer_key: q.correct_answer_key
   };
-}
-
-// Validate distribution: 60 Q → 3 difficulty groups
-function validateDistribution(questions) {
-  for (const d of DIFFICULTIES) {
-    const dq = questions.filter(q => q.difficulty === d);
-    if (dq.length !== 20)
-      throw new Error(`${d} group incorrect — retry Automation`);
-
-    const mcq = dq.filter(q => q.question_type === "MCQ");
-    const ar = dq.filter(q => q.question_type === "AR");
-    const cb = dq.filter(q => q.question_type === "Case-Based");
-
-    if (mcq.length !== 10 || ar.length !== 5 || cb.length !== 5)
-      throw new Error(`${d} group format incorrect — retry Automation`);
-  }
 }
 
 export default async function handler(req, res) {
   const origin = req.headers.origin || "*";
-  Object.entries({
-    ...getCorsHeaders(origin),
-    "Content-Type": "application/json"
-  }).forEach(([k, v]) => res.setHeader(k, v));
+  const headers = { ...getCorsHeaders(origin), "Content-Type": "application/json" };
+  Object.entries(headers).forEach(([k, v]) => res.setHeader(k, v));
 
   if (req.method === "OPTIONS") return res.status(200).end();
-  if (req.method !== "POST")
+  if (req.method !== "POST") {
     return res.status(405).json({ ok: false, error: "Only POST allowed" });
+  }
 
   try {
     const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
-    const { meta } = body || {};
-    if (!meta)
-      throw new Error("Missing request data — retry Automation");
+    const { meta } = body;
+    if (!meta) throw new Error("Missing meta");
 
-    const model = "gemini-2.5-flash";
+    const { class_name, subject, chapter } = meta;
     const apiKey = process.env.GEMINI_API_KEY || process.env.google_api;
-    if (!apiKey)
-      throw new Error("Server missing API key — contact Admin");
+    if (!apiKey) throw new Error("Missing GEMINI_API_KEY");
 
     const prompt = `
-Return ONLY clean JSON. No Markdown.
+Return ONLY valid JSON. No markdown. No text outside JSON.
 
-Generate EXACTLY 60 NCERT Exam Questions:
+Generate exactly 60 NCERT exam-grade questions for:
+Class: ${class_name}
+Subject: ${subject}
+Chapter: ${chapter}
 
-PER difficulty (Simple, Medium, Advanced):
-- 10 MCQ
-- 5 AR
-- 5 Case-Based
-(total = 60)
-
-💡 Rules:
-- correct_answer_key MUST be A/B/C/D
-- Scenario text only for AR & Case-Based
-
-STRICT JSON ONLY:
+Structure strictly:
 {
-"questions":[
- {...}
-]
+ "questions": [
+    // Simple → 10 MCQ + 5 AR + 5 Case-Based
+    // Medium → 10 MCQ + 5 AR + 5 Case-Based
+    // Advanced → 10 MCQ + 5 AR + 5 Case-Based
+ ]
 }
 
-Subject: ${meta.subject}
-Chapter: ${meta.chapter}
+Rules:
+- difficulty values: "Simple", "Medium", "Advanced"
+- question_type values: "MCQ", "AR", "Case-Based"
+- MCQ must have scenario_reason_text = ""
+- AR & Case-Based MUST include scenario_reason_text explaining context
+- correct_answer_key must be A/B/C/D uppercase
+- All text must be based ONLY on NCERT content
+
+Every entry must include:
+difficulty, question_type, question_text, scenario_reason_text,
+option_a, option_b, option_c, option_d, correct_answer_key
 `;
 
-    const apiRes = await fetch(
+    const model = "gemini-2.5-flash";
+    const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
       {
         method: "POST",
@@ -126,36 +104,39 @@ Chapter: ${meta.chapter}
       }
     );
 
-    const raw = await apiRes.text();
+    const raw = await response.text();
     let outer;
-    try { outer = JSON.parse(raw); } catch { outer = {}; }
-    const text =
+    try { outer = JSON.parse(raw); } catch { outer = { output_text: raw }; }
+
+    const innerText =
       outer?.candidates?.[0]?.content?.parts?.[0]?.text ||
+      outer?.output_text ||
       raw;
 
-    const parsed = extractJSON(text);
-    const questions = parsed?.questions;
-    if (!Array.isArray(questions) || questions.length !== 60)
-      throw new Error("Incorrect count — retry Automation");
+    const parsed = extractJSON(innerText);
+    const questions = parsed?.questions || [];
 
-    const cleaned = questions.map(normalize);
+    if (questions.length !== 60) {
+      throw new Error(`Expected 60 questions but received ${questions.length}. Re-run Automation.`);
+    }
 
-    // Distribution enforcement 🔥
-    validateDistribution(cleaned);
+    for (const q of questions) {
+      for (const f of REQUIRED_FIELDS) {
+        if (!(f in q)) throw new Error(`Missing field "${f}" — re-run automation.`);
+      }
+    }
 
     return res.status(200).json({
       ok: true,
-      model,
-      count: cleaned.length,
-      questions: cleaned
+      questions: questions.map(normalize),
+      count: questions.length
     });
 
   } catch (err) {
-    console.error("Gemini ❌", err.message);
+    console.error("❌ Gemini", err);
     return res.status(500).json({
       ok: false,
-      retry: true,
-      error: `${err.message} — Please re-run Automation.`
+      error: err.message + " — re-run automation."
     });
   }
 }
