@@ -1,21 +1,10 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { getCorsHeaders } from "./cors.js";
-// ---- CORS preflight handling ----
-const origin = req.headers.origin || "*";
-const headers = getCorsHeaders(origin);
-Object.entries(headers).forEach(([k, v]) => res.setHeader(k, v));
+import { getCorsHeaders } from "../_cors.js";
 
-export default async function handler(req, res) {
-  // CORS handling should be here
-  if (req.method === "OPTIONS") {
-    res.status(200).end();
-    return;
-  }
+export const config = {
+  runtime: "nodejs"
+};
 
-
-export const config = { runtime: "nodejs" };
-
-// Parse CSV line safely (handles quotes/comma)
 function parseCSVLine(line) {
   const cols = [];
   let cur = "";
@@ -40,7 +29,6 @@ function parseCSVLine(line) {
   return cols.map((s) => s.trim());
 }
 
-// Parse full CSV string
 function parseCSV(csvText) {
   const lines = csvText.split(/\r?\n/).filter((l) => l.trim().length > 0);
   if (!lines.length) return [];
@@ -86,13 +74,23 @@ export default async function handler(req, res) {
   const headers = { ...getCorsHeaders(origin), "Content-Type": "application/json" };
   Object.entries(headers).forEach(([k, v]) => res.setHeader(k, v));
 
-  if (req.method === "OPTIONS") return res.status(200).end();
-  if (req.method !== "POST") return res.status(405).json({ ok: false, error: "Only POST allowed" });
+  if (req.method === "OPTIONS") {
+    res.status(200).end();
+    return;
+  }
+
+  if (req.method !== "POST") {
+    res.status(405).json({ ok: false, error: "Only POST allowed" });
+    return;
+  }
 
   try {
     const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
     const { meta } = body || {};
-    if (!meta) return res.status(400).json({ ok: false, error: "Missing meta in body." });
+    if (!meta) {
+      res.status(400).json({ ok: false, error: "Missing meta in body." });
+      return;
+    }
 
     const API_KEY = process.env.GEMINI_API_KEY || process.env.google_api;
     if (!API_KEY) throw new Error("Missing Gemini API key in environment.");
@@ -107,43 +105,38 @@ export default async function handler(req, res) {
 
     const rows = parseCSV(csvText);
     if (!rows.length) {
-      return res.status(500).json({ ok: false, error: "Gemini returned no valid CSV rows." });
+      res.status(500).json({ ok: false, error: "Gemini returned no valid CSV rows." });
+      return;
     }
 
     const requiredHeaders = [
-      "difficulty",
-      "question_type",
-      "question_text",
-      "scenario_reason_text",
-      "option_a",
-      "option_b",
-      "option_c",
-      "option_d",
-      "correct_answer_key"
+      "difficulty", "question_type", "question_text", "scenario_reason_text",
+      "option_a", "option_b", "option_c", "option_d", "correct_answer_key"
     ];
     const first = rows[0];
     for (const h of requiredHeaders) {
       if (!(h in first)) {
-        return res.status(500).json({ ok: false, error: `Missing header "${h}" in generated CSV.` });
+        res.status(500).json({ ok: false, error: `Missing header "${h}" in generated CSV.` });
+        return;
       }
     }
 
-    // Normalize fields to safe strings
     const normalized = rows.map((r) => ({
-      difficulty: (r.difficulty || "").toString().trim(),
-      question_type: (r.question_type || "").toString().trim(),
-      question_text: (r.question_text || "").toString().trim(),
-      scenario_reason_text: (r.scenario_reason_text || "").toString().trim(),
-      option_a: (r.option_a || "").toString().trim(),
-      option_b: (r.option_b || "").toString().trim(),
-      option_c: (r.option_c || "").toString().trim(),
-      option_d: (r.option_d || "").toString().trim(),
-      correct_answer_key: (r.correct_answer_key || "").toString().trim().toUpperCase()
+      difficulty: (r.difficulty || "").trim(),
+      question_type: (r.question_type || "").trim(),
+      question_text: (r.question_text || "").trim(),
+      scenario_reason_text: (r.scenario_reason_text || "").trim(),
+      option_a: (r.option_a || "").trim(),
+      option_b: (r.option_b || "").trim(),
+      option_c: (r.option_c || "").trim(),
+      option_d: (r.option_d || "").trim(),
+      correct_answer_key: (r.correct_answer_key || "").trim().toUpperCase()
     }));
 
-    return res.status(200).json({ ok: true, questions: normalized });
+    res.status(200).json({ ok: true, questions: normalized });
+
   } catch (err) {
     console.error("❌ Gemini API error:", err);
-    return res.status(500).json({ ok: false, error: err.message || "Internal server error" });
+    res.status(500).json({ ok: false, error: err.message || "Internal server error" });
   }
 }
