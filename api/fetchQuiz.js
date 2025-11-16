@@ -1,58 +1,75 @@
 import { createClient } from "@supabase/supabase-js";
 import { getCorsHeaders } from "./cors.js";
-// ---- CORS preflight handling ----
-const origin = req.headers.origin || "*";
-const headers = getCorsHeaders(origin);
-Object.entries(headers).forEach(([k, v]) => res.setHeader(k, v));
 
-if (req.method === "OPTIONS") {
-  return res.status(200).end();
-}
-
-
-export const config = { runtime: "nodejs" };
+export const config = {
+  runtime: "nodejs"
+};
 
 export default async function handler(req, res) {
+  // ---- CORS handling FIRST ----
   const origin = req.headers.origin || "*";
-  const headers = { ...getCorsHeaders(origin), "Content-Type": "application/json" };
-  Object.entries(headers).forEach(([k, v]) => res.setHeader(k, v));
+  Object.entries(getCorsHeaders(origin)).forEach(([k, v]) => res.setHeader(k, v));
+  res.setHeader("Access-Control-Max-Age", "86400");
 
-  if (req.method === "OPTIONS") return res.status(200).end();
-  if (req.method !== "GET") return res.status(405).json({ ok: false, error: "Only GET allowed" });
+  if (req.method.toUpperCase() === "OPTIONS") {
+    res.status(200).end();
+    return;
+  }
+
+  if (req.method.toUpperCase() !== "GET") {
+    res.status(405).json({ ok: false, error: "Only GET allowed" });
+    return;
+  }
 
   try {
-    let { table, difficulty = "" } = req.query || {};
+    const { table, difficulty = "" } = req.query || {};
+
     if (!table) {
-      return res.status(400).json({ ok: false, error: "Missing table parameter" });
+      res.status(400).json({ ok: false, error: "Missing table parameter" });
+      return;
     }
 
     const supabaseUrl = process.env.SUPABASE_URL_11 || process.env.SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_KEY_11 || process.env.SUPABASE_SERVICE_KEY;
+
     if (!supabaseUrl || !supabaseKey) {
-      return res.status(500).json({ ok: false, error: "Supabase credentials missing." });
+      res.status(500).json({ ok: false, error: "Supabase credentials missing." });
+      return;
     }
 
     const supabase = createClient(supabaseUrl, supabaseKey);
-    let query = supabase.from(table).select("*").order("id", { ascending: true }).limit(500);
 
-    difficulty = (difficulty || "").toString().trim();
-    if (difficulty) {
-      query = query.ilike("difficulty", `%${difficulty}%`);
+    let query = supabase
+      .from(table)
+      .select("*")
+      .order("id", { ascending: true })
+      .limit(500);
+
+    const diff = (difficulty || "").trim();
+    if (diff) {
+      query = query.ilike("difficulty", `%${diff}%`);
     }
 
     const { data, error } = await query;
+
     if (error) {
-      console.error("fetchQuiz query error:", error);
-      return res.status(500).json({ ok: false, error: error.message || "Supabase query error" });
+      console.error("❌ fetchQuiz Supabase error:", error);
+      res.status(500).json({ ok: false, error: error.message });
+      return;
     }
 
-    if (!data || !data.length) {
-      return res.status(404).json({ ok: false, error: "No questions found for this table/difficulty." });
+    if (!data || data.length === 0) {
+      res.status(404).json({
+        ok: false,
+        error: "No questions found for this table/difficulty."
+      });
+      return;
     }
 
-    return res.status(200).json({ ok: true, rows: data });
+    res.status(200).json({ ok: true, rows: data });
+
   } catch (err) {
-    console.error("❌ fetchQuiz error:", err);
-    return res.status(500).json({ ok: false, error: err.message || "Internal server error" });
+    console.error("❌ fetchQuiz handler failed:", err);
+    res.status(500).json({ ok: false, error: err.message || "Internal server error" });
   }
 }
