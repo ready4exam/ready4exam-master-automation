@@ -1,5 +1,5 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { getCorsHeaders } from "../_cors.js";
+import { getCorsHeaders } from "../cors.js";
 
 export const config = {
   runtime: "nodejs"
