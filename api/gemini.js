@@ -5,9 +5,12 @@ const origin = req.headers.origin || "*";
 const headers = getCorsHeaders(origin);
 Object.entries(headers).forEach(([k, v]) => res.setHeader(k, v));
 
-if (req.method === "OPTIONS") {
-  return res.status(200).end();
-}
+export default async function handler(req, res) {
+  // CORS handling should be here
+  if (req.method === "OPTIONS") {
+    res.status(200).end();
+    return;
+  }
 
 
 export const config = { runtime: "nodejs" };
