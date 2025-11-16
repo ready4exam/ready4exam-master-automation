@@ -1,13 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
 import { getCorsHeaders } from "./cors.js";
-// ---- CORS preflight handling ----
-const origin = req.headers.origin || "*";
-const headers = getCorsHeaders(origin);
-Object.entries(headers).forEach(([k, v]) => res.setHeader(k, v));
-
-if (req.method === "OPTIONS") {
-  return res.status(200).end();
-}
 
 export const config = { runtime: "nodejs" };
 
@@ -41,92 +33,74 @@ function buildTableName(meta) {
 }
 
 export default async function handler(req, res) {
+  // ---- CORS must run inside handler ----
   const origin = req.headers.origin || "*";
-  const headers = { ...getCorsHeaders(origin), "Content-Type": "application/json" };
-  Object.entries(headers).forEach(([k, v]) => res.setHeader(k, v));
+  Object.entries(getCorsHeaders(origin)).forEach(([k, v]) => res.setHeader(k, v));
+  res.setHeader("Access-Control-Max-Age", "86400");
 
-  if (req.method === "OPTIONS") return res.status(200).end();
-  if (req.method !== "POST") return res.status(405).json({ ok: false, error: "Only POST allowed" });
+  if (req.method.toUpperCase() === "OPTIONS") {
+    res.status(200).end();
+    return;
+  }
+
+  if (req.method.toUpperCase() !== "POST") {
+    res.status(405).json({ ok: false, error: "Only POST allowed" });
+    return;
+  }
 
   try {
     const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
     const { meta, csv } = body || {};
     if (!meta || !csv || !Array.isArray(csv)) {
-      return res.status(400).json({ ok: false, error: "Missing meta or csv (array) in request body." });
+      res.status(400).json({ ok: false, error: "Missing meta or csv (array) in request body." });
+      return;
     }
 
     const supabaseUrl = process.env.SUPABASE_URL_11 || process.env.SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_KEY_11 || process.env.SUPABASE_SERVICE_KEY;
     if (!supabaseUrl || !supabaseKey) {
-      return res.status(500).json({ ok: false, error: "Supabase credentials missing on server." });
+      res.status(500).json({ ok: false, error: "Supabase credentials missing on server." });
+      return;
     }
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Decide table name:
-    // - If meta.table_id is non-empty and NON-numeric, reuse
-    // - Else generate from subject+chapter
-    let table = null;
-    const incoming = meta.table_id;
-    if (incoming && isNaN(Number(incoming))) {
-      table = incoming;
-    } else {
-      table = buildTableName(meta);
-    }
+    let table = meta.table_id && isNaN(Number(meta.table_id))
+      ? meta.table_id
+      : buildTableName(meta);
 
-    // Ensure table exists via RPC ensure_table_exists
-    try {
-      const rpcRes = await supabase.rpc("ensure_table_exists", { table_name: table });
-      if (rpcRes.error) throw rpcRes.error;
-    } catch (rpcErr) {
-      console.error("RPC ensure_table_exists failed:", rpcErr);
-      return res.status(500).json({
-        ok: false,
-        error: "Supabase RPC 'ensure_table_exists' failed or missing.",
-        detail: rpcErr.message || rpcErr
-      });
-    }
+    // Ensure table exists — requires RPC `ensure_table_exists`
+    const rpcRes = await supabase.rpc("ensure_table_exists", { table_name: table });
+    if (rpcRes.error) throw rpcRes.error;
 
     // Overwrite: delete all existing rows
-    try {
-      const delRes = await supabase.from(table).delete().neq("id", 0);
-      if (delRes.error) console.warn("Non-fatal delete error:", delRes.error);
-    } catch (delErr) {
-      console.warn("Delete exception (non-fatal):", delErr);
-    }
+    await supabase.from(table).delete().neq("id", 0);
 
-    // Normalize rows for insert
     const rows = csv.map((row) => ({
       difficulty: normalizeDifficulty(row.difficulty),
       question_type: normalizeQType(row.question_type),
-      question_text: (row.question_text || "").toString().trim(),
-      scenario_reason_text: (row.scenario_reason_text || "").toString().trim(),
-      option_a: (row.option_a || "").toString().trim(),
-      option_b: (row.option_b || "").toString().trim(),
-      option_c: (row.option_c || "").toString().trim(),
-      option_d: (row.option_d || "").toString().trim(),
-      correct_answer_key: (row.correct_answer_key || "").toString().trim().toUpperCase()
+      question_text: (row.question_text || "").trim(),
+      scenario_reason_text: (row.scenario_reason_text || "").trim(),
+      option_a: (row.option_a || "").trim(),
+      option_b: (row.option_b || "").trim(),
+      option_c: (row.option_c || "").trim(),
+      option_d: (row.option_d || "").trim(),
+      correct_answer_key: (row.correct_answer_key || "").trim().toUpperCase()
     }));
 
-    const { data: insertData, error: insertError } = await supabase.from(table).insert(rows);
-    if (insertError) {
-      console.error("Insert error:", insertError);
-      return res.status(500).json({
-        ok: false,
-        error: "Failed to insert rows into Supabase table.",
-        detail: insertError.message || insertError
-      });
-    }
+    const { data, error } = await supabase.from(table).insert(rows);
+    if (error) throw error;
 
-    return res.status(200).json({
+    res.status(200).json({
       ok: true,
       message: "Table updated successfully.",
-      table,
       new_table_id: table,
-      inserted: Array.isArray(insertData) ? insertData.length : rows.length
+      inserted: (data || rows).length
     });
+
   } catch (err) {
     console.error("❌ manageSupabase error:", err);
-    return res.status(500).json({ ok: false, error: err.message || "Internal error" });
+    res.status(500).json({ ok: false, error: err.message || "Internal error" });
   }
 }
