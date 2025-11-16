@@ -1,150 +1,148 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+// /api/gemini.js
+// Final Production Version - JSON Only Parsing
 import { getCorsHeaders } from "./cors.js";
+export const config = { runtime: "nodejs" };
 
-export const config = {
-  runtime: "nodejs"
-};
+// Required fields Supabase + Quiz Engine depend on
+const REQUIRED_FIELDS = [
+  "difficulty",
+  "question_type",
+  "question_text",
+  "option_a",
+  "option_b",
+  "option_c",
+  "option_d",
+  "correct_answer_key"
+];
 
-// Helper function to parse one CSV line
-function parseCSVLine(line) {
-  const cols = [];
-  let cur = "";
-  let inQuotes = false;
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
-    if (ch === '"') {
-      if (inQuotes && line[i + 1] === '"') {
-        cur += '"';
-        i++;
-      } else {
-        inQuotes = !inQuotes;
-      }
-    } else if (ch === "," && !inQuotes) {
-      cols.push(cur);
-      cur = "";
-    } else {
-      cur += ch;
-    }
+// Universal JSON extractor for Gemini responses
+function extractJSON(raw) {
+  try {
+    return JSON.parse(raw);
+  } catch {}
+  const fenced = raw.match(/```(?:json)?([\s\S]*?)```/i);
+  if (fenced) {
+    try {
+      return JSON.parse(fenced[1]);
+    } catch {}
   }
-  cols.push(cur);
-  return cols.map((s) => s.trim());
+  const block = raw.match(/\{[\s\S]*\}$/);
+  if (block) {
+    try {
+      return JSON.parse(block[0]);
+    } catch {}
+  }
+  throw new Error("No valid JSON found in response");
 }
 
-// Parse entire CSV
-function parseCSV(csvText) {
-  const lines = csvText.split(/\r?\n/).filter((l) => l.trim().length > 0);
-  if (!lines.length) return [];
-  const headers = parseCSVLine(lines[0]);
-  const rows = [];
-  for (let i = 1; i < lines.length; i++) {
-    const cols = parseCSVLine(lines[i]);
-    if (!cols.length) continue;
-    const obj = {};
-    for (let j = 0; j < headers.length; j++) {
-      obj[headers[j]] = cols[j] !== undefined ? cols[j] : "";
-    }
-    rows.push(obj);
-  }
-  return rows;
-}
+export default async function handler(req, res) {
+  const origin = req.headers.origin || "*";
+  Object.entries({
+    ...getCorsHeaders(origin),
+    "Content-Type": "application/json",
+  }).forEach(([k, v]) => res.setHeader(k, v));
 
-function buildPrompt(meta) {
-  const { class_name, subject, chapter } = meta || {};
-  return `
-Generate exactly 60 unique exam-style questions strictly based on NCERT/CBSE syllabus:
+  // CORS preflight
+  if (req.method === "OPTIONS") return res.status(200).end();
+  if (req.method !== "POST")
+    return res.status(405).json({ ok: false, error: "Only POST allowed" });
+
+  try {
+    const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+    const { meta } = body || {};
+    if (!meta)
+      return res.status(400).json({ ok: false, error: "Missing 'meta' field" });
+
+    const apiKey = process.env.GEMINI_API_KEY || process.env.google_api;
+    if (!apiKey) throw new Error("Missing Gemini API key in env");
+
+    const { class_name, subject, chapter } = meta;
+    const model = "gemini-2.5-flash";
+
+    // Prompt designed for JSON stability
+    const prompt = `
+Return ONLY valid JSON. No Markdown, no text outside JSON.
+
+Generate exactly 60 NCERT exam-style questions.
 
 Class: ${class_name}
 Subject: ${subject}
 Chapter: ${chapter}
 
-Output MUST be ONLY CSV.
-
-CSV headers EXACTLY:
-
-difficulty,question_type,question_text,scenario_reason_text,option_a,option_b,option_c,option_d,correct_answer_key
-
-Rules:
+Field rules:
 - difficulty: Simple, Medium, Advanced
 - question_type: MCQ, AR, Case-Based
-- Use double quotes around fields containing commas.
-- NO extra commentary or explanation outside CSV.
-`;
+- correct_answer_key: A/B/C/D uppercase
+- scenario_reason_text ONLY IF needed
+
+Final output shape (STRICT):
+{
+"questions": [
+ {
+  "difficulty": "Medium",
+  "question_type": "MCQ",
+  "question_text": ".....",
+  "scenario_reason_text": "",
+  "option_a": "...",
+  "option_b": "...",
+  "option_c": "...",
+  "option_d": "...",
+  "correct_answer_key": "A"
+ }
+]
 }
+`;
 
-export default async function handler(req, res) {
-  // Apply CORS headers FIRST
-  const origin = req.headers.origin || "*";
-  const headers = {
-    ...getCorsHeaders(origin),
-    "Content-Type": "application/json",
-    "Access-Control-Max-Age": "86400"
-  };
-  Object.entries(headers).forEach(([k, v]) => res.setHeader(k, v));
+    const result = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ role: "user", parts: [{ text: prompt }] }],
+        }),
+      }
+    );
 
-  // Correct OPTIONS handling
-  if (req.method.toUpperCase() === "OPTIONS") {
-    res.status(200).end();
-    return;
-  }
+    const raw = await result.text();
+    // console.log("🧾 RAW GEMINI:", raw);
 
-  if (req.method.toUpperCase() !== "POST") {
-    res.status(405).json({ ok: false, error: "Only POST allowed" });
-    return;
-  }
-
-  try {
-    const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
-    const { meta } = body || {};
-    if (!meta) {
-      res.status(400).json({ ok: false, error: "Missing meta in body." });
-      return;
+    let outer;
+    try {
+      outer = JSON.parse(raw);
+    } catch {
+      outer = { output_text: raw };
     }
 
-    const API_KEY = process.env.GEMINI_API_KEY || process.env.google_api;
-    if (!API_KEY) throw new Error("Missing Gemini API key in environment.");
+    const inner =
+      outer?.candidates?.[0]?.content?.parts?.[0]?.text ||
+      outer?.output_text ||
+      raw;
 
-    const genAI = new GoogleGenerativeAI(API_KEY);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+    const parsed = extractJSON(inner);
+    const questions = parsed?.questions;
 
-    const prompt = buildPrompt(meta);
-    const result = await model.generateContent(prompt);
-    const raw = await result.response.text();
-    const csvText = raw.trim();
-
-    const rows = parseCSV(csvText);
-    if (!rows.length) {
-      res.status(500).json({ ok: false, error: "Gemini returned no valid CSV rows." });
-      return;
+    if (!Array.isArray(questions) || questions.length < 1) {
+      throw new Error("No questions found in JSON returned by Gemini.");
     }
 
-    const requiredHeaders = [
-      "difficulty", "question_type", "question_text", "scenario_reason_text",
-      "option_a", "option_b", "option_c", "option_d", "correct_answer_key"
-    ];
-    const first = rows[0];
-    for (const h of requiredHeaders) {
-      if (!(h in first)) {
-        res.status(500).json({ ok: false, error: `Missing header "${h}" in generated CSV.` });
-        return;
+    // Validate JSON format
+    for (const q of questions) {
+      for (const h of REQUIRED_FIELDS) {
+        if (!(h in q)) {
+          throw new Error(`Missing required field: ${h}`);
+        }
       }
     }
 
-    const normalized = rows.map((r) => ({
-      difficulty: (r.difficulty || "").trim(),
-      question_type: (r.question_type || "").trim(),
-      question_text: (r.question_text || "").trim(),
-      scenario_reason_text: (r.scenario_reason_text || "").trim(),
-      option_a: (r.option_a || "").trim(),
-      option_b: (r.option_b || "").trim(),
-      option_c: (r.option_c || "").trim(),
-      option_d: (r.option_d || "").trim(),
-      correct_answer_key: (r.correct_answer_key || "").trim().toUpperCase()
-    }));
-
-    res.status(200).json({ ok: true, questions: normalized });
-
+    return res.status(200).json({
+      ok: true,
+      questions,
+      model,
+      count: questions.length,
+    });
   } catch (err) {
-    console.error("❌ Gemini API error:", err);
-    res.status(500).json({ ok: false, error: err.message || "Internal server error" });
+    console.error("❌ Gemini Error:", err);
+    return res.status(500).json({ ok: false, error: err.message });
   }
 }
