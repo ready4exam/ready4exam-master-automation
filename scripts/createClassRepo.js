@@ -1,23 +1,16 @@
 // scripts/createClassRepo.js
 // -----------------------------------------------------------------------------
 // Builds and pushes a new class repository from the /template folder
-// Copies correct curriculum.js for the selected class & auto-creates repo if missing
+// Copies the correct curriculum.js for the selected class before packaging
 // -----------------------------------------------------------------------------
 
 import fs from "fs";
 import path from "path";
 import { execSync } from "child_process";
-import fetch from "node-fetch";
 
 const cls = process.env.CLASS;
-const token = process.env.GITHUB_TOKEN;
-
 if (!cls) {
-  console.error("❌ CLASS environment variable not set.");
-  process.exit(1);
-}
-if (!token) {
-  console.error("❌ GITHUB_TOKEN missing.");
+  console.error("❌ Error: CLASS environment variable not set.");
   process.exit(1);
 }
 
@@ -26,51 +19,7 @@ console.log(`⚙️ Running createClassRepo.js for class=${cls}`);
 const baseDir = process.cwd();
 const templateDir = path.join(baseDir, "template");
 const tempRepoDir = path.join(baseDir, "temp_repo", `class${cls}`);
-const ORG = "ready4exam";
-const repoName = `ready4exam-${cls}`;
-const repoUrl = `https://github.com/${ORG}/${repoName}.git`;
-
-// -----------------------------------------------------------------------------
-// STEP 0 — Ensure repo exists or create it
-// -----------------------------------------------------------------------------
-async function ensureRepoExists() {
-  console.log("🔍 Checking if repo exists on GitHub...");
-
-  const check = await fetch(`https://api.github.com/repos/${ORG}/${repoName}`, {
-    headers: {
-      Authorization: `token ${token}`,
-      Accept: "application/vnd.github.v3+json",
-      "User-Agent": "ready4exam-bot"
-    }
-  });
-
-  if (check.status === 200) {
-    console.log("ℹ️ Repo already exists — will update it.");
-    return;
-  }
-
-  console.log("🆕 Creating GitHub repo...");
-  const create = await fetch(`https://api.github.com/orgs/${ORG}/repos`, {
-    method: "POST",
-    headers: {
-      Authorization: `token ${token}`,
-      Accept: "application/vnd.github.v3+json",
-      "User-Agent": "ready4exam-bot"
-    },
-    body: JSON.stringify({
-      name: repoName,
-      private: false,
-      auto_init: false
-    })
-  });
-
-  if (!create.ok) {
-    console.error(await create.text());
-    throw new Error("❌ Failed to create repo.");
-  }
-
-  console.log(`✔ Repo created: ${repoUrl}`);
-}
+const OWNER = "ready4exam"; // 👈 PERSONAL ACCOUNT OWNER
 
 // -----------------------------------------------------------------------------
 // STEP 1 — Copy correct curriculum for this class
@@ -80,7 +29,7 @@ const targetCurriculum = path.join(templateDir, "js", "curriculum.js");
 
 console.log(`[Curriculum] Preparing curriculum for class${cls}`);
 if (!fs.existsSync(sourceCurriculum)) {
-  console.error(`❌ Missing: ${sourceCurriculum}`);
+  console.error(`❌ Missing source curriculum: ${sourceCurriculum}`);
   process.exit(1);
 }
 
@@ -107,38 +56,68 @@ if (fs.existsSync(indexPath)) {
 }
 
 // -----------------------------------------------------------------------------
-// STEP 4 — Git Push
+// STEP 4 — Create repo if not exists (PERSONAL ACCOUNT FIX)
 // -----------------------------------------------------------------------------
-async function pushRepo() {
-  try {
-    execSync(`git init`, { cwd: tempRepoDir });
-    execSync(`git config user.email "automation@ready4exam.org"`, { cwd: tempRepoDir });
-    execSync(`git config user.name "ready4exam-bot"`, { cwd: tempRepoDir });
+const repoName = `ready4exam-${cls}`;
+const repoUrl = `https://github.com/${OWNER}/${repoName}.git`;
 
-    execSync(`git add .`, { cwd: tempRepoDir });
-    execSync(`git commit -m "Automated build for Class ${cls}"`, { cwd: tempRepoDir });
+console.log(`🔍 Checking if repo exists on GitHub...`);
 
-    execSync(`git branch -M main`, { cwd: tempRepoDir });
+const headers = {
+  Authorization: `token ${process.env.GITHUB_TOKEN}`,
+  "Content-Type": "application/json"
+};
 
-    console.log("📤 Pushing to GitHub...");
-    execSync(`git remote add origin https://x-access-token:${token}@github.com/${ORG}/${repoName}.git`, {
-      cwd: tempRepoDir
+// Check repo existence
+try {
+  const res = await fetch(`https://api.github.com/repos/${OWNER}/${repoName}`, {
+    headers
+  });
+
+  if (res.ok) {
+    console.log(`📌 Repo already exists. Skipping creation.`);
+  } else {
+    console.log(`🆕 Creating GitHub repo...`);
+    const createRes = await fetch(`https://api.github.com/user/repos`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        name: repoName,
+        private: false
+      })
     });
 
-    execSync(`git push -f origin main`, { cwd: tempRepoDir });
+    if (!createRes.ok) {
+      console.error(await createRes.text());
+      throw new Error("Failed to create repo.");
+    }
 
-    console.log(`🎉 Successfully pushed Class ${cls} repo.`);
-  } catch (err) {
-    throw new Error(`❌ Git push failed: ${err.message}`);
+    console.log(`🎯 Repo created successfully: ${repoUrl}`);
   }
+} catch (err) {
+  console.error("❌ GitHub API error:", err.message);
+  process.exit(1);
 }
 
 // -----------------------------------------------------------------------------
-// RUN ALL
+// STEP 5 — Commit & push
 // -----------------------------------------------------------------------------
-ensureRepoExists()
-  .then(pushRepo)
-  .catch((err) => {
-    console.error(err.message);
-    process.exit(1);
-  });
+try {
+  execSync(`git init`, { cwd: tempRepoDir });
+  execSync(`git config user.email "automation@ready4exam.org"`, { cwd: tempRepoDir });
+  execSync(`git config user.name "ready4exam-bot"`, { cwd: tempRepoDir });
+
+  execSync(`git add .`, { cwd: tempRepoDir });
+  execSync(`git commit -m "Automated build for Class ${cls}"`, { cwd: tempRepoDir });
+  execSync(`git branch -M main`, { cwd: tempRepoDir });
+
+  execSync(
+    `git push -f https://x-access-token:${process.env.GITHUB_TOKEN}@github.com/${OWNER}/${repoName}.git main`,
+    { cwd: tempRepoDir }
+  );
+
+  console.log(`🎉 Successfully pushed Class ${cls} repo to GitHub.`);
+} catch (err) {
+  console.error(`❌ Git push failed: ${err.message}`);
+  process.exit(1);
+}
