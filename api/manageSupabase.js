@@ -24,9 +24,11 @@ function normalizeQType(t) {
 }
 
 // ⭐ Final Table Naming: first + last word ONLY
-// If single word: <word>_quiz
+// Fix: Remove subject/book prefixes if they appear in chapter text
 function buildTableName(meta) {
   let chapter = (meta.chapter || "")
+    .replace(new RegExp(meta.subject || "", "i"), "") // remove subject text
+    .replace(new RegExp(meta.book || "", "i"), "")    // remove book text
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, "")
     .trim();
@@ -48,7 +50,8 @@ export default async function handler(req, res) {
   res.setHeader("Access-Control-Max-Age", "86400");
 
   if (req.method === "OPTIONS") return res.status(200).end();
-  if (req.method !== "POST") return res.status(405).json({ ok: false, error: "Only POST allowed" });
+  if (req.method !== "POST")
+    return res.status(405).json({ ok: false, error: "Only POST allowed" });
 
   try {
     const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
@@ -57,22 +60,28 @@ export default async function handler(req, res) {
       return res.status(400).json({ ok: false, error: "Missing meta/csv array." });
     }
 
-    const supabaseUrl = process.env.SUPABASE_URL_11 || process.env.SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_SERVICE_KEY_11 || process.env.SUPABASE_SERVICE_KEY;
+    const supabaseUrl =
+      process.env.SUPABASE_URL_11 || process.env.SUPABASE_URL;
+    const supabaseKey =
+      process.env.SUPABASE_SERVICE_KEY_11 || process.env.SUPABASE_SERVICE_KEY;
     if (!supabaseUrl || !supabaseKey) {
-      return res.status(500).json({ ok: false, error: "Supabase config missing." });
+      return res
+        .status(500)
+        .json({ ok: false, error: "Supabase config missing." });
     }
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // 🎯 Final decision — always chapter-based table name
+    // 🎯 Always chapter-based table name (✔ FIX APPLIED)
     const table = buildTableName(meta);
 
-    // Ensure table exists via RPC
-    const rpcRes = await supabase.rpc("ensure_table_exists", { table_name: table });
+    // Ensure table exists
+    const rpcRes = await supabase.rpc("ensure_table_exists", {
+      table_name: table,
+    });
     if (rpcRes.error) throw rpcRes.error;
 
-    // Clear existing records
+    // Clear existing rows
     await supabase.from(table).delete().neq("id", 0);
 
     // Insert clean normalized rows
@@ -85,7 +94,9 @@ export default async function handler(req, res) {
       option_b: (row.option_b || "").trim(),
       option_c: (row.option_c || "").trim(),
       option_d: (row.option_d || "").trim(),
-      correct_answer_key: (row.correct_answer_key || "").trim().toUpperCase()
+      correct_answer_key: (row.correct_answer_key || "")
+        .trim()
+        .toUpperCase(),
     }));
 
     const { data, error } = await supabase.from(table).insert(rows);
@@ -95,11 +106,10 @@ export default async function handler(req, res) {
       ok: true,
       message: "Table updated successfully.",
       new_table_id: table,
-      inserted: data?.length || rows.length
+      inserted: data?.length || rows.length,
     });
-
   } catch (err) {
     console.error("❌ manageSupabase error:", err);
-    return res.status(500).json({ ok: false, error: err.message || "Server error" });
+    return res.status(500).json({ ok: false, error: err.message });
   }
 }
