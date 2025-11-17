@@ -4,34 +4,51 @@ import { getCorsHeaders } from "./cors.js";
 
 export const config = { runtime: "nodejs" };
 
+// Replace table_id in curriculum object
 function updateTableId(curriculumObj, subject, book, chapterTitle, newTableId) {
-  for (const subjKey of Object.keys(curriculumObj || {})) {
-    if (subject &&
+  const subjects = Object.keys(curriculumObj || {});
+  for (const subjKey of subjects) {
+    if (
+      subject &&
       subjKey.toLowerCase() !== subject.toLowerCase() &&
-      !subjKey.toLowerCase().includes(subject.toLowerCase())) continue;
+      !subjKey.toLowerCase().includes(subject.toLowerCase())
+    ) {
+      continue;
+    }
 
-    for (const bookKey of Object.keys(curriculumObj[subjKey] || {})) {
-      if (book &&
+    const books = curriculumObj[subjKey];
+    if (!books) continue;
+
+    const bookKeys = Object.keys(books);
+    for (const bookKey of bookKeys) {
+      if (
+        book &&
         bookKey.toLowerCase() !== book.toLowerCase() &&
-        !bookKey.toLowerCase().includes(book.toLowerCase())) continue;
+        !bookKey.toLowerCase().includes(book.toLowerCase())
+      ) {
+        continue;
+      }
 
-      const arr = curriculumObj[subjKey][bookKey];
-      if (!Array.isArray(arr)) continue;
+      const chapters = books[bookKey];
+      if (!Array.isArray(chapters)) continue;
 
-      for (let i = 0; i < arr.length; i++) {
+      for (let i = 0; i < chapters.length; i++) {
+        const ch = chapters[i];
+        if (!ch?.chapter_title) continue;
+
         if (
-          arr[i]?.chapter_title?.trim().toLowerCase() ===
+          ch.chapter_title.trim().toLowerCase() ===
           chapterTitle.trim().toLowerCase()
         ) {
-          const old = arr[i].table_id;
-          arr[i].table_id = newTableId;
+          const old = ch.table_id;
+          ch.table_id = newTableId;
           return {
             updated: true,
-            oldTableId: old,
-            newTableId,
             subjectKey: subjKey,
             bookKey,
-            index: i
+            chapterIndex: i,
+            oldTableId: old,
+            newTableId
           };
         }
       }
@@ -41,69 +58,105 @@ function updateTableId(curriculumObj, subject, book, chapterTitle, newTableId) {
 }
 
 export default async function handler(req, res) {
+  // 🔴 CORS MUST BE SET FOR EVERY REQUEST (INCLUDING OPTIONS)
   const origin = req.headers.origin || "*";
-  Object.entries({ ...getCorsHeaders(origin), "Content-Type": "application/json" })
-    .forEach(([k, v]) => res.setHeader(k, v));
+  const corsHeaders = getCorsHeaders(origin);
 
-  if (req.method === "OPTIONS") return res.status(200).end();
-  if (req.method !== "POST") return res.status(405).json({ ok: false, error: "POST required" });
+  Object.entries(corsHeaders).forEach(([k, v]) => res.setHeader(k, v));
+  res.setHeader("Access-Control-Max-Age", "86400");
+  res.setHeader("Content-Type", "application/json");
+
+  if (req.method === "OPTIONS") {
+    // Preflight response – CORS headers already set above
+    return res.status(200).end();
+  }
+
+  if (req.method !== "POST") {
+    return res
+      .status(405)
+      .json({ ok: false, error: "Only POST allowed" });
+  }
 
   try {
-    const { class_name, subject, book, chapter, new_table_id } =
+    const body =
       typeof req.body === "string" ? JSON.parse(req.body) : req.body || {};
+    const { class_name, subject, book, chapter, new_table_id } = body;
 
-    if (!class_name || !chapter || !new_table_id)
-      return res.status(400).json({ ok: false, error: "Missing required fields" });
+    if (!class_name || !chapter || !new_table_id) {
+      return res.status(400).json({
+        ok: false,
+        error: "Missing class_name, chapter or new_table_id"
+      });
+    }
 
     const token = process.env.GITHUB_TOKEN;
     const owner = process.env.GITHUB_OWNER;
-    if (!token || !owner) throw new Error("GitHub credentials missing");
+    if (!token || !owner) {
+      throw new Error("GitHub credentials missing");
+    }
 
-    const octokit = new Octokit({ auth: token });
     const repo = `ready4exam-${class_name}`;
     const path = "js/curriculum.js";
 
+    const octokit = new Octokit({ auth: token });
+
     const { data } = await octokit.repos.getContent({ owner, repo, path });
-    const sha = data.sha;
+    const fileSha = data.sha;
     const raw = Buffer.from(data.content, "base64").toString("utf-8");
 
-    // Improved regex — supports no semicolon + whitespace + comments
+    // tolerate absence of semicolon; just grab object after export const
     const regex = /export\s+const\s+curriculum\s*=\s*(\{[\s\S]*?})/m;
     const match = raw.match(regex);
-    if (!match) throw new Error("Failed to locate curriculum object in file");
+    if (!match) {
+      throw new Error("Invalid curriculum.js format — missing export");
+    }
 
-    const jsonLike = match[1];
-    const curriculumObj = JSON.parse(jsonLike);
+    const objText = match[1];
+    const curriculumObj = JSON.parse(objText);
 
-    const info = updateTableId(curriculumObj, subject, book, chapter, new_table_id);
-    if (!info.updated)
-      return res.status(404).json({ ok: false, error: "Chapter not found" });
+    const info = updateTableId(
+      curriculumObj,
+      subject,
+      book,
+      chapter,
+      new_table_id
+    );
+    if (!info.updated) {
+      return res
+        .status(404)
+        .json({ ok: false, error: `Chapter not found: ${chapter}` });
+    }
 
-    const newObjStr = JSON.stringify(curriculumObj, null, 2);
-    const updatedFile = raw.replace(regex, `export const curriculum = ${newObjStr}`);
+    const newObjString = JSON.stringify(curriculumObj, null, 2);
+    const newFile = raw.replace(
+      regex,
+      `export const curriculum = ${newObjString}`
+    );
 
     await octokit.repos.createOrUpdateFileContents({
       owner,
       repo,
       path,
-      content: Buffer.from(updatedFile).toString("base64"),
-      message: `🔄 curriculum table update: "${chapter}" → ${new_table_id}`,
-      sha
+      message: `🔄 Update table_id for "${chapter}" → ${new_table_id}`,
+      content: Buffer.from(newFile).toString("base64"),
+      sha: fileSha
     });
 
     console.log(
-      `⭐ Updated curriculum.js in ${repo}: ${info.oldTableId} → ${info.newTableId}`
+      `⭐ table_id updated in curriculum of class ${class_name} repo:`,
+      info.oldTableId,
+      "→",
+      info.newTableId
     );
 
     return res.status(200).json({
       ok: true,
-      message: "Curriculum updated & committed",
-      updatedTableId: new_table_id,
-      repo
+      repo,
+      updated: info,
+      message: "table_id updated in curriculum of respective class repo"
     });
-
   } catch (err) {
-    console.error("❌ updateCurriculum error:", err.message);
+    console.error("❌ updateCurriculum error:", err);
     return res.status(500).json({ ok: false, error: err.message });
   }
 }
