@@ -8,22 +8,18 @@ export const config = { runtime: "nodejs" };
 function updateTableId(curriculumObj, subject, book, chapterTitle, newTableId) {
   const subjects = Object.keys(curriculumObj || {});
   for (const subjKey of subjects) {
-    if (
-      subject &&
+    if (subject &&
       subjKey.toLowerCase() !== subject.toLowerCase() &&
-      !subjKey.toLowerCase().includes(subject.toLowerCase())
-    ) continue;
+      !subjKey.toLowerCase().includes(subject.toLowerCase())) continue;
 
     const books = curriculumObj[subjKey];
     if (!books) continue;
 
     const bookKeys = Object.keys(books);
     for (const bookKey of bookKeys) {
-      if (
-        book &&
+      if (book &&
         bookKey.toLowerCase() !== book.toLowerCase() &&
-        !bookKey.toLowerCase().includes(book.toLowerCase())
-      ) continue;
+        !bookKey.toLowerCase().includes(book.toLowerCase())) continue;
 
       const chapters = books[bookKey];
       if (!Array.isArray(chapters)) continue;
@@ -51,16 +47,15 @@ function updateTableId(curriculumObj, subject, book, chapterTitle, newTableId) {
 }
 
 export default async function handler(req, res) {
-  // ⭐ Correct CORS fix — allows POST from GitHub Pages
   const origin = req.headers.origin || "*";
-  const corsHeaders = getCorsHeaders(origin);
-  Object.entries(corsHeaders).forEach(([k, v]) => res.setHeader(k, v));
+  const headers = getCorsHeaders(origin);
 
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, Accept");
-  res.setHeader("Access-Control-Allow-Credentials", "true");
-  res.setHeader("Access-Control-Max-Age", "86400");
+  // Apply CORS headers
+  for (const [key, value] of Object.entries(headers)) {
+    res.setHeader(key, value);
+  }
 
+  // ⭐ CRITICAL FIX — allow preflight OPTIONS
   if (req.method === "OPTIONS") {
     return res.status(200).end();
   }
@@ -73,8 +68,9 @@ export default async function handler(req, res) {
     const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body || {};
     const { class_name, subject, book, chapter, new_table_id } = body;
 
-    if (!class_name || !chapter || !new_table_id)
-      return res.status(400).json({ ok: false, error: "Missing required fields" });
+    if (!class_name || !chapter || !new_table_id) {
+      return res.status(400).json({ ok: false, error: "Missing class_name, chapter or new_table_id" });
+    }
 
     const token = process.env.GITHUB_TOKEN;
     const owner = process.env.GITHUB_OWNER;
@@ -85,25 +81,26 @@ export default async function handler(req, res) {
 
     const octokit = new Octokit({ auth: token });
 
-    // ✅ Fetch curriculum.js
     const { data } = await octokit.repos.getContent({ owner, repo, path });
     const fileSha = data.sha;
     const raw = Buffer.from(data.content, "base64").toString("utf-8");
 
-    // Extract JSON inside export
     const regex = /export\s+const\s+curriculum\s*=\s*(\{[\s\S]*?})(?=\s*;)/m;
     const match = raw.match(regex);
-    if (!match) throw new Error("Invalid curriculum.js format — missing export");
+    if (!match) {
+      throw new Error("Invalid curriculum.js format — missing export");
+    }
 
-    const curriculumObj = JSON.parse(match[1]);
+    const objText = match[1];
+    const curriculumObj = JSON.parse(objText);
 
     const info = updateTableId(curriculumObj, subject, book, chapter, new_table_id);
-    if (!info.updated)
+    if (!info.updated) {
       return res.status(404).json({ ok: false, error: `Chapter not found: ${chapter}` });
+    }
 
-    // Write updated curriculum.js back
     const newObjString = JSON.stringify(curriculumObj, null, 2);
-    const newFile = raw.replace(regex, `export const curriculum = ${newObjString}`);
+    const newFile = `${raw.replace(regex, `export const curriculum = ${newObjString}`)}\n`;
 
     await octokit.repos.createOrUpdateFileContents({
       owner,
@@ -116,8 +113,9 @@ export default async function handler(req, res) {
 
     return res.status(200).json({
       ok: true,
+      repo,
       updated: info,
-      message: "✔ curriculum.js updated successfully"
+      message: `✔ table_id updated in curriculum.js for ${chapter}`
     });
 
   } catch (err) {
