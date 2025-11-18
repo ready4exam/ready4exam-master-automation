@@ -5,10 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Ready4Exam | Quiz Engine</title>
 
-  <!-- Tailwind -->
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet" />
-
   <script>
     tailwind.config = {
       theme: {
@@ -44,19 +42,16 @@
   <!-- HEADER -->
   <header class="bg-cbse-blue shadow-md py-4 px-6 flex justify-between items-center">
     <div class="flex items-center space-x-4">
-
       <a href="index.html"
          class="p-2 bg-white text-cbse-blue font-semibold rounded-full shadow hover:bg-gray-100 transition">
         🏠
       </a>
-
       <div class="flex flex-col">
         <h2 id="chapter-name-display" class="text-xl font-bold text-accent-gold leading-tight"></h2>
         <p class="text-sm text-white opacity-90 italic mt-1 leading-snug">
           Ready4Exam helps students excel in school exams — a learning initiative by Ready4Industry.
         </p>
       </div>
-
     </div>
 
     <div class="flex items-center space-x-4">
@@ -67,7 +62,6 @@
     </div>
   </header>
 
-  <!-- STATUS -->
   <div id="status-message" class="text-center p-6 font-semibold text-blue-700 hidden"></div>
 
   <!-- PAYWALL -->
@@ -90,21 +84,13 @@
     <div id="question-list" class="w-full space-y-6 mb-8"></div>
 
     <div class="w-full flex justify-between items-center bg-white rounded-lg shadow p-4">
-      <button id="prev-btn" class="px-5 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300">
-        Previous
-      </button>
+      <button id="prev-btn" class="px-5 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300">Previous</button>
 
       <span id="question-counter" class="font-semibold text-gray-700">-- / --</span>
 
       <div class="flex space-x-2">
-        <button id="next-btn" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-          Next
-        </button>
-
-        <button id="submit-btn"
-                class="hidden px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
-          Submit Quiz
-        </button>
+        <button id="next-btn" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Next</button>
+        <button id="submit-btn" class="hidden px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">Submit Quiz</button>
       </div>
     </div>
   </main>
@@ -115,40 +101,22 @@
     <p class="text-lg text-gray-700 mb-3">Your final score:</p>
 
     <p id="score-display" class="text-5xl font-bold text-blue-700 mb-8">-- / --</p>
-
-    <!-- REVIEW -->
     <div id="review-container" class="w-full max-w-3xl text-left mb-8"></div>
 
-    <!-- ACTION BUTTONS -->
     <div id="results-actions" class="hidden mt-10 w-full max-w-md mx-auto text-center">
-      <button id="retry-simple"
-              class="px-6 py-3 bg-green-600 text-white rounded-lg mb-3 w-full">
-        Retry Simple
-      </button>
-
-      <button id="retry-medium"
-              class="px-6 py-3 bg-yellow-500 text-white rounded-lg mb-3 w-full">
-        Retry Medium
-      </button>
-
-      <button id="retry-advanced"
-              class="px-6 py-3 bg-red-600 text-white rounded-lg mb-3 w-full">
-        Retry Advanced
-      </button>
-
-      <button id="back-to-chapters-btn"
-              class="px-6 py-3 bg-cbse-blue text-white rounded-lg w-full mt-4">
+      <button id="retry-simple" class="px-6 py-3 bg-green-600 text-white rounded-lg mb-3 w-full">Retry Simple</button>
+      <button id="retry-medium" class="px-6 py-3 bg-yellow-500 text-white rounded-lg mb-3 w-full">Retry Medium</button>
+      <button id="retry-advanced" class="px-6 py-3 bg-red-600 text-white rounded-lg mb-3 w-full">Retry Advanced</button>
+      <button id="back-to-chapters-btn" class="px-6 py-3 bg-cbse-blue text-white rounded-lg w-full mt-4">
         ← Back to Chapter Selection
       </button>
     </div>
   </section>
 
-  <!-- FOOTER -->
   <footer class="bg-cbse-blue text-white text-center py-6 mt-auto">
     <small class="opacity-80">© 2025 Ready4Exam Academic Portal. All Rights Reserved.</small>
   </footer>
 
-  <!-- FIREBASE CONFIG -->
   <script>
     window.__firebase_config = JSON.stringify({
       "apiKey": "AIzaSyAXdKiYRxBKAj280YcNuNwlKKDp85xpOWQ",
@@ -161,21 +129,31 @@
     });
   </script>
 
-  <!-- FIXED SCRIPT LOADING ORDER (MANDATORY FOR REDIRECT AUTH) -->
   <script type="module" src="./js/config.js"></script>
-
   <script type="module">
     import "./js/auth-paywall.js";
   </script>
-
   <script type="module">
     import "./js/ui-renderer.js";
     import "./js/api.js";
   </script>
-
   <script type="module">
     window.addEventListener("load", () => {
       import("./js/quiz-engine.js");
+    });
+  </script>
+
+  <!-- REQUIRED AUTH FIX -->
+  <script type="module">
+    import { initializeAuthListener, signInWithGoogle } from "./js/auth-paywall.js";
+    initializeAuthListener();
+
+    document.getElementById("google-signin-btn")?.addEventListener("click", () => {
+      signInWithGoogle();
+    });
+
+    document.addEventListener("r4e-auth-ready", () => {
+      console.log("[QUIZ] Auth Ready!");
     });
   </script>
 
