@@ -34,9 +34,11 @@ async function startQuiz() {
   console.log("[ENGINE] Params:", state);
 
   // FETCH QUIZ FROM SUPABASE
-  const { questions } = await fetchQuiz(state.table, state.difficulty);
-  state.questions = questions || [];
-
+  const questions = await fetchQuiz({
+  table: state.table,
+  difficulty: state.difficulty
+});
+state.questions = questions || [];
   console.log("[ENGINE] Loaded Questions:", state.questions.length);
 
   if (state.questions.length === 0) {
