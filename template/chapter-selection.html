@@ -61,7 +61,6 @@
 
 <body class="bg-cbse-light min-h-screen flex flex-col">
 
-  <!-- HEADER -->
   <header class="bg-cbse-blue shadow-lg">
     <div class="max-w-6xl mx-auto px-6 py-4 flex justify-between items-center">
       <h1 class="text-2xl font-extrabold text-accent-gold tracking-wider">
@@ -71,9 +70,7 @@
     </div>
   </header>
 
-  <!-- MAIN -->
   <main class="flex-grow max-w-3xl mx-auto px-4 py-8">
-
     <h2 id="page-title" class="text-3xl font-extrabold text-cbse-blue mb-6 text-center">Select Book / Chapter</h2>
     <p id="subject-desc" class="text-center text-gray-600 mb-8"></p>
 
@@ -97,7 +94,6 @@
         Start Quiz
       </button>
     </div>
-
   </main>
 
   <footer class="bg-cbse-blue py-6 text-center text-white">
@@ -106,6 +102,9 @@
 
   <!-- SCRIPT -->
   <script type="module">
+    import { initializeAuthListener } from "./js/auth-paywall.js";
+    initializeAuthListener();
+
     import { curriculum } from "./js/curriculum.js";
 
     const params = new URLSearchParams(window.location.search);
@@ -134,21 +133,12 @@
       Geography: "Earth systems, climate, landforms and human geography."
     };
 
-    // ---------------------------------------------------------------------
-    // STEP 1: Render Books
-    // ---------------------------------------------------------------------
     function renderBooks() {
       const data = curriculum[subject];
       document.getElementById("page-title").textContent = `Select Book for ${subject}`;
       subjectDesc.textContent = subjectDescriptions[subject] || "";
-
       content.innerHTML = "";
-
-      if (!data) {
-        content.innerHTML = `<p class='text-center text-gray-600'>No books found.</p>`;
-        return;
-      }
-
+      if (!data) return content.innerHTML = `<p class='text-center text-gray-600'>No books found.</p>`;
       Object.keys(data).forEach(book => {
         const btn = document.createElement("button");
         btn.className = "topic-btn";
@@ -158,16 +148,11 @@
       });
     }
 
-    // ---------------------------------------------------------------------
-    // STEP 2: Render Chapters
-    // ---------------------------------------------------------------------
     function renderChapters(book) {
       selectedBook = book;
       content.innerHTML = "";
-
       const chapters = curriculum[subject][book];
       document.getElementById("page-title").textContent = `${book} — Chapters`;
-
       chapters.forEach(ch => {
         const title = ch.chapter_title || ch.title || ch;
         const btn = document.createElement("button");
@@ -176,8 +161,6 @@
         btn.onclick = e => selectChapter(title, e.currentTarget);
         content.appendChild(btn);
       });
-
-      // Back button
       const back = document.createElement("button");
       back.className = "text-cbse-blue underline font-semibold mt-4";
       back.textContent = "← Back to Books";
@@ -185,65 +168,42 @@
       content.appendChild(back);
     }
 
-    // ---------------------------------------------------------------------
-    // STEP 3: Select Chapter
-    // ---------------------------------------------------------------------
     function selectChapter(title, el) {
       document.querySelectorAll(".topic-btn").forEach(b => b.classList.remove("selected"));
       el.classList.add("selected");
-
       selectedChapter = title;
       errorMsg.classList.add("hidden");
       diffContainer.classList.remove("hidden");
       startBtn.disabled = true;
     }
 
-    // ---------------------------------------------------------------------
-    // STEP 4: Difficulty Selection
-    // ---------------------------------------------------------------------
     document.querySelectorAll(".difficulty-btn").forEach(btn => {
       btn.onclick = e => {
         document.querySelectorAll(".difficulty-btn").forEach(b => b.classList.remove("selected"));
         e.target.classList.add("selected");
-
         selectedDifficulty = e.target.dataset.diff;
         startBtn.disabled = !selectedChapter;
       };
     });
 
-    // ---------------------------------------------------------------------
-    // TABLE NAME BUILDER (Final)
-    // ---------------------------------------------------------------------
     function buildTableName(chapterTitle) {
       const parts = chapterTitle
-        .toLowerCase()
-        .replace(/[^a-z0-9\s]/g, "")
-        .trim()
-        .split(/\s+/);
-
-      if (parts.length === 1) return `${parts[0]}_quiz`;
-      return `${parts[0]}_${parts[parts.length - 1]}_quiz`;
+        .toLowerCase().replace(/[^a-z0-9\s]/g, "").trim().split(/\s+/);
+      return parts.length === 1 ? `${parts[0]}_quiz` :
+             `${parts[0]}_${parts[parts.length - 1]}_quiz`;
     }
 
-    // ---------------------------------------------------------------------
-    // STEP 5: Start Quiz
-    // ---------------------------------------------------------------------
     startBtn.onclick = () => {
       if (!selectedChapter || !selectedDifficulty) {
         errorMsg.textContent = "Please select both a chapter and a difficulty.";
         errorMsg.classList.remove("hidden");
         return;
       }
-
       const table = buildTableName(selectedChapter);
-
-      const url = `quiz-engine.html?table=${table}&difficulty=${selectedDifficulty}`;
-      window.location.href = url;
+      window.location.href = `quiz-engine.html?table=${table}&difficulty=${selectedDifficulty}`;
     };
 
-    // INIT
     renderBooks();
   </script>
-
 </body>
 </html>
