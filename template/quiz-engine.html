@@ -5,8 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Ready4Exam | Quiz Engine</title>
 
+  <!-- Tailwind + Fonts -->
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet" />
+
   <script>
     tailwind.config = {
       theme: {
@@ -15,7 +17,7 @@
           colors: {
             'cbse-blue': '#1a3e6a',
             'cbse-light': '#f5f7fa',
-            'accent-gold': '#ffb703'
+            'accent-gold': '#ffb703',
           }
         }
       }
@@ -23,64 +25,101 @@
   </script>
 
   <style>
-    body { background: #f5f7fa; font-family: 'Inter', sans-serif; }
-    .option-label { transition: 0.2s ease; }
-    .option-label:hover { border-color: #2563eb; background-color: #eff6ff; }
+    body { font-family: 'Inter', sans-serif; background-color: #f5f7fa; }
+    .option-label { transition: all 0.2s ease; }
+    .option-label.correct { border-color: #16a34a; background-color: #dcfce7; }
+    .option-label.incorrect { border-color: #dc2626; background-color: #fee2e2; }
+    .option-label:hover { border-color: #2563eb; }
   </style>
 </head>
 
 <body class="min-h-screen flex flex-col">
 
+  <!-- Header -->
   <header class="bg-cbse-blue shadow-md py-4 px-6 flex justify-between items-center">
-    <a href="chapter-selection.html" class="p-2 bg-white text-cbse-blue font-semibold rounded-full shadow hover:bg-gray-100 transition">🏠</a>
+    <a href="chapter-selection.html"
+       class="p-2 bg-white text-cbse-blue font-semibold rounded-full shadow hover:bg-gray-100 transition">
+      🏠
+    </a>
+
+    <div class="flex flex-col">
+      <h2 id="chapter-name-display" class="text-xl font-bold text-accent-gold leading-tight"></h2>
+      <p class="text-sm text-white opacity-90 italic mt-1 leading-snug">
+        Ready4Exam helps students excel in school exams — a learning initiative by Ready4Industry.
+      </p>
+    </div>
+
     <div class="flex items-center space-x-4">
-      <span id="difficulty-display" class="px-3 py-1 text-sm font-semibold bg-yellow-100 text-yellow-800 rounded-full"></span>
+      <span id="difficulty-display"
+        class="px-3 py-1 text-sm font-semibold bg-yellow-100 text-yellow-800 rounded-full">
+        Difficulty: Simple
+      </span>
+      <button id="logout-nav-btn"
+        class="hidden px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition">
+        Sign Out
+      </button>
     </div>
   </header>
 
-  <div id="status-message" class="text-center p-6 font-semibold text-blue-700 hidden"></div>
+  <!-- Status -->
+  <div id="status-message"
+       class="text-center p-6 font-semibold text-blue-700 hidden"></div>
 
-  <!-- PAYWALL -->
-  <div id="paywall-screen" class="flex flex-col items-center justify-center flex-grow p-12">
+  <!-- Paywall -->
+  <div id="paywall-screen"
+       class="flex flex-col items-center justify-center flex-grow p-12 transition-all duration-300 ease-in-out">
     <div class="bg-white rounded-xl p-10 shadow-xl border border-gray-200 text-center max-w-md">
       <h2 class="text-2xl font-bold text-gray-800 mb-4">Sign in to Continue</h2>
-      <button id="google-signin-btn" class="px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition">
+      <p class="text-gray-600 mb-6">
+        Access premium quizzes by signing in with Google.
+      </p>
+      <button id="google-signin-btn"
+        class="px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition">
         Sign in with Google
       </button>
     </div>
   </div>
 
+  <!-- Quiz Content -->
   <main id="quiz-content" class="hidden flex flex-col items-center max-w-4xl mx-auto px-4 py-8">
     <div id="question-list" class="w-full space-y-6 mb-8"></div>
+
     <div class="w-full flex justify-between items-center bg-white rounded-lg shadow p-4">
-      <button id="prev-btn" class="px-5 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300">Previous</button>
-      <span id="question-counter" class="font-semibold text-gray-700">-- / --</span>
+      <button id="prev-btn"
+        class="px-5 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300">Previous</button>
+
+      <span id="question-counter"
+        class="font-semibold text-gray-700">-- / --</span>
+
       <div class="flex space-x-2">
-        <button id="next-btn" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Next</button>
-        <button id="submit-btn" class="hidden px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">Submit Quiz</button>
+        <button id="next-btn"
+          class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Next</button>
+        <button id="submit-btn"
+          class="hidden px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">Submit Quiz</button>
       </div>
     </div>
   </main>
 
-  <section id="results-screen" class="hidden flex flex-col items-center justify-center text-center py-10 px-6">
+  <!-- Results -->
+  <section id="results-screen"
+    class="hidden flex flex-col items-center justify-center text-center py-10 px-6">
     <h2 class="text-3xl font-extrabold text-green-600 mb-4">Quiz Completed!</h2>
-    <p class="text-lg text-gray-700 mb-3">Your score:</p>
+    <p class="text-lg text-gray-700 mb-3">Your final score:</p>
     <p id="score-display" class="text-5xl font-bold text-blue-700 mb-8">-- / --</p>
     <div id="review-container" class="w-full max-w-3xl text-left mb-8"></div>
 
-    <div id="results-actions" class="hidden mt-10 w-full max-w-md mx-auto text-center">
-      <button id="retry-simple" class="px-6 py-3 bg-green-600 text-white rounded-lg mb-3 w-full">Retry Simple</button>
-      <button id="retry-medium" class="px-6 py-3 bg-yellow-500 text-white rounded-lg mb-3 w-full">Retry Medium</button>
-      <button id="retry-advanced" class="px-6 py-3 bg-red-600 text-white rounded-lg mb-3 w-full">Retry Advanced</button>
-      <button id="back-to-chapters-btn" class="px-6 py-3 bg-cbse-blue text-white rounded-lg w-full mt-4">← Back to Chapter Selection</button>
-    </div>
+    <button id="back-to-chapters-btn"
+      class="px-6 py-3 bg-cbse-blue text-white rounded-lg w-full mt-4">
+      ← Back to Chapter Selection
+    </button>
   </section>
 
+  <!-- Footer -->
   <footer class="bg-cbse-blue text-white text-center py-6 mt-auto">
-    <small class="opacity-80">© 2025 Ready4Exam</small>
+    <small class="opacity-80">© 2025 Ready4Exam Academic Portal. All Rights Reserved.</small>
   </footer>
 
-  <!-- FIREBASE CONFIG -->
+  <!-- Firebase Config Injection -->
   <script>
     window.__firebase_config = JSON.stringify({
       "apiKey": "AIzaSyAXdKiYRxBKAj280YcNuNwlKKDp85xpOWQ",
@@ -93,21 +132,14 @@
     });
   </script>
 
-  <script type="module" src="./js/config.js"></script>
+  <!-- Single Module Loader: No Duplicates -->
   <script type="module">
-    import "./js/auth-paywall.js";
-  </script>
-  <script type="module">
+    import "./js/config.js";
+    import { initializeAuthListener, signInWithGoogle } from "./js/auth-paywall.js";
     import "./js/ui-renderer.js";
     import "./js/api.js";
-  </script>
-  <script type="module">
-    window.addEventListener("load", () => import("./js/quiz-engine.js"));
-  </script>
+    import "./js/quiz-engine.js";
 
-  <!-- SIGN-IN LOGIC -->
-  <script type="module">
-    import { initializeAuthListener, signInWithGoogle } from "./js/auth-paywall.js";
     initializeAuthListener();
 
     document.getElementById("google-signin-btn")?.addEventListener("click", () => {
