@@ -25,7 +25,6 @@
 
   <style>
     body { font-family: 'Inter', sans-serif; background-color: #f5f7fa; }
-
     .topic-btn {
       display: block;
       width: 100%;
@@ -44,7 +43,6 @@
       border-color: #1a3e6a;
       background: #eff6ff;
     }
-
     .difficulty-btn {
       padding: .6rem 1.25rem;
       border-radius: .75rem;
@@ -52,7 +50,6 @@
       cursor: pointer;
       transition: .2s;
     }
-
     .difficulty-btn.selected {
       box-shadow: 0 6px 18px rgba(26, 62, 106, .14);
     }
@@ -102,9 +99,6 @@
 
   <!-- SCRIPT -->
   <script type="module">
-    import { initializeAuthListener } from "./js/auth-paywall.js";
-    initializeAuthListener();
-
     import { curriculum } from "./js/curriculum.js";
 
     const params = new URLSearchParams(window.location.search);
@@ -124,13 +118,13 @@
       Physics: "Explore mechanics, thermodynamics, waves, and more.",
       Chemistry: "Study atoms, bonding, and chemical reactions.",
       Biology: "Learn about cells, plants, animals, and human physiology.",
-      Mathematics: "Functions, trigonometry, algebra, geometry for Class 11.",
-      Accountancy: "Journals, ledgers, reconciliation, depreciation & more.",
+      Mathematics: "Functions, trigonometry, algebra, geometry.",
+      Accountancy: "Journals, ledgers, reconciliation & depreciation.",
       "Business Studies": "Business concepts and organizational fundamentals.",
-      Economics: "Statistics, Indian economic development & market concepts.",
+      Economics: "Statistics, Indian economic development & markets.",
       History: "Global events shaping civilization.",
-      "Political Science": "Government, democracy, constitution & rights.",
-      Geography: "Earth systems, climate, landforms and human geography."
+      "Political Science": "Government, democracy & constitution.",
+      Geography: "Earth systems, climate, landforms & human geography."
     };
 
     function renderBooks() {
@@ -153,6 +147,7 @@
       content.innerHTML = "";
       const chapters = curriculum[subject][book];
       document.getElementById("page-title").textContent = `${book} — Chapters`;
+
       chapters.forEach(ch => {
         const title = ch.chapter_title || ch.title || ch;
         const btn = document.createElement("button");
@@ -161,6 +156,7 @@
         btn.onclick = e => selectChapter(title, e.currentTarget);
         content.appendChild(btn);
       });
+
       const back = document.createElement("button");
       back.className = "text-cbse-blue underline font-semibold mt-4";
       back.textContent = "← Back to Books";
@@ -187,15 +183,14 @@
     });
 
     function buildTableName(chapterTitle) {
-      const parts = chapterTitle
-        .toLowerCase().replace(/[^a-z0-9\s]/g, "").trim().split(/\s+/);
-      return parts.length === 1 ? `${parts[0]}_quiz` :
-             `${parts[0]}_${parts[parts.length - 1]}_quiz`;
+      const parts = chapterTitle.toLowerCase().replace(/[^a-z0-9\s]/g, "").trim().split(/\s+/);
+      return parts.length === 1 ? `${parts[0]}_quiz`
+        : `${parts[0]}_${parts[parts.length - 1]}_quiz`;
     }
 
     startBtn.onclick = () => {
       if (!selectedChapter || !selectedDifficulty) {
-        errorMsg.textContent = "Please select both a chapter and a difficulty.";
+        errorMsg.textContent = "Please select both a chapter and difficulty.";
         errorMsg.classList.remove("hidden");
         return;
       }
