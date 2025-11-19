@@ -1,106 +1,88 @@
 // scripts/generateCurriculumJS.js
-//-------------------------------------------------------------
-// Converts curriculum.json → curriculum.js (flattened format)
-//-------------------------------------------------------------
+// Auto-convert ALL static_curriculum/classX/curriculum.json → template/js/curriculum.js
 
 import fs from "fs";
 import path from "path";
 
-const cls = process.env.CLASS;
-if (!cls) {
-  console.error("❌ ERROR: CLASS environment variable not set.");
+const root = process.cwd();
+const staticDir = path.join(root, "static_curriculum");
+const outputJS = path.join(root, "template", "js", "curriculum.js");
+
+// ------------------------------------------------------------
+// AUTO DETECT ALL CLASS FOLDERS (class5, class6… class12)
+// ------------------------------------------------------------
+const classDirs = fs.readdirSync(staticDir).filter((d) =>
+  /^class\d+$/.test(d)
+);
+
+if (!classDirs.length) {
+  console.error("❌ No class folders found in static_curriculum/");
   process.exit(1);
 }
 
-const baseDir = process.cwd();
-const jsonPath = path.join(baseDir, "static_curriculum", "class" + cls, "curriculum.json");
-const outPath = path.join(baseDir, "template", "js", "curriculum.js");
+console.log("🔍 Found curriculum folders:", classDirs.join(", "));
 
-//-------------------------------------------------------------
-// READ JSON
-//-------------------------------------------------------------
-if (!fs.existsSync(jsonPath)) {
-  console.error("❌ ERROR: curriculum.json does not exist at:", jsonPath);
-  process.exit(1);
-}
+// ------------------------------------------------------------
+// FLATTENER: convert your big JSON → simple curriculum.js format
+// ------------------------------------------------------------
+function flatten(jsonObj) {
+  const out = {};
 
-console.log("📘 Loading:", jsonPath);
-const raw = fs.readFileSync(jsonPath, "utf8");
-const data = JSON.parse(raw);
-
-//-------------------------------------------------------------
-// FLATTENER LOGIC
-//-------------------------------------------------------------
-/*
-INPUT FORMAT:
-{
-  "class": "11",
-  "streams": {
-    "Science": { subjects: { Physics: { books: […] } } },
-    "Commerce": { … },
-    "Humanities": { … }
-  }
-}
-
-OUTPUT FORMAT:
-export const curriculum = {
-  "Physics": {
-    "Physics Part I": [ {chapter_title, table_id, section}, ... ],
-    "Physics Part II": [ ... ]
-  },
-  "Chemistry": {...}
-};
-*/
-
-function transformCurriculum(json) {
-  const result = {};
-
-  const streams = json.streams || {};
-
-  for (const streamName of Object.keys(streams)) {
-    const stream = streams[streamName];
-    const subjects = stream.subjects || {};
+  for (const streamName of Object.keys(jsonObj.streams)) {
+    const stream = jsonObj.streams[streamName];
+    const subjects = stream.subjects;
 
     for (const subjectName of Object.keys(subjects)) {
-      const subjectObj = subjects[subjectName];
-      const books = subjectObj.books || [];
+      const subject = subjects[subjectName];
+      out[subjectName] = {};
 
-      if (!result[subjectName]) result[subjectName] = {};
-
-      for (const book of books) {
+      subject.books.forEach((book) => {
         const bookTitle = book.title;
-        const chapters = book.chapters || [];
+        out[subjectName][bookTitle] = [];
 
-        if (!result[subjectName][bookTitle]) {
-          result[subjectName][bookTitle] = [];
-        }
-
-        chapters.forEach((ch, idx) => {
-          result[subjectName][bookTitle].push({
-            chapter_title: ch,
+        book.chapters.forEach((chapter, idx) => {
+          out[subjectName][bookTitle].push({
+            chapter_title: chapter,
             table_id: `Ch ${idx + 1}`,
-            section: streamName   // Science / Commerce / Humanities
+            section: streamName
           });
         });
-      }
+      });
     }
   }
 
-  return result;
+  return out;
 }
 
-const curriculumJS = transformCurriculum(data);
+// ------------------------------------------------------------
+// Build a MASTER curriculum object for all classes
+// ------------------------------------------------------------
+const master = {};
 
-//-------------------------------------------------------------
-// WRITE curriculum.js
-//-------------------------------------------------------------
-const output =
-`// Auto-generated for Class ${cls} — Do NOT edit manually
-export const curriculum = ${JSON.stringify(curriculumJS, null, 2)};
+for (const classFolder of classDirs) {
+  const classNum = classFolder.replace("class", "");
+  const file = path.join(staticDir, classFolder, "curriculum.json");
 
-export default curriculum;
-`;
+  if (!fs.existsSync(file)) {
+    console.warn(`⚠️ Missing curriculum.json for ${classFolder}, skipping.`);
+    continue;
+  }
 
-fs.writeFileSync(outPath, output, "utf8");
+  console.log(`📘 Reading → ${file}`);
 
-console.log("✅ curriculum.js created at:", outPath);
+  const json = JSON.parse(fs.readFileSync(file, "utf-8"));
+  master[`class${classNum}`] = flatten(json);
+}
+
+// ------------------------------------------------------------
+// Write final curriculum.js
+// ------------------------------------------------------------
+const jsContent =
+  "export const curriculum = " +
+  JSON.stringify(master, null, 2) +
+  ";\n\nexport default curriculum;";
+
+fs.writeFileSync(outputJS, jsContent);
+
+console.log("✅ curriculum.js generated for ALL classes");
+console.log("📄 Saved → template/js/curriculum.js");
