@@ -29,10 +29,10 @@ if (!GITHUB_TOKEN) {
 console.log(`⚙️ Running createClassRepo.js for class=${CLASS}`);
 
 // ------------------------------------------------------------
-// Repo Naming: ready4exam-11 , ready4exam-12, ready4exam-7...
+// Repo Naming → ready4exam-11 (no class- prefix)
 // ------------------------------------------------------------
 const REPO_NAME = `ready4exam-${CLASS}`;
-const REPO_URL = `https://${GITHUB_TOKEN}:x-oauth-basic@github.com/${REPO_OWNER}/${REPO_NAME}.git`;
+const CLONE_URL = `https://${GITHUB_TOKEN}:x-oauth-basic@github.com/${REPO_OWNER}/${REPO_NAME}.git`;
 
 const TARGET_DIR = path.join(process.cwd(), "output", REPO_NAME);
 if (!fs.existsSync(path.join(process.cwd(), "output"))) {
@@ -40,10 +40,10 @@ if (!fs.existsSync(path.join(process.cwd(), "output"))) {
 }
 
 // ------------------------------------------------------------
-// Ensure repo exists — if NOT, CREATE it automatically
+// Ensure repo exists (CREATE IF MISSING)
 // ------------------------------------------------------------
 async function ensureRepoExists() {
-  console.log(`🔍 Checking if repo exists: ${REPO_NAME}`);
+  console.log(`🔍 Checking repo existence: ${REPO_NAME}`);
 
   const apiURL = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}`;
   const headers = {
@@ -54,14 +54,13 @@ async function ensureRepoExists() {
   const res = await fetch(apiURL, { headers });
 
   if (res.status === 200) {
-    console.log(`✅ Repo already exists → ${REPO_NAME}`);
+    console.log(`✅ Repo exists → ${REPO_NAME}`);
     return;
   }
 
   if (res.status === 404) {
-    console.log(`📦 Repo not found. Creating → ${REPO_NAME}`);
+    console.log(`📦 Repo not found. Creating now → ${REPO_NAME}`);
 
-    // Create new repo
     const createRes = await fetch(
       `https://api.github.com/orgs/${REPO_OWNER}/repos`,
       {
@@ -81,7 +80,7 @@ async function ensureRepoExists() {
       process.exit(1);
     }
 
-    console.log(`🎉 Repo created successfully! → ${REPO_NAME}`);
+    console.log(`🎉 Repo created successfully → ${REPO_NAME}`);
     return;
   }
 
@@ -90,30 +89,30 @@ async function ensureRepoExists() {
 }
 
 // ------------------------------------------------------------
-// Validate curriculum.js exists (in template/js)
+// Validate curriculum.js exists
 // ------------------------------------------------------------
-const curriculumJSPath = path.join(TEMPLATE_DIR, "js", "curriculum.js");
+const curriculumPath = path.join(TEMPLATE_DIR, "js", "curriculum.js");
 
-if (!fs.existsSync(curriculumJSPath)) {
-  console.error("❌ Missing curriculum.js in template/js. Run generator first.");
+if (!fs.existsSync(curriculumPath)) {
+  console.error("❌ curriculum.js missing in template/js. Run generator first.");
   process.exit(1);
 }
 
 // ------------------------------------------------------------
-// Clone or pull repository
+// Clone or Pull Repo
 // ------------------------------------------------------------
 function cloneOrPullRepo() {
   if (!fs.existsSync(TARGET_DIR)) {
-    console.log(`📥 Cloning ${REPO_NAME}...`);
-    execSync(`git clone ${REPO_URL} ${TARGET_DIR}`, { stdio: "inherit" });
+    console.log(`📥 Cloning repository → ${REPO_NAME}`);
+    execSync(`git clone ${CLONE_URL} ${TARGET_DIR}`, { stdio: "inherit" });
   } else {
-    console.log(`🔄 Pulling latest updates...`);
+    console.log(`🔄 Pulling updates → ${REPO_NAME}`);
     execSync(`git -C ${TARGET_DIR} pull`, { stdio: "inherit" });
   }
 }
 
 // ------------------------------------------------------------
-// Copy template → target repo
+// Copy Template Folder
 // ------------------------------------------------------------
 function copyRecursive(src, dest) {
   if (!fs.existsSync(dest)) fs.mkdirSync(dest, { recursive: true });
@@ -136,22 +135,45 @@ function copyTemplate() {
 }
 
 // ------------------------------------------------------------
-// Write curriculum.js → class repo
+// Insert curriculum.js
 // ------------------------------------------------------------
 function insertCurriculum() {
-  const targetCurriculumPath = path.join(TARGET_DIR, "js", "curriculum.js");
-  fs.copyFileSync(curriculumJSPath, targetCurriculumPath);
-  console.log(`✨ curriculum.js written → ${targetCurriculumPath}`);
+  const destPath = path.join(TARGET_DIR, "js", "curriculum.js");
+  fs.copyFileSync(curriculumPath, destPath);
+  console.log(`✨ curriculum.js copied → ${destPath}`);
 }
 
 // ------------------------------------------------------------
-// Commit + push
+// Commit and Push
 // ------------------------------------------------------------
 function commitAndPush() {
-  console.log("🔐 Setting Git user");
   execSync(`git -C ${TARGET_DIR} config user.email "automation@ready4exam.com"`);
   execSync(`git -C ${TARGET_DIR} config user.name "R4E Automation Bot"`);
 
-  console.log("📤 Committing changes...");
   try {
-    execSync(`gi
+    execSync(`git -C ${TARGET_DIR} add .`, { stdio: "inherit" });
+    execSync(
+      `git -C ${TARGET_DIR} commit -m "🔄 Auto-update: Class ${CLASS} template + curriculum sync"`,
+      { stdio: "inherit" }
+    );
+  } catch {
+    console.log("ℹ️ No changes to commit.");
+  }
+
+  console.log("⬆️ Pushing...");
+  execSync(`git -C ${TARGET_DIR} push`, { stdio: "inherit" });
+  console.log(`🎉 Successfully updated ${REPO_NAME}`);
+}
+
+// ------------------------------------------------------------
+// Main
+// ------------------------------------------------------------
+async function run() {
+  await ensureRepoExists();
+  cloneOrPullRepo();
+  copyTemplate();
+  insertCurriculum();
+  commitAndPush();
+}
+
+run();
