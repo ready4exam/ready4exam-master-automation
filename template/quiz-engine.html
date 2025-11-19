@@ -6,7 +6,9 @@
   <title>Ready4Exam | Quiz Engine</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
+
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet" />
+
   <script>
     tailwind.config = {
       theme: {
@@ -40,7 +42,6 @@
 
   <div id="status-message" class="text-center p-6 font-semibold text-blue-700 hidden"></div>
 
-  <!-- PAYWALL -->
   <div id="paywall-screen" class="flex flex-col items-center justify-center flex-grow p-12">
     <div class="bg-white rounded-xl p-10 shadow-xl border border-gray-200 text-center max-w-md">
       <h2 class="text-2xl font-bold text-gray-800 mb-4">Sign in to Continue</h2>
@@ -52,6 +53,7 @@
 
   <main id="quiz-content" class="hidden flex flex-col items-center max-w-4xl mx-auto px-4 py-8">
     <div id="question-list" class="w-full space-y-6 mb-8"></div>
+
     <div class="w-full flex justify-between items-center bg-white rounded-lg shadow p-4">
       <button id="prev-btn" class="px-5 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300">Previous</button>
       <span id="question-counter" class="font-semibold text-gray-700">-- / --</span>
@@ -80,7 +82,6 @@
     <small class="opacity-80">© 2025 Ready4Exam</small>
   </footer>
 
-  <!-- FIREBASE CONFIG -->
   <script>
     window.__firebase_config = JSON.stringify({
       "apiKey": "AIzaSyAXdKiYRxBKAj280YcNuNwlKKDp85xpOWQ",
@@ -93,26 +94,17 @@
     });
   </script>
 
-  <script type="module" src="./js/config.js"></script>
   <script type="module">
-    import "./js/auth-paywall.js";
-  </script>
-  <script type="module">
-    import "./js/ui-renderer.js";
+    import "./js/config.js";
+    import { initializeAuthListener, signInWithGoogle, signOut } from "./js/auth-paywall.js";
     import "./js/api.js";
-  </script>
-  <script type="module">
-    window.addEventListener("load", () => import("./js/quiz-engine.js"));
-  </script>
+    import "./js/ui-renderer.js";
+    import "./js/quiz-engine.js";
 
-  <!-- SIGN-IN LOGIC -->
-  <script type="module">
-    import { initializeAuthListener, signInWithGoogle } from "./js/auth-paywall.js";
     initializeAuthListener();
 
-    document.getElementById("google-signin-btn")?.addEventListener("click", () => {
-      signInWithGoogle();
-    });
+    document.getElementById("google-signin-btn")?.addEventListener("click", signInWithGoogle);
+    document.getElementById("logout-nav-btn")?.addEventListener("click", signOut);
   </script>
 
 </body>
