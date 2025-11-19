@@ -26,11 +26,13 @@ jobs:
       # 🧠 STEP 1 — Convert curriculum JSON → JS (before class repo generation)
       - name: 🧠 Generate curriculum.js from JSON
         run: node scripts/generateCurriculumJS.js
+        env:
+          CLASS: ${{ github.event.inputs.class }}   # ✅ FIX ADDED
 
       # 🚀 STEP 2 — Create class repository using the specified class input
       - name: 🚀 Run Class Automation
         env:
-          CLASS: ${{ github.event.inputs.class }} # ✅ pass the selected class as env var
+          CLASS: ${{ github.event.inputs.class }} # (already correct)
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           FIREBASE_API_KEY_1112: ${{ secrets.FIREBASE_API_KEY_1112 }}
