@@ -14,7 +14,6 @@ import { execSync } from "child_process";
 const CLASS = process.env.CLASS;
 const REPO_OWNER = "ready4exam";
 const TEMPLATE_DIR = path.join(process.cwd(), "template");
-const STATIC_CURRICULUM_DIR = path.join(process.cwd(), "static_curriculum");
 
 if (!CLASS) {
   console.error("❌ Missing CLASS environment variable.");
@@ -24,23 +23,23 @@ if (!CLASS) {
 console.log(`⚙️ Running createClassRepo.js for class=${CLASS}`);
 
 // ------------------------------------------------------------
-// Validate curriculum.js exists
+// Validate curriculum.js exists (now in template/js)
 // ------------------------------------------------------------
 const curriculumJSPath = path.join(
-  STATIC_CURRICULUM_DIR,
-  `class${CLASS}`,
+  TEMPLATE_DIR,
+  "js",
   "curriculum.js"
 );
 
 if (!fs.existsSync(curriculumJSPath)) {
   console.error(
-    `❌ Missing source curriculum: ${curriculumJSPath}\n` +
-      "Run generateCurriculumJS.js first."
+    `❌ Missing curriculum.js in template/js.\n` +
+    "Run generateCurriculumJS.js first."
   );
   process.exit(1);
 }
 
-console.log(`[Curriculum] Preparing curriculum for class${CLASS}`);
+console.log(`[Curriculum] Found curriculum.js for class${CLASS}`);
 
 // ------------------------------------------------------------
 // Create Target Repo Name
@@ -106,9 +105,12 @@ console.log("📤 Committing updates...");
 
 try {
   execSync(`git -C ${TARGET_DIR} add .`, { stdio: "inherit" });
-  execSync(`git -C ${TARGET_DIR} commit -m "🔄 Auto-update: Class ${CLASS} curriculum + template sync"`, {
-    stdio: "inherit",
-  });
+  execSync(
+    `git -C ${TARGET_DIR} commit -m "🔄 Auto-update: Class ${CLASS} curriculum + template sync"`,
+    {
+      stdio: "inherit",
+    }
+  );
 } catch (err) {
   console.log("ℹ️ No changes to commit.");
 }
