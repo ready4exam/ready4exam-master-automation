@@ -1,117 +1,86 @@
 // scripts/generateCurriculumJS.js
-//-------------------------------------------------------
-// Converts static_curriculum/classX/curriculum.json → 
-// template/js/curriculum.js (final flattened R4E format)
-//-------------------------------------------------------
-
 import fs from "fs";
 import path from "path";
-import process from "process";
 
-// ------------------------------
-// 1. Read CLASS from workflow
-// ------------------------------
-const cls = process.env.CLASS;
-
-if (!cls) {
-  console.error("❌ ERROR: CLASS environment variable not set.");
-  process.exit(1);
-}
-
-console.log(`📘 Generating curriculum.js for Class ${cls} ...`);
-
-// ------------------------------
-// 2. Paths
-// ------------------------------
+// Root folder
 const baseDir = process.cwd();
+const rootDir = path.join(baseDir, "static_curriculum");
 
-const sourceJson = path.join(
-  baseDir,
-  "static_curriculum",
-  `class${cls}`,
-  "curriculum.json"
-);
+// Detect all class folders
+const classFolders = fs.readdirSync(rootDir).filter(f => f.startsWith("class"));
 
-const outputJs = path.join(
-  baseDir,
-  "template",
-  "js",
-  "curriculum.js"
-);
+console.log("🔍 Found curriculum folders:", classFolders.join(", "));
 
-// ------------------------------
-// 3. Validate source file
-// ------------------------------
-if (!fs.existsSync(sourceJson)) {
-  console.error(`❌ ERROR: curriculum.json missing for class ${cls}`);
-  console.error(`Expected: ${sourceJson}`);
-  process.exit(1);
-}
+function flatten(jsonObj) {
+  if (!jsonObj.streams) return null; // ❌ invalid format → skip
 
-console.log(`📄 Reading: ${sourceJson}`);
+  const output = {};
 
-const rawJson = fs.readFileSync(sourceJson, "utf8");
-let jsonData;
-
-try {
-  jsonData = JSON.parse(rawJson);
-} catch (err) {
-  console.error("❌ ERROR: Invalid JSON file.");
-  console.error(err);
-  process.exit(1);
-}
-
-// ---------------------------------------------
-// 4. Flatten NCERT JSON → Ready4Exam format
-// ---------------------------------------------
-function convert(json) {
-  const result = {};
-
-  if (!json.streams) {
-    throw new Error("❌ JSON missing 'streams' key.");
-  }
-
-  for (const streamName of Object.keys(json.streams)) {
-    const stream = json.streams[streamName];
-
+  for (const streamName of Object.keys(jsonObj.streams)) {
+    const stream = jsonObj.streams[streamName];
     if (!stream.subjects) continue;
 
     for (const subjectName of Object.keys(stream.subjects)) {
       const subject = stream.subjects[subjectName];
-      if (!result[subjectName]) result[subjectName] = {};
+      if (!subject.books) continue;
 
-      (subject.books || []).forEach((book) => {
-        result[subjectName][book.title] = book.chapters.map((ch, i) => ({
-          chapter_title: ch,
-          table_id: `Ch ${i + 1}`,
+      if (!output[subjectName]) output[subjectName] = {};
+
+      for (const bookObj of subject.books) {
+        const bookTitle = bookObj.title;
+        const chaptersArr = bookObj.chapters || [];
+
+        output[subjectName][bookTitle] = chaptersArr.map((chapter, idx) => ({
+          chapter_title: chapter,
+          table_id: `Ch ${idx + 1}`,
           section: streamName
         }));
-      });
+      }
     }
   }
 
-  return result;
+  return output;
 }
 
-console.log("🔄 Converting to Ready4Exam curriculum.js format...");
-let finalData;
+function writeCurriculumJS(finalObj) {
+  const outPath = path.join(baseDir, "template", "js", "curriculum.js");
 
-try {
-  finalData = convert(jsonData);
-} catch (err) {
-  console.error("❌ ERROR converting JSON → JS");
-  console.error(err);
-  process.exit(1);
+  const jsContent =
+`export const curriculum = ${JSON.stringify(finalObj, null, 2)};
+
+export default curriculum;`;
+
+  fs.writeFileSync(outPath, jsContent);
+  console.log(`✅ curriculum.js generated → template/js/curriculum.js`);
 }
 
-// ------------------------------------------------------
-// 5. Build curriculum.js output file
-// ------------------------------------------------------
-const jsContent =
-  `// Auto-generated for Class ${cls}\n` +
-  `export const curriculum = ${JSON.stringify(finalData, null, 2)};\n` +
-  `export default curriculum;\n`;
+// COMBINED curriculum for all classes
+const allClasses = {};
 
-fs.writeFileSync(outputJs, jsContent, "utf8");
+for (const folder of classFolders) {
+  const classNum = folder.replace("class", "");
 
-console.log(`✅ SUCCESS: curriculum.js created → ${outputJs}`);
+  const jsonPath = path.join(rootDir, folder, "curriculum.json");
+  if (!fs.existsSync(jsonPath)) {
+    console.warn(`⚠️ No curriculum.json found → ${folder}`);
+    continue;
+  }
+
+  console.log(`📘 Reading → ${jsonPath}`);
+  const raw = fs.readFileSync(jsonPath, "utf8");
+  const parsed = JSON.parse(raw);
+
+  const flat = flatten(parsed);
+
+  if (!flat) {
+    console.warn(`⚠️ Skipped: curriculum.json for class${classNum} is not in streams/subjects structure.`);
+    continue;
+  }
+
+  allClasses[classNum] = flat;
+}
+
+// Write final single curriculum.js used by all repos
+writeCurriculumJS(allClasses);
+
+console.log("🎉 All curriculum conversions completed.");
