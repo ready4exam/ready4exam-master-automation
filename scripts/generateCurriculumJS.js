@@ -1,43 +1,106 @@
 // scripts/generateCurriculumJS.js
-// -----------------------------------------------------------------------------
-// Converts static JSON curriculum files into JS modules with named + default export
-// -----------------------------------------------------------------------------
-// Usage: node scripts/generateCurriculumJS.js
-// Output: static_curriculum/classX/curriculum.js for each available JSON
-// -----------------------------------------------------------------------------
+//-------------------------------------------------------------
+// Converts curriculum.json → curriculum.js (flattened format)
+//-------------------------------------------------------------
 
 import fs from "fs";
 import path from "path";
 
-const BASE_DIR = path.resolve("static_curriculum");
-const classes = fs.readdirSync(BASE_DIR).filter((f) => f.startsWith("class"));
+const cls = process.env.CLASS;
+if (!cls) {
+  console.error("❌ ERROR: CLASS environment variable not set.");
+  process.exit(1);
+}
 
-for (const classFolder of classes) {
-  const jsonPath = path.join(BASE_DIR, classFolder, "curriculum.json");
-  const jsPath = path.join(BASE_DIR, classFolder, "curriculum.js");
+const baseDir = process.cwd();
+const jsonPath = path.join(baseDir, "static_curriculum", "class" + cls, "curriculum.json");
+const outPath = path.join(baseDir, "template", "js", "curriculum.js");
 
-  if (!fs.existsSync(jsonPath)) {
-    console.warn(`⚠️  Missing JSON file for ${classFolder}, skipping.`);
-    continue;
-  }
+//-------------------------------------------------------------
+// READ JSON
+//-------------------------------------------------------------
+if (!fs.existsSync(jsonPath)) {
+  console.error("❌ ERROR: curriculum.json does not exist at:", jsonPath);
+  process.exit(1);
+}
 
-  try {
-    const jsonData = JSON.parse(fs.readFileSync(jsonPath, "utf8"));
-    const jsContent =
-`// Auto-generated from ${classFolder}/curriculum.json
-// Do not edit manually. Generated on ${new Date().toISOString()}
+console.log("📘 Loading:", jsonPath);
+const raw = fs.readFileSync(jsonPath, "utf8");
+const data = JSON.parse(raw);
 
-export const curriculum = ${JSON.stringify(jsonData, null, 2)};
-
-// ✅ Added dual export for flexibility:
-export default curriculum;
-`;
-
-    fs.writeFileSync(jsPath, jsContent, "utf8");
-    console.log(`✅ Generated ${jsPath}`);
-  } catch (err) {
-    console.error(`❌ Failed to process ${classFolder}:`, err.message);
+//-------------------------------------------------------------
+// FLATTENER LOGIC
+//-------------------------------------------------------------
+/*
+INPUT FORMAT:
+{
+  "class": "11",
+  "streams": {
+    "Science": { subjects: { Physics: { books: […] } } },
+    "Commerce": { … },
+    "Humanities": { … }
   }
 }
 
-console.log("🎉 Curriculum JS generation complete for all classes.");
+OUTPUT FORMAT:
+export const curriculum = {
+  "Physics": {
+    "Physics Part I": [ {chapter_title, table_id, section}, ... ],
+    "Physics Part II": [ ... ]
+  },
+  "Chemistry": {...}
+};
+*/
+
+function transformCurriculum(json) {
+  const result = {};
+
+  const streams = json.streams || {};
+
+  for (const streamName of Object.keys(streams)) {
+    const stream = streams[streamName];
+    const subjects = stream.subjects || {};
+
+    for (const subjectName of Object.keys(subjects)) {
+      const subjectObj = subjects[subjectName];
+      const books = subjectObj.books || [];
+
+      if (!result[subjectName]) result[subjectName] = {};
+
+      for (const book of books) {
+        const bookTitle = book.title;
+        const chapters = book.chapters || [];
+
+        if (!result[subjectName][bookTitle]) {
+          result[subjectName][bookTitle] = [];
+        }
+
+        chapters.forEach((ch, idx) => {
+          result[subjectName][bookTitle].push({
+            chapter_title: ch,
+            table_id: `Ch ${idx + 1}`,
+            section: streamName   // Science / Commerce / Humanities
+          });
+        });
+      }
+    }
+  }
+
+  return result;
+}
+
+const curriculumJS = transformCurriculum(data);
+
+//-------------------------------------------------------------
+// WRITE curriculum.js
+//-------------------------------------------------------------
+const output =
+`// Auto-generated for Class ${cls} — Do NOT edit manually
+export const curriculum = ${JSON.stringify(curriculumJS, null, 2)};
+
+export default curriculum;
+`;
+
+fs.writeFileSync(outPath, output, "utf8");
+
+console.log("✅ curriculum.js created at:", outPath);
