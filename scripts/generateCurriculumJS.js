@@ -1,88 +1,133 @@
 // scripts/generateCurriculumJS.js
-// Auto-convert ALL static_curriculum/classX/curriculum.json → template/js/curriculum.js
+// ------------------------------------------------------------
+// UNIVERSAL CURRICULUM GENERATOR
+// Converts ANY NCERT JSON format (Class 5–12) → curriculum.js
+// ------------------------------------------------------------
 
 import fs from "fs";
 import path from "path";
 
-const root = process.cwd();
-const staticDir = path.join(root, "static_curriculum");
-const outputJS = path.join(root, "template", "js", "curriculum.js");
+const BASE = process.cwd();
+const STATIC_DIR = path.join(BASE, "static_curriculum");
+
+console.log("🔍 Scanning static_curriculum...");
+const folders = fs.readdirSync(STATIC_DIR).filter(f => f.startsWith("class"));
+
+console.log("🔍 Found classes:", folders.join(", "));
 
 // ------------------------------------------------------------
-// AUTO DETECT ALL CLASS FOLDERS (class5, class6… class12)
+// UNIVERSAL JSON → Unified JS converter
+// Handles ALL formats used across Class 5–12
 // ------------------------------------------------------------
-const classDirs = fs.readdirSync(staticDir).filter((d) =>
-  /^class\d+$/.test(d)
-);
+function convertToUnified(json) {
 
-if (!classDirs.length) {
-  console.error("❌ No class folders found in static_curriculum/");
-  process.exit(1);
-}
+  // --------------------------------------------
+  // FORMAT A → Class 11/12 (streams based)
+  // --------------------------------------------
+  if (json.streams) {
+    const out = {};
 
-console.log("🔍 Found curriculum folders:", classDirs.join(", "));
+    for (const streamName of Object.keys(json.streams)) {
+      const stream = json.streams[streamName];
 
-// ------------------------------------------------------------
-// FLATTENER: convert your big JSON → simple curriculum.js format
-// ------------------------------------------------------------
-function flatten(jsonObj) {
-  const out = {};
+      for (const subjectName of Object.keys(stream.subjects)) {
+        const subject = stream.subjects[subjectName];
+        out[subjectName] = out[subjectName] || {};
 
-  for (const streamName of Object.keys(jsonObj.streams)) {
-    const stream = jsonObj.streams[streamName];
-    const subjects = stream.subjects;
-
-    for (const subjectName of Object.keys(subjects)) {
-      const subject = subjects[subjectName];
-      out[subjectName] = {};
-
-      subject.books.forEach((book) => {
-        const bookTitle = book.title;
-        out[subjectName][bookTitle] = [];
-
-        book.chapters.forEach((chapter, idx) => {
-          out[subjectName][bookTitle].push({
-            chapter_title: chapter,
+        for (const book of subject.books) {
+          out[subjectName][book.title] = book.chapters.map((ch, idx) => ({
+            chapter_title: ch,
             table_id: `Ch ${idx + 1}`,
             section: streamName
-          });
-        });
-      });
+          }));
+        }
+      }
     }
+
+    return out;
   }
 
-  return out;
+  // --------------------------------------------
+  // FORMAT B → Class 6–10 (subjects → books)
+  // --------------------------------------------
+  if (json.subjects) {
+    const out = {};
+
+    for (const subjectName of Object.keys(json.subjects)) {
+      const subject = json.subjects[subjectName];
+      out[subjectName] = {};
+
+      for (const book of subject.books) {
+        out[subjectName][book.title] = book.chapters.map((ch, idx) => ({
+          chapter_title: ch,
+          table_id: `Ch ${idx + 1}`
+        }));
+      }
+    }
+
+    return out;
+  }
+
+  // --------------------------------------------
+  // FORMAT C → Very simple JSON
+  // { subject: { bookName: ["Ch1","Ch2"] }}
+  // --------------------------------------------
+  if (typeof json === "object") {
+    const out = {};
+
+    for (const subjectName of Object.keys(json)) {
+      out[subjectName] = {};
+
+      for (const bookName of Object.keys(json[subjectName])) {
+        const chapters = json[subjectName][bookName];
+        out[subjectName][bookName] = chapters.map((ch, idx) => ({
+          chapter_title: ch,
+          table_id: `Ch ${idx + 1}`
+        }));
+      }
+    }
+
+    return out;
+  }
+
+  return {};
 }
 
 // ------------------------------------------------------------
-// Build a MASTER curriculum object for all classes
+// MAIN EXECUTION
 // ------------------------------------------------------------
-const master = {};
+for (const folder of folders) {
+  const classNum = folder.replace("class", "");
+  const jsonPath = path.join(STATIC_DIR, folder, "curriculum.json");
 
-for (const classFolder of classDirs) {
-  const classNum = classFolder.replace("class", "");
-  const file = path.join(staticDir, classFolder, "curriculum.json");
+  console.log(`📘 Reading → ${jsonPath}`);
 
-  if (!fs.existsSync(file)) {
-    console.warn(`⚠️ Missing curriculum.json for ${classFolder}, skipping.`);
+  if (!fs.existsSync(jsonPath)) {
+    console.warn(`⚠️ No curriculum.json found for ${folder}. Skipping…`);
     continue;
   }
 
-  console.log(`📘 Reading → ${file}`);
+  const raw = fs.readFileSync(jsonPath, "utf8");
+  let jsonObj;
 
-  const json = JSON.parse(fs.readFileSync(file, "utf-8"));
-  master[`class${classNum}`] = flatten(json);
+  try {
+    jsonObj = JSON.parse(raw);
+  } catch (err) {
+    console.error(`❌ ERROR parsing JSON for ${folder}:`, err);
+    continue;
+  }
+
+  // Convert any schema → unified structure
+  const unified = convertToUnified(jsonObj);
+
+  // JS output file inside template/js/
+  const outPath = path.join(BASE, "template", "js", "curriculum.js");
+  const jsContent = `export const curriculum = ${JSON.stringify(unified, null, 2)};
+export default curriculum;
+`;
+
+  fs.writeFileSync(outPath, jsContent, "utf8");
+  console.log(`✅ curriculum.js generated for Class ${classNum}`);
 }
 
-// ------------------------------------------------------------
-// Write final curriculum.js
-// ------------------------------------------------------------
-const jsContent =
-  "export const curriculum = " +
-  JSON.stringify(master, null, 2) +
-  ";\n\nexport default curriculum;";
-
-fs.writeFileSync(outputJS, jsContent);
-
-console.log("✅ curriculum.js generated for ALL classes");
-console.log("📄 Saved → template/js/curriculum.js");
+console.log("🎉 All curriculum.js files generated successfully!");
