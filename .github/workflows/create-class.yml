@@ -23,25 +23,35 @@ jobs:
       - name: 📦 Install dependencies
         run: npm install
 
-      # 🧠 STEP 1 — Convert curriculum JSON → JS (before class repo generation)
+      # STEP 1 — Curriculum JSON → curriculum.js
       - name: 🧠 Generate curriculum.js from JSON
         run: node scripts/generateCurriculumJS.js
         env:
-          CLASS: ${{ github.event.inputs.class }}   # ✅ FIX ADDED
+          CLASS: ${{ github.event.inputs.class }}
 
-      # 🚀 STEP 2 — Create class repository using the specified class input
+      # STEP 2 — Create class repo
       - name: 🚀 Run Class Automation
         env:
-          CLASS: ${{ github.event.inputs.class }} # (already correct)
+          CLASS: ${{ github.event.inputs.class }}
+
+          # 🔥 Option A — Universal Firebase Variables
+          FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
+          FIREBASE_AUTH_DOMAIN: ${{ secrets.FIREBASE_AUTH_DOMAIN }}
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          FIREBASE_STORAGE_BUCKET: ${{ secrets.FIREBASE_STORAGE_BUCKET }}
+          FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.FIREBASE_MESSAGING_SENDER_ID }}
+          FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
+          FIREBASE_MEASUREMENT_ID: ${{ secrets.FIREBASE_MEASUREMENT_ID }}
+
+          # 🔥 Universal Supabase variables
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          FIREBASE_API_KEY_1112: ${{ secrets.FIREBASE_API_KEY_1112 }}
-          FIREBASE_APP_ID_1112: ${{ secrets.FIREBASE_APP_ID_1112 }}
-          FIREBASE_PROJECT_ID_1112: ${{ secrets.FIREBASE_PROJECT_ID_1112 }}
-          FIREBASE_AUTH_DOMAIN_1112: ${{ secrets.FIREBASE_AUTH_DOMAIN_1112 }}
-          GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+
+          # GitHub
+          GITHUB_OWNER: ${{ secrets.GITHUB_OWNER }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
         run: node scripts/createClassRepo.js
 
-      # ✅ STEP 3 — Confirm success
       - name: ✅ Workflow Complete
-        run: echo "🎉 Class repository automation complete for Class ${{ github.event.inputs.class }}"
+        run: echo "🎉 Completed class automation for Class ${{ github.event.inputs.class }}"
