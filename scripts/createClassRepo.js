@@ -1,7 +1,6 @@
 // scripts/createClassRepo.js
 // ------------------------------------------------------------
-// Ready4Exam - Class Repo Automation (Auto-create if missing)
-// Fully corrected and robust version
+// Ready4Exam - Class Repo Automation (Option A: Universal Vars)
 // ------------------------------------------------------------
 
 import fs from "fs";
@@ -10,11 +9,10 @@ import { execSync } from "child_process";
 import fetch from "node-fetch";
 
 // ------------------------------------------------------------
-// CONFIG
+// ENV + CONFIG
 // ------------------------------------------------------------
 const CLASS = process.env.CLASS;
 const REPO_OWNER = process.env.GITHUB_OWNER || "ready4exam";
-const TEMPLATE_DIR = path.join(process.cwd(), "template");
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 
 if (!CLASS) {
@@ -29,22 +27,35 @@ if (!GITHUB_TOKEN) {
 
 console.log(`⚙️ Running createClassRepo.js for class=${CLASS}`);
 
-// ------------------------------------------------------------
-// Repo Naming → ready4exam-<CLASS>
-// ------------------------------------------------------------
+// Paths
+const TEMPLATE_DIR = path.join(process.cwd(), "template");
+const OUTPUT_DIR = path.join(process.cwd(), "output");
+if (!fs.existsSync(OUTPUT_DIR)) fs.mkdirSync(OUTPUT_DIR);
+
+// Repo naming
 const REPO_NAME = `ready4exam-${CLASS}`;
 const CLONE_URL = `https://${GITHUB_TOKEN}:x-oauth-basic@github.com/${REPO_OWNER}/${REPO_NAME}.git`;
-
-const OUTPUT_DIR = path.join(process.cwd(), "output");
-if (!fs.existsSync(OUTPUT_DIR)) fs.mkdirSync(OUTPUT_DIR, { recursive: true });
-
 const TARGET_DIR = path.join(OUTPUT_DIR, REPO_NAME);
 
 // ------------------------------------------------------------
-// Placeholder → Vercel ENV mapping (adjust names to your Vercel env)
+// DEBUGGING ENV VARS (Visible in workflow run logs)
+// ------------------------------------------------------------
+console.log("\n🧪 DEBUG — Loaded Environment Variables:");
+console.log("FIREBASE_API_KEY =", process.env.FIREBASE_API_KEY);
+console.log("FIREBASE_AUTH_DOMAIN =", process.env.FIREBASE_AUTH_DOMAIN);
+console.log("FIREBASE_PROJECT_ID =", process.env.FIREBASE_PROJECT_ID);
+console.log("FIREBASE_STORAGE_BUCKET =", process.env.FIREBASE_STORAGE_BUCKET);
+console.log("FIREBASE_MESSAGING_SENDER_ID =", process.env.FIREBASE_MESSAGING_SENDER_ID);
+console.log("FIREBASE_APP_ID =", process.env.FIREBASE_APP_ID);
+console.log("FIREBASE_MEASUREMENT_ID =", process.env.FIREBASE_MEASUREMENT_ID);
+console.log("SUPABASE_URL =", process.env.SUPABASE_URL);
+console.log("SUPABASE_ANON_KEY =", process.env.SUPABASE_ANON_KEY);
+console.log("------------------------------------------------------------\n");
+
+// ------------------------------------------------------------
+// REPLACEMENT MAP — FINAL OPTION A
 // ------------------------------------------------------------
 const replacements = {
-  // Firebase (use the env names you set in Vercel)
   "%%FIREBASE_API_KEY%%": process.env.FIREBASE_API_KEY || "",
   "%%FIREBASE_AUTH_DOMAIN%%": process.env.FIREBASE_AUTH_DOMAIN || "",
   "%%FIREBASE_PROJECT_ID%%": process.env.FIREBASE_PROJECT_ID || "",
@@ -53,28 +64,13 @@ const replacements = {
   "%%FIREBASE_APP_ID%%": process.env.FIREBASE_APP_ID || "",
   "%%FIREBASE_MEASUREMENT_ID%%": process.env.FIREBASE_MEASUREMENT_ID || "",
 
-  // Supabase (class-specific - ensure these env names exist in Vercel)
-  "%%SUPABASE_URL_11%%": process.env.SUPABASE_URL_11 || "",
-  "%%SUPABASE_ANON_KEY_11%%": process.env.SUPABASE_ANON_KEY_11 || ""
+  // Supabase (universal)
+  "%%SUPABASE_URL%%": process.env.SUPABASE_URL || "",
+  "%%SUPABASE_ANON_KEY%%": process.env.SUPABASE_ANON_KEY || "",
 };
 
 // ------------------------------------------------------------
-// Helper: Replace placeholders inside a file
-// ------------------------------------------------------------
-function applyReplacementsToFile(filePath) {
-  try {
-    let content = fs.readFileSync(filePath, "utf8");
-    for (const [key, value] of Object.entries(replacements)) {
-      content = content.split(key).join(value);
-    }
-    fs.writeFileSync(filePath, content, "utf8");
-  } catch (err) {
-    console.warn(`⚠️ applyReplacementsToFile failed for ${filePath}: ${err.message}`);
-  }
-}
-
-// ------------------------------------------------------------
-// Ensure repo exists on GitHub (create if missing)
+// REPO EXISTS?
 // ------------------------------------------------------------
 async function ensureRepoExists() {
   console.log(`🔍 Checking repo existence: ${REPO_NAME}`);
@@ -82,7 +78,7 @@ async function ensureRepoExists() {
   const apiURL = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}`;
   const headers = {
     Authorization: `token ${GITHUB_TOKEN}`,
-    "User-Agent": "Ready4Exam-Automation"
+    "User-Agent": "Ready4Exam-Automation",
   };
 
   const res = await fetch(apiURL, { headers });
@@ -93,7 +89,7 @@ async function ensureRepoExists() {
   }
 
   if (res.status === 404) {
-    console.log(`📦 Repo not found. Creating now → ${REPO_NAME}`);
+    console.log(`📦 Repo not found. Creating → ${REPO_NAME}`);
 
     const createRes = await fetch(
       `https://api.github.com/orgs/${REPO_OWNER}/repos`,
@@ -103,14 +99,13 @@ async function ensureRepoExists() {
         body: JSON.stringify({
           name: REPO_NAME,
           private: true,
-          auto_init: true
-        })
+          auto_init: true,
+        }),
       }
     );
 
     if (!createRes.ok) {
-      console.error("❌ Failed to create repository");
-      console.error(await createRes.text());
+      console.error("❌ Error creating repository:\n", await createRes.text());
       process.exit(1);
     }
 
@@ -123,53 +118,60 @@ async function ensureRepoExists() {
 }
 
 // ------------------------------------------------------------
-// Clone or Pull the repo locally
+// APPLY PLACEHOLDERS
+// ------------------------------------------------------------
+function applyReplacementsToFile(filePath) {
+  let content = fs.readFileSync(filePath, "utf8");
+
+  for (const [placeholder, value] of Object.entries(replacements)) {
+    content = content.replace(new RegExp(placeholder, "g"), value);
+  }
+
+  fs.writeFileSync(filePath, content, "utf8");
+}
+
+// ------------------------------------------------------------
+// CLONE or PULL
 // ------------------------------------------------------------
 function cloneOrPullRepo() {
   if (!fs.existsSync(TARGET_DIR)) {
-    console.log(`📥 Cloning repository → ${REPO_NAME}`);
+    console.log(`📥 Cloning repo → ${REPO_NAME}`);
     execSync(`git clone ${CLONE_URL} ${TARGET_DIR}`, { stdio: "inherit" });
   } else {
-    console.log(`🔄 Pulling updates → ${REPO_NAME}`);
+    console.log(`🔄 Pulling latest → ${REPO_NAME}`);
     execSync(`git -C ${TARGET_DIR} pull`, { stdio: "inherit" });
   }
 }
 
 // ------------------------------------------------------------
-// Copy Template Recursively (safe: skip .git and node_modules)
+// COPY TEMPLATE + Apply replacements
 // ------------------------------------------------------------
 function copyRecursive(src, dest) {
   if (!fs.existsSync(dest)) fs.mkdirSync(dest, { recursive: true });
 
   for (const item of fs.readdirSync(src)) {
-    // Safety: skip .git and node_modules and any hidden CI folders
-    if (item === ".git" || item === "node_modules" || item.startsWith(".")) continue;
-
     const srcPath = path.join(src, item);
     const destPath = path.join(dest, item);
 
-    const stat = fs.lstatSync(srcPath);
-    if (stat.isDirectory()) {
+    if (fs.lstatSync(srcPath).isDirectory()) {
       copyRecursive(srcPath, destPath);
     } else {
-      // Ensure dest directory exists
-      const destDir = path.dirname(destPath);
-      if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
-
-      // Copy file
       fs.copyFileSync(srcPath, destPath);
 
-      // Apply replacements only for text files we care about
-      const lower = destPath.toLowerCase();
-      if (lower.endsWith(".html") || lower.endsWith(".js") || lower.endsWith(".json")) {
+      if (destPath.endsWith(".html") || destPath.endsWith(".js")) {
         applyReplacementsToFile(destPath);
       }
     }
   }
 }
 
+function copyTemplate() {
+  console.log(`📁 Copying template → ${REPO_NAME}`);
+  copyRecursive(TEMPLATE_DIR, TARGET_DIR);
+}
+
 // ------------------------------------------------------------
-// Commit and Push
+// COMMIT + PUSH
 // ------------------------------------------------------------
 function commitAndPush() {
   execSync(`git -C ${TARGET_DIR} config user.email "automation@ready4exam.com"`);
@@ -181,43 +183,23 @@ function commitAndPush() {
       `git -C ${TARGET_DIR} commit -m "🔄 Auto-update: Class ${CLASS} template + env injection"`,
       { stdio: "inherit" }
     );
-  } catch (e) {
+  } catch {
     console.log("ℹ️ No changes to commit.");
   }
 
-  console.log("⬆️ Pushing...");
+  console.log("⬆️ Pushing changes…");
   execSync(`git -C ${TARGET_DIR} push`, { stdio: "inherit" });
-  console.log(`🎉 Successfully updated ${REPO_NAME}`);
+  console.log(`🎉 Successfully updated → ${REPO_NAME}`);
 }
 
 // ------------------------------------------------------------
-// Main
+// MAIN
 // ------------------------------------------------------------
 async function run() {
   await ensureRepoExists();
   cloneOrPullRepo();
-
-  // Ensure the target repo directory exists (git clone will create it)
-  if (!fs.existsSync(TARGET_DIR)) fs.mkdirSync(TARGET_DIR, { recursive: true });
-
-  console.log("📁 Copying template to target repo...");
-  copyRecursive(TEMPLATE_DIR, TARGET_DIR);
-
-  // Ensure curriculum.js is present (copy from template/js if exists)
-  const curriculumSrc = path.join(TEMPLATE_DIR, "js", "curriculum.js");
-  const curriculumDest = path.join(TARGET_DIR, "js", "curriculum.js");
-  if (fs.existsSync(curriculumSrc)) {
-    fs.copyFileSync(curriculumSrc, curriculumDest);
-    applyReplacementsToFile(curriculumDest);
-    console.log("✨ curriculum.js synced");
-  } else {
-    console.warn("⚠️ curriculum.js not found in template/js — ensure generator ran.");
-  }
-
+  copyTemplate();
   commitAndPush();
 }
 
-run().catch(err => {
-  console.error("❌ createClassRepo.js failed:", err);
-  process.exit(1);
-});
+run();
