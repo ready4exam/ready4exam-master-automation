@@ -1,6 +1,7 @@
 // scripts/createClassRepo.js
 // ------------------------------------------------------------
 // Ready4Exam - Class Repo Automation (Auto-create if missing)
+// Fully corrected and robust version
 // ------------------------------------------------------------
 
 import fs from "fs";
@@ -29,18 +30,51 @@ if (!GITHUB_TOKEN) {
 console.log(`⚙️ Running createClassRepo.js for class=${CLASS}`);
 
 // ------------------------------------------------------------
-// Repo Naming → ready4exam-11 (no class- prefix)
+// Repo Naming → ready4exam-<CLASS>
 // ------------------------------------------------------------
 const REPO_NAME = `ready4exam-${CLASS}`;
 const CLONE_URL = `https://${GITHUB_TOKEN}:x-oauth-basic@github.com/${REPO_OWNER}/${REPO_NAME}.git`;
 
 const OUTPUT_DIR = path.join(process.cwd(), "output");
-if (!fs.existsSync(OUTPUT_DIR)) fs.mkdirSync(OUTPUT_DIR);
+if (!fs.existsSync(OUTPUT_DIR)) fs.mkdirSync(OUTPUT_DIR, { recursive: true });
 
 const TARGET_DIR = path.join(OUTPUT_DIR, REPO_NAME);
 
 // ------------------------------------------------------------
-// Ensure repo exists (CREATE IF MISSING)
+// Placeholder → Vercel ENV mapping (adjust names to your Vercel env)
+// ------------------------------------------------------------
+const replacements = {
+  // Firebase (use the env names you set in Vercel)
+  "%%FIREBASE_API_KEY%%": process.env.FIREBASE_API_KEY || "",
+  "%%FIREBASE_AUTH_DOMAIN%%": process.env.FIREBASE_AUTH_DOMAIN || "",
+  "%%FIREBASE_PROJECT_ID%%": process.env.FIREBASE_PROJECT_ID || "",
+  "%%FIREBASE_STORAGE_BUCKET%%": process.env.FIREBASE_STORAGE_BUCKET || "",
+  "%%FIREBASE_MESSAGING_SENDER_ID%%": process.env.FIREBASE_MESSAGING_SENDER_ID || "",
+  "%%FIREBASE_APP_ID%%": process.env.FIREBASE_APP_ID || "",
+  "%%FIREBASE_MEASUREMENT_ID%%": process.env.FIREBASE_MEASUREMENT_ID || "",
+
+  // Supabase (class-specific - ensure these env names exist in Vercel)
+  "%%SUPABASE_URL_11%%": process.env.SUPABASE_URL_11 || "",
+  "%%SUPABASE_ANON_KEY_11%%": process.env.SUPABASE_ANON_KEY_11 || ""
+};
+
+// ------------------------------------------------------------
+// Helper: Replace placeholders inside a file
+// ------------------------------------------------------------
+function applyReplacementsToFile(filePath) {
+  try {
+    let content = fs.readFileSync(filePath, "utf8");
+    for (const [key, value] of Object.entries(replacements)) {
+      content = content.split(key).join(value);
+    }
+    fs.writeFileSync(filePath, content, "utf8");
+  } catch (err) {
+    console.warn(`⚠️ applyReplacementsToFile failed for ${filePath}: ${err.message}`);
+  }
+}
+
+// ------------------------------------------------------------
+// Ensure repo exists on GitHub (create if missing)
 // ------------------------------------------------------------
 async function ensureRepoExists() {
   console.log(`🔍 Checking repo existence: ${REPO_NAME}`);
@@ -48,7 +82,7 @@ async function ensureRepoExists() {
   const apiURL = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}`;
   const headers = {
     Authorization: `token ${GITHUB_TOKEN}`,
-    "User-Agent": "Ready4Exam-Automation",
+    "User-Agent": "Ready4Exam-Automation"
   };
 
   const res = await fetch(apiURL, { headers });
@@ -69,8 +103,8 @@ async function ensureRepoExists() {
         body: JSON.stringify({
           name: REPO_NAME,
           private: true,
-          auto_init: true,
-        }),
+          auto_init: true
+        })
       }
     );
 
@@ -89,38 +123,7 @@ async function ensureRepoExists() {
 }
 
 // ------------------------------------------------------------
-// Placeholder → Vercel ENV mapping
-// ------------------------------------------------------------
-const replacements = {
-  // Firebase
-  "%%FIREBASE_API_KEY%%": process.env.FIREBASE_API_KEY || "",
-  "%%FIREBASE_AUTH_DOMAIN%%": process.env.FIREBASE_AUTH_DOMAIN || "",
-  "%%FIREBASE_PROJECT_ID%%": process.env.FIREBASE_PROJECT_ID || "",
-  "%%FIREBASE_STORAGE_BUCKET%%": process.env.FIREBASE_STORAGE_BUCKET || "",
-  "%%FIREBASE_MESSAGING_SENDER_ID%%": process.env.FIREBASE_MESSAGING_SENDER_ID || "",
-  "%%FIREBASE_APP_ID%%": process.env.FIREBASE_APP_ID || "",
-  "%%FIREBASE_MEASUREMENT_ID%%": process.env.FIREBASE_MEASUREMENT_ID || "",
-
-  // Supabase (class-specific)
-  "%%SUPABASE_URL_11%%": process.env.SUPABASE_URL_11 || "",
-  "%%SUPABASE_ANON_KEY_11%%": process.env.SUPABASE_ANON_KEY_11 || "",
-};
-
-// ------------------------------------------------------------
-// Replace placeholders inside files
-// ------------------------------------------------------------
-function applyReplacementsToFile(filePath) {
-  let content = fs.readFileSync(filePath, "utf8");
-
-  for (const [key, value] of Object.entries(replacements)) {
-    content = content.replace(new RegExp(key, "g"), value);
-  }
-
-  fs.writeFileSync(filePath, content, "utf8");
-}
-
-// ------------------------------------------------------------
-// Clone or Pull Repo
+// Clone or Pull the repo locally
 // ------------------------------------------------------------
 function cloneOrPullRepo() {
   if (!fs.existsSync(TARGET_DIR)) {
@@ -133,28 +136,32 @@ function cloneOrPullRepo() {
 }
 
 // ------------------------------------------------------------
-// Copy Template Folder
+// Copy Template Recursively (safe: skip .git and node_modules)
 // ------------------------------------------------------------
 function copyRecursive(src, dest) {
   if (!fs.existsSync(dest)) fs.mkdirSync(dest, { recursive: true });
 
   for (const item of fs.readdirSync(src)) {
+    // Safety: skip .git and node_modules and any hidden CI folders
+    if (item === ".git" || item === "node_modules" || item.startsWith(".")) continue;
+
     const srcPath = path.join(src, item);
     const destPath = path.join(dest, item);
 
-    if (fs.lstatSync(srcPath).isDirectory()) {
+    const stat = fs.lstatSync(srcPath);
+    if (stat.isDirectory()) {
       copyRecursive(srcPath, destPath);
     } else {
-      let fileContent = fs.readFileSync(srcPath);
+      // Ensure dest directory exists
+      const destDir = path.dirname(destPath);
+      if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
 
-      // copy file
-      fs.writeFileSync(destPath, fileContent);
+      // Copy file
+      fs.copyFileSync(srcPath, destPath);
 
-      // apply replacements to HTML + JS files
-      if (
-        destPath.endsWith(".html") ||
-        destPath.endsWith(".js")
-      ) {
+      // Apply replacements only for text files we care about
+      const lower = destPath.toLowerCase();
+      if (lower.endsWith(".html") || lower.endsWith(".js") || lower.endsWith(".json")) {
         applyReplacementsToFile(destPath);
       }
     }
@@ -174,7 +181,7 @@ function commitAndPush() {
       `git -C ${TARGET_DIR} commit -m "🔄 Auto-update: Class ${CLASS} template + env injection"`,
       { stdio: "inherit" }
     );
-  } catch {
+  } catch (e) {
     console.log("ℹ️ No changes to commit.");
   }
 
@@ -189,8 +196,28 @@ function commitAndPush() {
 async function run() {
   await ensureRepoExists();
   cloneOrPullRepo();
-  copyTemplate();
+
+  // Ensure the target repo directory exists (git clone will create it)
+  if (!fs.existsSync(TARGET_DIR)) fs.mkdirSync(TARGET_DIR, { recursive: true });
+
+  console.log("📁 Copying template to target repo...");
+  copyRecursive(TEMPLATE_DIR, TARGET_DIR);
+
+  // Ensure curriculum.js is present (copy from template/js if exists)
+  const curriculumSrc = path.join(TEMPLATE_DIR, "js", "curriculum.js");
+  const curriculumDest = path.join(TARGET_DIR, "js", "curriculum.js");
+  if (fs.existsSync(curriculumSrc)) {
+    fs.copyFileSync(curriculumSrc, curriculumDest);
+    applyReplacementsToFile(curriculumDest);
+    console.log("✨ curriculum.js synced");
+  } else {
+    console.warn("⚠️ curriculum.js not found in template/js — ensure generator ran.");
+  }
+
   commitAndPush();
 }
 
-run();
+run().catch(err => {
+  console.error("❌ createClassRepo.js failed:", err);
+  process.exit(1);
+});
