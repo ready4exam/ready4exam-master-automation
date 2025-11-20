@@ -1,95 +1,64 @@
 // js/auth-paywall.js
-// -------------------------------------------------------------
-// Phase-3 Auth Layer (Firebase-only Auth, Supabase anonymous)
-// -------------------------------------------------------------
+// Simplified — Firebase-only login. No OIDC. No Supabase token sync.
+
+import { initializeServices, getInitializedClients } from "./config.js";
+import { showView, showAuthLoading, hideAuthLoading } from "./ui-renderer.js";
 
 import {
   GoogleAuthProvider,
   signInWithPopup,
-  signInWithRedirect,
   onAuthStateChanged,
-  signOut as fbSignOut
+  signOut as firebaseSignOut,
+  setPersistence,
+  browserLocalPersistence
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
-import { getInitializedClients } from "./config.js";
+const LOG = "[AUTH]";
+let externalOnAuthChange = null;
+const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({ prompt: "select_account" });
 
-let listenerSetup = false;
-
-export function initializeAuthListener() {
-  if (listenerSetup) return;
-  listenerSetup = true;
-
+export async function initializeAuthListener(callback = null) {
+  await initializeServices();
   const { auth } = getInitializedClients();
 
-  onAuthStateChanged(auth, async (user) => {
-    console.log("[AUTH] State:", user?.email || "No user");
+  if (callback) externalOnAuthChange = callback;
+  await setPersistence(auth, browserLocalPersistence);
 
-    const paywall = document.getElementById("paywall-screen");
-    const quizContent = document.getElementById("quiz-content");
-    const logoutBtn = document.getElementById("logout-nav-btn");
+  onAuthStateChanged(auth, (user) => {
+    console.log(LOG, "State →", user ? user.uid : "signed out");
 
     if (user) {
-      console.log("[AUTH] User signed in");
-      console.log("[AUTH] Firebase login OK — Supabase stays anonymous.");
-
-      // UI updates
-      paywall?.classList.add("hidden");
-      quizContent?.classList.remove("hidden");
-      logoutBtn?.classList.remove("hidden");
-
-      // Notify quiz engine
-      document.dispatchEvent(
-        new CustomEvent("r4e-auth-ready", { detail: user })
-      );
-
+      showView("quiz-content");
+      hideAuthLoading();
     } else {
-      console.log("[AUTH] Logged out → Show Paywall");
-      paywall?.classList.remove("hidden");
-      quizContent?.classList.add("hidden");
-      logoutBtn?.classList.add("hidden");
+      showView("paywall-screen");
     }
+
+    if (typeof externalOnAuthChange === "function")
+      externalOnAuthChange(user);
   });
 
-  console.log("[AUTH] Listener Initialized");
+  console.log(LOG, "Auth listener initialized.");
 }
 
-// -------------------------------------------------------------
-// Google Sign-In
-// -------------------------------------------------------------
 export async function signInWithGoogle() {
+  await initializeServices();
   const { auth } = getInitializedClients();
-  const provider = new GoogleAuthProvider();
-  provider.setCustomParameters({ prompt: "select_account" });
+  showAuthLoading("Opening Google Login...");
 
   try {
-    console.log("[AUTH] Popup sign-in…");
-    await signInWithPopup(auth, provider);
-  } catch (err) {
-    console.warn("[AUTH] Popup failed:", err?.code);
-    console.log("[AUTH] Switching to redirect mode…");
-    await signInWithRedirect(auth, provider);
+    const res = await signInWithPopup(auth, googleProvider);
+    hideAuthLoading();
+    return res;
+  } catch (e) {
+    console.error(LOG, "Popup error:", e);
+    hideAuthLoading();
   }
 }
 
-// -------------------------------------------------------------
-// Sign Out
-// -------------------------------------------------------------
 export async function signOut() {
+  await initializeServices();
   const { auth } = getInitializedClients();
-
-  await fbSignOut(auth).catch((e) =>
-    console.warn("[AUTH] Firebase signOut error:", e)
-  );
-
-  console.log("[AUTH] Signed Out → UI reset");
-
-  document.getElementById("paywall-screen")?.classList.remove("hidden");
-  document.getElementById("quiz-content")?.classList.add("hidden");
-}
-
-// -------------------------------------------------------------
-// Compatibility stub
-// -------------------------------------------------------------
-export function checkAccess() {
-  return true;
+  return firebaseSignOut(auth);
 }
