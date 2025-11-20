@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Ready4Exam | Quiz Engine</title>
 
+  <!-- Tailwind -->
   <script src="https://cdn.tailwindcss.com"></script>
 
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet" />
@@ -30,19 +31,99 @@
     .option-label:hover { border-color: #2563eb; background-color: #eff6ff; }
   </style>
 
-  <!-- 🔥 CONFIG INJECTION BLOCK (Automation replaces placeholders) -->
- <script>
-  window.__firebase_config = {
-    apiKey: "%%FIREBASE_API_KEY%%",
-    authDomain: "%%FIREBASE_AUTH_DOMAIN%%",
-    projectId: "%%FIREBASE_PROJECT_ID%%",
-    storageBucket: "%%FIREBASE_STORAGE_BUCKET%%",
-    messagingSenderId: "%%FIREBASE_MESSAGING_SENDER_ID%%",
-    appId: "%%FIREBASE_APP_ID%%",
-    measurementId: "%%FIREBASE_MEASUREMENT_ID%%",
+  <!-- 🔥 CONFIG INJECTION BLOCK (Automation replaces placeholders via createClassRepo.js) -->
+  <script>
+    window.__firebase_config = {
+      apiKey: "%%FIREBASE_API_KEY%%",
+      authDomain: "%%FIREBASE_AUTH_DOMAIN%%",
+      projectId: "%%FIREBASE_PROJECT_ID%%",
+      storageBucket: "%%FIREBASE_STORAGE_BUCKET%%",
+      messagingSenderId: "%%FIREBASE_MESSAGING_SENDER_ID%%",
+      appId: "%%FIREBASE_APP_ID%%",
+      measurementId: "%%FIREBASE_MEASUREMENT_ID%%",
 
-    // Supabase (public anon)
-    supabaseUrl: "%%SUPABASE_URL_11%%",
-    supabaseAnonKey: "%%SUPABASE_ANON_KEY_11%%"
-  };
-</script>
+      // 🔥 Supabase (public anon)
+      supabaseUrl: "%%SUPABASE_URL_11%%",
+      supabaseAnonKey: "%%SUPABASE_ANON_KEY_11%%"
+    };
+  </script>
+</head>
+
+<body class="min-h-screen flex flex-col">
+
+  <!-- HEADER -->
+  <header class="bg-cbse-blue shadow-md py-4 px-6 flex justify-between items-center">
+    <a href="chapter-selection.html" class="p-2 bg-white text-cbse-blue font-semibold rounded-full shadow hover:bg-gray-100 transition">🏠</a>
+
+    <div class="flex items-center space-x-4">
+      <span id="difficulty-display" class="px-3 py-1 text-sm font-semibold bg-yellow-100 text-yellow-800 rounded-full"></span>
+    </div>
+  </header>
+
+  <!-- STATUS MESSAGE -->
+  <div id="status-message" class="text-center p-6 font-semibold text-blue-700 hidden"></div>
+
+  <!-- LOGIN SCREEN -->
+  <div id="paywall-screen" class="flex flex-col items-center justify-center flex-grow p-12">
+    <div class="bg-white rounded-xl p-10 shadow-xl border border-gray-200 text-center max-w-md">
+      <h2 class="text-2xl font-bold text-gray-800 mb-4">Sign in to Continue</h2>
+      <button id="google-signin-btn" class="px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition">
+        Sign in with Google
+      </button>
+    </div>
+  </div>
+
+  <!-- QUIZ ENGINE -->
+  <main id="quiz-content" class="hidden flex flex-col items-center max-w-4xl mx-auto px-4 py-8">
+    <div id="question-list" class="w-full space-y-6 mb-8"></div>
+
+    <div class="w-full flex justify-between items-center bg-white rounded-lg shadow p-4">
+      <button id="prev-btn" class="px-5 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300">Previous</button>
+      <span id="question-counter" class="font-semibold text-gray-700">-- / --</span>
+
+      <div class="flex space-x-2">
+        <button id="next-btn" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Next</button>
+        <button id="submit-btn" class="hidden px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">Submit Quiz</button>
+      </div>
+    </div>
+  </main>
+
+  <!-- RESULTS SCREEN -->
+  <section id="results-screen" class="hidden flex flex-col items-center justify-center text-center py-10 px-6">
+    <h2 class="text-3xl font-extrabold text-green-600 mb-4">Quiz Completed!</h2>
+    <p class="text-lg text-gray-700 mb-3">Your score:</p>
+    <p id="score-display" class="text-5xl font-bold text-blue-700 mb-8">-- / --</p>
+
+    <div id="review-container" class="w-full max-w-3xl text-left mb-8"></div>
+
+    <div id="results-actions" class="hidden mt-10 w-full max-w-md mx-auto text-center">
+      <button id="retry-simple" class="px-6 py-3 bg-green-600 text-white rounded-lg mb-3 w-full">Retry Simple</button>
+      <button id="retry-medium" class="px-6 py-3 bg-yellow-500 text-white rounded-lg mb-3 w-full">Retry Medium</button>
+      <button id="retry-advanced" class="px-6 py-3 bg-red-600 text-white rounded-lg mb-3 w-full">Retry Advanced</button>
+      <button id="back-to-chapters-btn" class="px-6 py-3 bg-cbse-blue text-white rounded-lg w-full mt-4">
+        ← Back to Chapter Selection
+      </button>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer class="bg-cbse-blue text-white text-center py-6 mt-auto">
+    <small class="opacity-80">© 2025 Ready4Exam</small>
+  </footer>
+
+  <!-- Module Scripts -->
+  <script type="module">
+    import "./js/config.js";
+    import { initializeAuthListener, signInWithGoogle, signOut } from "./js/auth-paywall.js";
+    import "./js/api.js";
+    import "./js/ui-renderer.js";
+    import "./js/quiz-engine.js";
+
+    initializeAuthListener();
+
+    document.getElementById("google-signin-btn")?.addEventListener("click", signInWithGoogle);
+    document.getElementById("logout-nav-btn")?.addEventListener("click", signOut);
+  </script>
+
+</body>
+</html>
