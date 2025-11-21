@@ -4,14 +4,9 @@
 import { initializeServices, getInitializedClients } from "./config.js";
 import { showView, showAuthLoading, hideAuthLoading } from "./ui-renderer.js";
 
-import {
-  GoogleAuthProvider,
-  signInWithPopup,
-  onAuthStateChanged,
-  signOut as firebaseSignOut,
-  setPersistence,
-  browserLocalPersistence
-} from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+
+import { signInWithRedirect, GoogleAuthProvider, getRedirectResult } 
+from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
 const LOG = "[AUTH]";
 let externalOnAuthChange = null;
@@ -48,7 +43,7 @@ export async function signInWithGoogle() {
   showAuthLoading("Opening Google Login...");
 
   try {
-    const res = await signInWithPopup(auth, googleProvider);
+    const res = await signInWithRedirect(auth, provider);
     hideAuthLoading();
     return res;
   } catch (e) {
@@ -57,8 +52,14 @@ export async function signInWithGoogle() {
   }
 }
 
+getRedirectResult(auth).then(result => {
+  if (result?.user) console.log("Redirect login OK:", result.user);
+});
+
+
 export async function signOut() {
   await initializeServices();
   const { auth } = getInitializedClients();
   return firebaseSignOut(auth);
 }
+
