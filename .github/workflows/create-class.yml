@@ -46,8 +46,8 @@ jobs:
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
 
           # GitHub
-          GITHUB_OWNER: ${{ secrets.GIT_OWNER }}
-          GITHUB_TOKEN: ${{ secrets.GIT_TOKEN }}
+          GIT_OWNER: ${{ secrets.GIT_OWNER }}
+          GIT_TOKEN: ${{ secrets.GIT_TOKEN }}
 
         run: node scripts/createClassRepo.js
 
