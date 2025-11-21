@@ -1,9 +1,9 @@
 // js/auth-paywall.js
 // -------------------------------------------------------
 // Firebase Login Paywall (Minimal-Patch Version)
-// - No dependency on ui-renderer.js
-// - Pure DOM-based hide/show of auth UI
-// - Safe for MasterAutomation → Class 11 automation
+// - Pure DOM-based hide/show
+// - No dependency on ui-renderer
+// - Compatible with Option A quiz-engine
 // -------------------------------------------------------
 
 import {
@@ -27,46 +27,51 @@ const provider = new GoogleAuthProvider();
 provider.setCustomParameters({ prompt: "select_account" });
 
 // -------------------------------------------------------
-// PURE DOM — NO DEPENDENCIES
+// PURE DOM HELPERS
 // -------------------------------------------------------
+function findPaywall() {
+  return (
+    document.querySelector("#paywall-screen") ||
+    document.querySelector("#auth-container") ||
+    document.querySelector("#signin-card") ||
+    document.querySelector(".auth-box") ||
+    document.querySelector("#paywall") ||
+    document.querySelector(".paywall")
+  );
+}
+
+function findLoading() {
+  return (
+    document.querySelector("#auth-loading") ||
+    document.querySelector(".auth-loading")
+  );
+}
+
 function hidePaywall() {
-  const el = document.querySelector("#auth-container") ||
-             document.querySelector("#signin-card")   ||
-             document.querySelector(".auth-box")      ||
-             document.querySelector(".paywall-screen")||
-             document.querySelector("#paywall")       ||
-             document.querySelector(".paywall");
-  if (el) el.style.display = "none";
+  const pw = findPaywall();
+  if (pw) pw.style.display = "none";
 }
 
 function showPaywall() {
-  const el = document.querySelector("#auth-container") ||
-             document.querySelector("#signin-card")   ||
-             document.querySelector(".auth-box")      ||
-             document.querySelector(".paywall-screen")||
-             document.querySelector("#paywall")       ||
-             document.querySelector(".paywall");
-  if (el) el.style.display = "block";
+  const pw = findPaywall();
+  if (pw) pw.style.display = "block";
 }
 
-// Optionally show "loading" text (simple fallback)
 function showAuthLoading(msg = "Loading…") {
-  const load = document.querySelector("#auth-loading") ||
-               document.querySelector(".auth-loading");
-  if (load) {
-    load.textContent = msg;
-    load.style.display = "block";
+  const el = findLoading();
+  if (el) {
+    el.textContent = msg;
+    el.style.display = "block";
   }
 }
 
 function hideAuthLoading() {
-  const load = document.querySelector("#auth-loading") ||
-               document.querySelector(".auth-loading");
-  if (load) load.style.display = "none";
+  const el = findLoading();
+  if (el) el.style.display = "none";
 }
 
 // -------------------------------------------------------
-// INITIALIZE AUTH LISTENER
+// AUTH LISTENER INITIALIZATION
 // -------------------------------------------------------
 export async function initializeAuthListener(callback = null) {
   await initializeServices();
@@ -76,30 +81,31 @@ export async function initializeAuthListener(callback = null) {
 
   try {
     await setPersistence(auth, browserLocalPersistence);
-  } catch (err) {
-    console.warn(LOG, "Persistence failed, fallback active.", err);
+  } catch (e) {
+    console.warn(LOG, "Persistence failed → Continuing without it", e);
   }
 
   onAuthStateChanged(auth, (user) => {
     console.log(LOG, "Auth state →", user ? user.email : "Signed OUT");
 
     if (user) {
-      hidePaywall(); // ← minimal patch: hide login box immediately
+      // 🔥 CORE BEHAVIOR: Immediately hide paywall on login
+      hidePaywall();
       hideAuthLoading();
 
       if (externalCallback) {
-        try { externalCallback(user); } catch (err) {}
+        try { externalCallback(user); } catch (e) {}
       }
 
-      return; // stop here
+      return;
     }
 
-    // Signed OUT
+    // SIGNED OUT
     showPaywall();
     showAuthLoading("Please sign in to continue");
 
     if (externalCallback) {
-      try { externalCallback(null); } catch (err) {}
+      try { externalCallback(null); } catch (e) {}
     }
   });
 
@@ -107,7 +113,7 @@ export async function initializeAuthListener(callback = null) {
 }
 
 // -------------------------------------------------------
-// SIGN IN WITH GOOGLE POPUP
+// SIGN-IN WITH GOOGLE POPUP
 // -------------------------------------------------------
 export async function signInWithGoogle() {
   await initializeServices();
@@ -117,8 +123,11 @@ export async function signInWithGoogle() {
 
   try {
     const result = await signInWithPopup(auth, provider);
+
+    // 🔥 Immediately hide paywall
     hideAuthLoading();
     hidePaywall();
+
     return result.user;
   } catch (err) {
     console.error(LOG, "Google popup error:", err);
