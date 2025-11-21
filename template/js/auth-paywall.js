@@ -1,18 +1,15 @@
 // js/auth-paywall.js
 // -------------------------------------------------------
-// Firebase-only Login Paywall (final, stable, class-agnostic)
+// Firebase Login Paywall (Minimal-Patch Version)
+// - No dependency on ui-renderer.js
+// - Pure DOM-based hide/show of auth UI
+// - Safe for MasterAutomation → Class 11 automation
 // -------------------------------------------------------
 
 import {
   initializeServices,
   getInitializedClients
 } from "./config.js";
-
-import {
-  showView,
-  showAuthLoading,
-  hideAuthLoading
-} from "./ui-renderer.js";
 
 import {
   GoogleAuthProvider,
@@ -30,7 +27,46 @@ const provider = new GoogleAuthProvider();
 provider.setCustomParameters({ prompt: "select_account" });
 
 // -------------------------------------------------------
-// INIT AUTH LISTENER
+// PURE DOM — NO DEPENDENCIES
+// -------------------------------------------------------
+function hidePaywall() {
+  const el = document.querySelector("#auth-container") ||
+             document.querySelector("#signin-card")   ||
+             document.querySelector(".auth-box")      ||
+             document.querySelector(".paywall-screen")||
+             document.querySelector("#paywall")       ||
+             document.querySelector(".paywall");
+  if (el) el.style.display = "none";
+}
+
+function showPaywall() {
+  const el = document.querySelector("#auth-container") ||
+             document.querySelector("#signin-card")   ||
+             document.querySelector(".auth-box")      ||
+             document.querySelector(".paywall-screen")||
+             document.querySelector("#paywall")       ||
+             document.querySelector(".paywall");
+  if (el) el.style.display = "block";
+}
+
+// Optionally show "loading" text (simple fallback)
+function showAuthLoading(msg = "Loading…") {
+  const load = document.querySelector("#auth-loading") ||
+               document.querySelector(".auth-loading");
+  if (load) {
+    load.textContent = msg;
+    load.style.display = "block";
+  }
+}
+
+function hideAuthLoading() {
+  const load = document.querySelector("#auth-loading") ||
+               document.querySelector(".auth-loading");
+  if (load) load.style.display = "none";
+}
+
+// -------------------------------------------------------
+// INITIALIZE AUTH LISTENER
 // -------------------------------------------------------
 export async function initializeAuthListener(callback = null) {
   await initializeServices();
@@ -38,26 +74,40 @@ export async function initializeAuthListener(callback = null) {
 
   if (callback) externalCallback = callback;
 
-  await setPersistence(auth, browserLocalPersistence);
+  try {
+    await setPersistence(auth, browserLocalPersistence);
+  } catch (err) {
+    console.warn(LOG, "Persistence failed, fallback active.", err);
+  }
 
   onAuthStateChanged(auth, (user) => {
     console.log(LOG, "Auth state →", user ? user.email : "Signed OUT");
 
     if (user) {
-      showView("quiz-content");       // show quiz area
+      hidePaywall(); // ← minimal patch: hide login box immediately
       hideAuthLoading();
-    } else {
-      showView("paywall-screen");     // show login screen
+
+      if (externalCallback) {
+        try { externalCallback(user); } catch (err) {}
+      }
+
+      return; // stop here
     }
 
-    if (externalCallback) externalCallback(user);
+    // Signed OUT
+    showPaywall();
+    showAuthLoading("Please sign in to continue");
+
+    if (externalCallback) {
+      try { externalCallback(null); } catch (err) {}
+    }
   });
 
   console.log(LOG, "Auth listener initialized.");
 }
 
 // -------------------------------------------------------
-// SIGN IN (GOOGLE POPUP)
+// SIGN IN WITH GOOGLE POPUP
 // -------------------------------------------------------
 export async function signInWithGoogle() {
   await initializeServices();
@@ -68,10 +118,12 @@ export async function signInWithGoogle() {
   try {
     const result = await signInWithPopup(auth, provider);
     hideAuthLoading();
+    hidePaywall();
     return result.user;
   } catch (err) {
     console.error(LOG, "Google popup error:", err);
     hideAuthLoading();
+    return null;
   }
 }
 
@@ -81,5 +133,9 @@ export async function signInWithGoogle() {
 export async function signOut() {
   await initializeServices();
   const { auth } = getInitializedClients();
+
+  showPaywall();
+  showAuthLoading("Signing out…");
+
   return firebaseSignOut(auth);
 }
