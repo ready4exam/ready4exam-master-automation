@@ -1,88 +1,83 @@
 // js/auth-paywall.js
-// -------------------------------------------------------------
-// Firebase-only Google Login using signInWithRedirect (SAFE for
-// GitHub Pages / COOP blocks). Works with your paywall + quiz.
-// -------------------------------------------------------------
+// -------------------------------------------------------
+// Firebase-only Login Paywall (final, stable, class-agnostic)
+// -------------------------------------------------------
 
-import { initializeServices, getInitializedClients } from "./config.js";
-import { showView, showAuthLoading, hideAuthLoading } from "./ui-renderer.js";
+import {
+  initializeServices,
+  getInitializedClients
+} from "./config.js";
 
-// Firebase Auth
+import {
+  showView,
+  showAuthLoading,
+  hideAuthLoading
+} from "./ui-renderer.js";
+
 import {
   GoogleAuthProvider,
-  signInWithRedirect,
-  getRedirectResult,
+  signInWithPopup,
   onAuthStateChanged,
-  browserLocalPersistence,
   setPersistence,
+  browserLocalPersistence,
   signOut as firebaseSignOut
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
 const LOG = "[AUTH]";
+let externalCallback = null;
 
-let externalOnAuthChange = null;
-
-// Google provider (force account chooser)
 const provider = new GoogleAuthProvider();
 provider.setCustomParameters({ prompt: "select_account" });
 
-// -------------------------------------------------------------
-// Initialize Auth listener
-// -------------------------------------------------------------
+// -------------------------------------------------------
+// INIT AUTH LISTENER
+// -------------------------------------------------------
 export async function initializeAuthListener(callback = null) {
   await initializeServices();
   const { auth } = getInitializedClients();
 
-  if (callback) externalOnAuthChange = callback;
+  if (callback) externalCallback = callback;
 
   await setPersistence(auth, browserLocalPersistence);
 
-  // Handle redirect result (user returning after Google login)
-  getRedirectResult(auth).then((result) => {
-    if (result?.user) {
-      console.log(LOG, "Redirect login successful:", result.user.uid);
-    }
-  }).catch(err => console.error(LOG, "Redirect ERROR:", err));
-
-  // Main auth listener
   onAuthStateChanged(auth, (user) => {
-    console.log(LOG, "State →", user ? user.uid : "signed out");
+    console.log(LOG, "Auth state →", user ? user.email : "Signed OUT");
 
     if (user) {
+      showView("quiz-content");       // show quiz area
       hideAuthLoading();
-      showView("quiz-content");
     } else {
-      showView("paywall-screen");
+      showView("paywall-screen");     // show login screen
     }
 
-    if (typeof externalOnAuthChange === "function") {
-      externalOnAuthChange(user);
-    }
+    if (externalCallback) externalCallback(user);
   });
 
   console.log(LOG, "Auth listener initialized.");
 }
 
-// -------------------------------------------------------------
-// Sign in with Google (REDIRECT flow)
-// -------------------------------------------------------------
+// -------------------------------------------------------
+// SIGN IN (GOOGLE POPUP)
+// -------------------------------------------------------
 export async function signInWithGoogle() {
   await initializeServices();
   const { auth } = getInitializedClients();
 
-  showAuthLoading("Opening Google Login...");
+  showAuthLoading("Opening Google Login…");
 
   try {
-    await signInWithRedirect(auth, provider);
+    const result = await signInWithPopup(auth, provider);
+    hideAuthLoading();
+    return result.user;
   } catch (err) {
-    console.error(LOG, "Redirect error:", err);
+    console.error(LOG, "Google popup error:", err);
     hideAuthLoading();
   }
 }
 
-// -------------------------------------------------------------
-// Sign out
-// -------------------------------------------------------------
+// -------------------------------------------------------
+// SIGN OUT
+// -------------------------------------------------------
 export async function signOut() {
   await initializeServices();
   const { auth } = getInitializedClients();
