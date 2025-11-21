@@ -1,5 +1,6 @@
 // js/quiz-engine.js
-// Firebase login → fetch quiz → render quiz
+// Option A: Uploaded-Version Logic (topicSlug + difficulty from internal state)
+
 import { initializeServices } from "./config.js";
 import { initializeAuthListener, signInWithGoogle } from "./auth-paywall.js";
 import { fetchQuestions } from "./api.js";
@@ -7,32 +8,41 @@ import * as UI from "./ui-renderer.js";
 
 const LOG = "[ENGINE]";
 
+// GLOBAL quizState holder (uploaded version style)
+window.quizState = window.quizState || {
+  topicSlug: null,
+  difficulty: "medium"
+};
+
 async function main() {
   await initializeServices();
   await initializeAuthListener(onAuthReady);
 
-  const signBtn = document.getElementById("sign-in-button");
-  if (signBtn) signBtn.onclick = () => signInWithGoogle();
-
-  const url = new URL(window.location.href);
-  window.__quiz_table = url.searchParams.get("table") || url.searchParams.get("topic") || "relations_functions_quiz";
-  window.__quiz_difficulty = url.searchParams.get("difficulty") || "medium";
+  const btn = document.getElementById("google-signin-btn");
+  if (btn) btn.onclick = () => signInWithGoogle();
 
   console.log(LOG, "Engine ready.");
 }
 
+// --------------------------
+// Called AFTER login
+// --------------------------
 async function onAuthReady(user) {
-  if (!user) {
-    console.log(LOG, "Waiting for login...");
+  if (!user) return;
+
+  const topic = window.quizState.topicSlug;
+  const diff = window.quizState.difficulty || "medium";
+
+  if (!topic) {
+    console.error(LOG, "Missing topicSlug — quiz cannot load.");
+    UI.showStatus("Error: Topic missing.");
     return;
   }
 
-  const table = window.__quiz_table;
-  const diff = window.__quiz_difficulty;
-
   UI.showStatus("Loading quiz...");
+
   try {
-    const questions = await fetchQuestions(table, diff);
+    const questions = await fetchQuestions(topic, diff);
     UI.renderQuiz(questions);
     console.log(LOG, "Quiz loaded:", questions.length);
   } catch (e) {
