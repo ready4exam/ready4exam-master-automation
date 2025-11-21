@@ -12,8 +12,8 @@ import fetch from "node-fetch";
 // ENV + CONFIG
 // ------------------------------------------------------------
 const CLASS = process.env.CLASS;
-const REPO_OWNER = process.env.GITHUB_OWNER || "ready4exam";
-const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
+const REPO_OWNER = process.env.GIT_OWNER || "ready4exam";
+const GITHUB_TOKEN = process.env.GIT_TOKEN;
 
 if (!CLASS) {
   console.error("❌ Missing CLASS environment variable.");
