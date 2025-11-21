@@ -13,8 +13,13 @@ function getTableName(topic) {
 export async function fetchQuestions(topic, difficulty) {
   const { supabase } = getInitializedClients();
   const table = getTableName(topic);
-  const diff = difficulty.charAt(0).toUpperCase() + difficulty.slice(1);
-
+  const diff = (difficulty || "medium")
+  .toString()
+  .trim()
+  .toLowerCase()
+  .replace(/\s+/g, "")
+  .replace(/^./, c => c.toUpperCase());
+  
   UI.showStatus(`Loading ${table} (${diff})...`);
 
   const { data, error } = await supabase
