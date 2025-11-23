@@ -1,6 +1,6 @@
 // scripts/createClassRepo.js
 // ------------------------------------------------------------
-// Ready4Exam - Class Repo Automation (Option A: Universal Vars)
+// Ready4Exam - Class Repo Automation (Personal GitHub Account)
 // ------------------------------------------------------------
 
 import fs from "fs";
@@ -53,7 +53,7 @@ console.log("SUPABASE_ANON_KEY =", process.env.SUPABASE_ANON_KEY);
 console.log("------------------------------------------------------------\n");
 
 // ------------------------------------------------------------
-// REPLACEMENT MAP — FINAL OPTION A
+// REPLACEMENT MAP
 // ------------------------------------------------------------
 const replacements = {
   "%%FIREBASE_API_KEY%%": process.env.FIREBASE_API_KEY || "",
@@ -63,8 +63,6 @@ const replacements = {
   "%%FIREBASE_MESSAGING_SENDER_ID%%": process.env.FIREBASE_MESSAGING_SENDER_ID || "",
   "%%FIREBASE_APP_ID%%": process.env.FIREBASE_APP_ID || "",
   "%%FIREBASE_MEASUREMENT_ID%%": process.env.FIREBASE_MEASUREMENT_ID || "",
-
-  // Supabase (universal)
   "%%SUPABASE_URL%%": process.env.SUPABASE_URL || "",
   "%%SUPABASE_ANON_KEY%%": process.env.SUPABASE_ANON_KEY || "",
 };
@@ -79,6 +77,7 @@ async function ensureRepoExists() {
   const headers = {
     Authorization: `token ${GITHUB_TOKEN}`,
     "User-Agent": "Ready4Exam-Automation",
+    Accept: "application/vnd.github+json",
   };
 
   const res = await fetch(apiURL, { headers });
@@ -91,21 +90,20 @@ async function ensureRepoExists() {
   if (res.status === 404) {
     console.log(`📦 Repo not found. Creating → ${REPO_NAME}`);
 
-    const createRes = await fetch(
-      `https://api.github.com/orgs/${REPO_OWNER}/repos`,
-      {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          name: REPO_NAME,
-          private: true,
-          auto_init: true,
-        }),
-      }
-    );
+    // FIX: Correct endpoint for PERSONAL GitHub accounts
+    const createRes = await fetch("https://api.github.com/user/repos", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        name: REPO_NAME,
+        private: false,
+        auto_init: true,
+      }),
+    });
 
+    const text = await createRes.text();
     if (!createRes.ok) {
-      console.error("❌ Error creating repository:\n", await createRes.text());
+      console.error("❌ Error creating repository:\n", text);
       process.exit(1);
     }
 
