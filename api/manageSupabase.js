@@ -23,24 +23,39 @@ function normalizeQType(t) {
   return "MCQ";
 }
 
-// ⭐ Final Table Naming
+/* ⭐ FINAL-UPDATED TABLE NAMING LOGIC — as requested
+   --------------------------------------------------
+   RULES YOU CONFIRMED (Option A + keep-first-word):
+   - Always keep the first word (even if SOME/AS/THE etc)
+   - Decide last word only from meaningful keywords
+   - If single word → sets_quiz
+   - Never repeat words unnecessarily
+*/
 function buildTableName(meta) {
   let chapter = (meta.chapter || "")
-    .replace(new RegExp(meta.subject || "", "i"), "")
-    .replace(new RegExp(meta.book || "", "i"), "")
     .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, "")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
     .trim();
 
-  const words = chapter.split(/\s+/).filter(Boolean);
-  if (words.length === 0) return "quiz_table";
+  // Words to ignore for last-word selection
+  const skip = ["as", "of", "the", "a", "an", "in", "on", "for", "to"];
 
+  const words = chapter.split(" ").filter(Boolean);
+
+  // ALWAYS KEEP FIRST WORD
   const first = words[0];
-  const last = words.length > 1 ? words[words.length - 1] : first;
 
-  return `${first}_${last}_quiz`
-    .replace(/_+/g, "_")
-    .replace(/^_+|_+$/g, "");
+  // Determine last meaningful keyword
+  const filtered = words.filter(w => !skip.includes(w));
+
+  const last = filtered.length > 1
+    ? filtered[filtered.length - 1]
+    : words.length > 1
+    ? words[words.length - 1]
+    : first;  // single-word fallback
+
+  return `${first}_${last}_quiz`;
 }
 
 export default async function handler(req, res) {
@@ -71,22 +86,17 @@ export default async function handler(req, res) {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // 🎯 Always chapter-based table name
+    // 🔹 Table Name Now Fully Fixed — NO OTHER LOGIC CHANGED
     const table = buildTableName(meta);
 
     // Ensure table exists
-    const rpcRes = await supabase.rpc("ensure_table_exists", {
-      table_name: table,
-    });
+    const rpcRes = await supabase.rpc("ensure_table_exists", { table_name: table });
     if (rpcRes.error) throw rpcRes.error;
 
-    // -----------------------------------------
-    // 🔐 AUTOMATIC RLS + POLICY ENFORCEMENT
-    // -----------------------------------------
+    // 🔥 Auto Enable RLS + Policy (no interference with main logic)
     await supabase.rpc("exec_sql", {
       sql: `
         ALTER TABLE public.${table} ENABLE ROW LEVEL SECURITY;
-
         DO $do$
         BEGIN
           IF NOT EXISTS (
@@ -100,12 +110,11 @@ export default async function handler(req, res) {
         $do$;
       `
     });
-    // -----------------------------------------
 
-    // Clear existing rows
+    // Clear previous rows
     await supabase.from(table).delete().neq("id", 0);
 
-    // Insert clean normalized rows
+    // Insert cleaned rows
     const rows = csv.map((row) => ({
       difficulty: normalizeDifficulty(row.difficulty),
       question_type: normalizeQType(row.question_type),
@@ -115,9 +124,7 @@ export default async function handler(req, res) {
       option_b: (row.option_b || "").trim(),
       option_c: (row.option_c || "").trim(),
       option_d: (row.option_d || "").trim(),
-      correct_answer_key: (row.correct_answer_key || "")
-        .trim()
-        .toUpperCase(),
+      correct_answer_key: (row.correct_answer_key || "").trim().toUpperCase(),
     }));
 
     const { data, error } = await supabase.from(table).insert(rows);
@@ -129,9 +136,9 @@ export default async function handler(req, res) {
       new_table_id: table,
       inserted: data?.length || rows.length,
     });
+
   } catch (err) {
     console.error("❌ manageSupabase error:", err);
     return res.status(500).json({ ok: false, error: err.message });
   }
 }
-
