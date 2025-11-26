@@ -23,12 +23,11 @@ function normalizeQType(t) {
   return "MCQ";
 }
 
-// ⭐ Final Table Naming: first + last word ONLY
-// Fix: Remove subject/book prefixes if they appear in chapter text
+// ⭐ Final Table Naming
 function buildTableName(meta) {
   let chapter = (meta.chapter || "")
-    .replace(new RegExp(meta.subject || "", "i"), "") // remove subject text
-    .replace(new RegExp(meta.book || "", "i"), "")    // remove book text
+    .replace(new RegExp(meta.subject || "", "i"), "")
+    .replace(new RegExp(meta.book || "", "i"), "")
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, "")
     .trim();
@@ -72,7 +71,7 @@ export default async function handler(req, res) {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // 🎯 Always chapter-based table name (✔ FIX APPLIED)
+    // 🎯 Always chapter-based table name
     const table = buildTableName(meta);
 
     // Ensure table exists
@@ -80,6 +79,28 @@ export default async function handler(req, res) {
       table_name: table,
     });
     if (rpcRes.error) throw rpcRes.error;
+
+    // -----------------------------------------
+    // 🔐 AUTOMATIC RLS + POLICY ENFORCEMENT
+    // -----------------------------------------
+    await supabase.rpc("exec_sql", {
+      sql: `
+        ALTER TABLE public.${table} ENABLE ROW LEVEL SECURITY;
+
+        DO $do$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_policies WHERE policyname = '${table}_select_policy'
+          ) THEN
+            EXECUTE 'CREATE POLICY ${table}_select_policy ON public.${table}
+                     FOR SELECT TO anon, authenticated
+                     USING (true);';
+          END IF;
+        END;
+        $do$;
+      `
+    });
+    // -----------------------------------------
 
     // Clear existing rows
     await supabase.from(table).delete().neq("id", 0);
@@ -113,3 +134,4 @@ export default async function handler(req, res) {
     return res.status(500).json({ ok: false, error: err.message });
   }
 }
+
