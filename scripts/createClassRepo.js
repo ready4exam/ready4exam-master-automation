@@ -38,7 +38,7 @@ const CLONE_URL = `https://${GITHUB_TOKEN}:x-oauth-basic@github.com/${REPO_OWNER
 const TARGET_DIR = path.join(OUTPUT_DIR, REPO_NAME);
 
 // ------------------------------------------------------------
-// 🔥 PLACEHOLDER REPLACEMENT MAP (added CLASS support)
+// PLACEHOLDER REPLACEMENT (no change)
 // ------------------------------------------------------------
 const replacements = {
   "%%FIREBASE_API_KEY%%": process.env.FIREBASE_API_KEY || "",
@@ -50,13 +50,11 @@ const replacements = {
   "%%FIREBASE_MEASUREMENT_ID%%": process.env.FIREBASE_MEASUREMENT_ID || "",
   "%%SUPABASE_URL%%": process.env.SUPABASE_URL || "",
   "%%SUPABASE_ANON_KEY%%": process.env.SUPABASE_ANON_KEY || "",
-
-  // 🔥 New variable for template automation
   "{{CLASS}}": CLASS
 };
 
 // ------------------------------------------------------------
-// REPO CHECK + CREATE IF MISSING
+// CHECK OR CREATE REPO
 // ------------------------------------------------------------
 async function ensureRepoExists() {
   console.log(`🔍 Checking GitHub repo → ${REPO_NAME}`);
@@ -107,19 +105,35 @@ function applyReplacementsToFile(filePath) {
 }
 
 // ------------------------------------------------------------
-// COPY TEMPLATE → TARGET REPO FOLDER
+// COPY TEMPLATE → TARGET REPO  (UPDATED BEHAVIOUR HERE ONLY 🔥)
 // ------------------------------------------------------------
 function copyRecursive(src, dest) {
   if (!fs.existsSync(dest)) fs.mkdirSync(dest, { recursive: true });
 
   for (const item of fs.readdirSync(src)) {
-    const srcPath = path.join(src, item);
+    const srcPath  = path.join(src, item);
     const destPath = path.join(dest, item);
+
+    // 🔥 Curriculum overwrite rules
+    if (item === "curriculum.js") {
+      const existing = fs.existsSync(destPath) ? fs.readFileSync(destPath, "utf8") : "";
+
+      // if quiz tables already exist → do NOT overwrite
+      if (existing.includes("_quiz")) {
+        console.log(`🛑 Skipped curriculum.js — quiz table IDs detected`);
+        continue;
+      }
+
+      console.log(`♻ curriculum.js updated — safe (no _quiz tables found)`);
+      fs.copyFileSync(srcPath, destPath);
+      continue;
+    }
 
     if (fs.lstatSync(srcPath).isDirectory()) {
       copyRecursive(srcPath, destPath);
     } else {
       fs.copyFileSync(srcPath, destPath);
+
       if (destPath.endsWith(".html") || destPath.endsWith(".js"))
         applyReplacementsToFile(destPath);
     }
@@ -148,12 +162,12 @@ function commitAndPush() {
 
   try {
     execSync(`git -C ${TARGET_DIR} add .`, { stdio: "inherit" });
-    execSync(`git -C ${TARGET_DIR} commit -m "🚀 Auto Build: Class ${CLASS} Repo Setup"`, { stdio: "inherit" });
+    execSync(`git -C ${TARGET_DIR} commit -m "🚀 Auto Build: Class ${CLASS} Repo Sync"`, { stdio: "inherit" });
   } catch {
-    console.log("ℹ️ No file changes — nothing to commit");
+    console.log("ℹ️ No changes — nothing to commit");
   }
 
-  console.log("⬆️ Pushing…");
+  console.log("⬆️ Pushing...");
   execSync(`git -C ${TARGET_DIR} push`, { stdio: "inherit" });
   console.log(`🎉 CLASS ${CLASS} deployment complete`);
 }
