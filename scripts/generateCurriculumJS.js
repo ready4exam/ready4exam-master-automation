@@ -1,70 +1,66 @@
-// scripts/generateCurriculumJS.js
 import fs from "fs";
 import path from "path";
 
-const ROOT = process.cwd();
-const SOURCE = path.join(ROOT, "static_curriculum");   // master files you edit
-const OUTPUT = path.join(ROOT, "classes_repo");        // where repo classes generate
+console.log("\n🚀 Curriculum Build Started");
 
-// detect class folders
+// ==========================
+//  FOLDERS
+// ==========================
+const ROOT      = process.cwd();
+const SOURCE    = path.join(ROOT, "static_curriculum");   // MASTER SOURCE - Correct Place
+const OUTPUT    = path.join(ROOT, "classes_repo");        // Final Target Output
+
+// detect available class folders
 const CLASSES = fs.readdirSync(SOURCE).filter(f => f.startsWith("class"));
 
-console.log("\n🚀 Curriculum Compiler Started\n");
 
-// 1️⃣ Detect if file is already perfect
-function finalFormatCheck(text) {
-  return text.includes('export const curriculum = {') &&
-         text.includes('table_id') &&
-         text.trim().endsWith('export default curriculum;');
-}
-
-// 2️⃣ Format builder – Outputs EXACT like your sample
-function buildFinal(curr) {
+// ==========================
+//  VALIDATION CHECK 🔍
+// ==========================
+function isFinalFormat(file) {
   return (
-`export const curriculum = ${JSON.stringify(curr, null, 2)
-    .replace(/"([^"]+)":/g,'"${1}":')};  // ensure identical spacing style
-
-export default curriculum;`
+       file.includes("export const curriculum = {")
+    && file.includes("table_id")
+    && file.includes("export default curriculum")
   );
 }
 
-// 3️⃣ Process each class
+
+// ==========================
+//  BUILD START
+// ==========================
 for (const folder of CLASSES) {
-  const classNum = folder.replace("class","");
-  const src = path.join(SOURCE, folder, "curriculum.js");
-  const destDir = path.join(OUTPUT, `class${classNum}`, "js");
-  const dest = path.join(destDir, "curriculum.js");
 
-  if (!fs.existsSync(src)) continue;
+  const classNum = folder.replace("class", "");
+  const inputJS  = path.join(SOURCE, folder, "curriculum.js");
+  const outputJS = path.join(OUTPUT, `class${classNum}`, "js", "curriculum.js");
 
-  fs.mkdirSync(destDir, { recursive:true });
-
-  const file = fs.readFileSync(src, "utf8").trim();
-
-  // ------------------------------------
-  // A) If master file is already perfect → COPY EXACTLY
-  // ------------------------------------
-  if (finalFormatCheck(file)) {
-    fs.writeFileSync(dest, file);
-    console.log(`✔ Class ${classNum} — Copied exactly (unchanged)`);
+  // skip if master curriculum missing
+  if (!fs.existsSync(inputJS)) {
+    console.log(`⚠ No curriculum.js found for Class ${classNum}`);
     continue;
   }
 
-  // ------------------------------------
-  // B) If structure differs → Convert then format EXACT like sample
-  // ------------------------------------
-  try {
-    const parsed = eval(file.replace("export const curriculum =","")
-                            .replace("export default curriculum",""));
+  // read master file
+  const file = fs.readFileSync(inputJS, "utf-8").trim();
 
-    const output = buildFinal(parsed);
-    fs.writeFileSync(dest, output);
+  // ==========================
+  //  🔴 MUST BE FINAL FORMAT
+  // ==========================
+  if (!isFinalFormat(file)) {
+    console.log(`❌ ERROR: curriculum.js for Class ${classNum} is not in final export format.`);
+    console.log(`   Location: static_curriculum/${folder}/curriculum.js`);
+    console.log("   Expected format:\n   export const curriculum = { ... }\n   export default curriculum;");
+    process.exit(1); // STOP 🔥 – prevents wrong fallback/template overrides
+  }
 
-    console.log(`🔄 Class ${classNum} — Converted & formatted to EXACT structure`);
-  }
-  catch(err) {
-    console.log(`❌ Format error in ${folder} — cannot convert automatically`);
-  }
+  // ==========================
+  //  COPY EXACT — NO TEMPLATE
+  // ==========================
+  fs.mkdirSync(path.dirname(outputJS), { recursive: true });
+  fs.writeFileSync(outputJS, file);
+
+  console.log(`✔ Class ${classNum} — Curriculum exported successfully → (NO fallback used)`);
 }
 
-console.log("\n🎉 DONE — Every output is now in EXACT Display Format You Provided.\n");
+console.log("\n🎉 BUILD COMPLETE — All Classes Loaded ONLY From static_curriculum\n");
