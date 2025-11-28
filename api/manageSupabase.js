@@ -93,10 +93,13 @@ export default async function handler(req, res) {
     const rpcRes = await supabase.rpc("ensure_table_exists", { table_name: table });
     if (rpcRes.error) throw rpcRes.error;
 
-    // 🔥 Auto Enable RLS + Policy (no interference with main logic)
+    // ---------------------------------------------
+    // 🔥 ONLY REQUIRED ADDITION — GLOBAL GRANTS ADDED
+    // ---------------------------------------------
     await supabase.rpc("exec_sql", {
       sql: `
         ALTER TABLE public.${table} ENABLE ROW LEVEL SECURITY;
+
         DO $do$
         BEGIN
           IF NOT EXISTS (
@@ -108,6 +111,11 @@ export default async function handler(req, res) {
           END IF;
         END;
         $do$;
+
+        -- 🔥 added exactly as requested
+        GRANT USAGE ON SCHEMA public TO anon, authenticated;
+        GRANT SELECT ON ALL TABLES IN SCHEMA public TO anon, authenticated;
+        ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO anon, authenticated;
       `
     });
 
