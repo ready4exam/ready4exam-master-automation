@@ -89,7 +89,6 @@ export async function initializeAuthListener(callback = null) {
     console.log(LOG, "Auth state →", user ? user.email : "Signed OUT");
 
     if (user) {
-      // 🔥 CORE BEHAVIOR: Immediately hide paywall on login
       hidePaywall();
       hideAuthLoading();
 
@@ -100,7 +99,6 @@ export async function initializeAuthListener(callback = null) {
       return;
     }
 
-    // SIGNED OUT
     showPaywall();
     showAuthLoading("Please sign in to continue");
 
@@ -124,7 +122,6 @@ export async function signInWithGoogle() {
   try {
     const result = await signInWithPopup(auth, provider);
 
-    // 🔥 Immediately hide paywall
     hideAuthLoading();
     hidePaywall();
 
@@ -147,4 +144,16 @@ export async function signOut() {
   showAuthLoading("Signing out…");
 
   return firebaseSignOut(auth);
+}
+
+// -------------------------------------------------------
+// FIX: CHECK ACCESS (Required by 9th quiz-engine.js)
+// -------------------------------------------------------
+export function checkAccess() {
+  try {
+    const { auth } = getInitializedClients();
+    return !!auth.currentUser; // TRUE if logged in
+  } catch {
+    return false;
+  }
 }
