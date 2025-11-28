@@ -1,88 +1,187 @@
 // js/quiz-engine.js
-// Option A: Uploaded-Version Logic (topicSlug + difficulty from internal state)
-import { initializeServices } from "./config.js";
-import { initializeAuthListener, signInWithGoogle } from "./auth-paywall.js";
-import { fetchQuestions } from "./api.js";
+// Universal version for Class 5–12 automation
+
+import { initializeServices, getAuthUser } from "./config.js";
+import { fetchQuestions, saveResult } from "./api.js";
 import * as UI from "./ui-renderer.js";
+import { checkAccess, initializeAuthListener, signInWithGoogle, signOut } from "./auth-paywall.js";
+import curriculumData from "./curriculum.js";
 
-const LOG = "[ENGINE]";
+// 📌 Class injected by automation (important fix)
+const CLASS_ID = "{{CLASS}}";
 
-/**
- * Reads 'table' (which is the topicSlug) and 'difficulty' from the URL query string.
- * This is crucial because chapter-selection.html passes these parameters via the URL.
- */
-function getUrlParams() {
-  const params = new URLSearchParams(window.location.search);
-  // 'table' is the parameter passed from chapter-selection.html (as seen in source [4])
-  return {
-    topic: params.get("table"),
-    difficulty: params.get("difficulty")
-  };
-}
-
-// GLOBAL quizState holder (uploaded version style)
-window.quizState = window.quizState || {
-  topicSlug: null,
-  difficulty: "medium"
+// ===========================================================
+let quizState = {
+  classId: CLASS_ID,
+  subject: "",
+  topicSlug: "",
+  difficulty: "",
+  questions: [],
+  currentQuestionIndex: 0,
+  userAnswers: {},
+  isSubmitted: false,
+  score: 0,
 };
+// ===========================================================
 
-async function main() {
-  // 🔥 FIX START: Initialize topicSlug and difficulty from URL parameters
-  const urlParams = getUrlParams();
-  
-  if (urlParams.topic) {
-    // Set the necessary topicSlug (which is the table name used in api.js [5])
-    window.quizState.topicSlug = urlParams.topic;
-    console.log(LOG, "Set topicSlug from URL:", urlParams.topic);
+
+// ===========================================================
+// Smart curriculum match (supports both book/non-book classes)
+// ===========================================================
+function findCurriculumMatch(topicSlug) {
+  const normalize = s => s?.toString().toLowerCase().replace(/quiz/g,"").replace(/[_\s-]/g,"").trim();
+  const target = normalize(topicSlug);
+
+  for (const subject in curriculumData) {
+    for (const book in curriculumData[subject]) {
+      for (const ch of curriculumData[subject][book]) {
+
+        const idMatch = normalize(ch.table_id);
+        const titleMatch = normalize(ch.chapter_title);
+
+        if (idMatch === target || titleMatch === target ||
+           target.includes(titleMatch) || titleMatch.includes(target)) {
+          return { subjectName: subject, chapterTitle: ch.chapter_title };
+        }
+      }
+    }
   }
-  
-  if (urlParams.difficulty) {
-    window.quizState.difficulty = urlParams.difficulty;
-    console.log(LOG, "Set difficulty from URL:", urlParams.difficulty);
-  }
-  // 🔥 FIX END
-  
-  await initializeServices();
-  // Now, initializeAuthListener(onAuthReady) runs, and when onAuthReady fires, 
-  // window.quizState.topicSlug will not be null, allowing the quiz to proceed.
-  await initializeAuthListener(onAuthReady);
-  
-  const btn = document.getElementById("google-signin-btn");
-  if (btn) btn.onclick = () => signInWithGoogle();
-  console.log(LOG, "Engine ready.");
+  return null;
 }
 
-// --------------------------
-// Called AFTER login
-// --------------------------
-async function onAuthReady(user) {
-  if (!user) return;
-  const topic = window.quizState.topicSlug;
-  const diff = window.quizState.difficulty || "medium";
-  
-  // This check now correctly handles the topic slug retrieved from the URL
-  if (!topic) {
-    console.error(LOG, "Missing topicSlug — quiz cannot load.");
-    UI.showStatus("Error: Topic missing.");
+
+// ===========================================================
+// URL Parse (now class-safe for 5–12)
+// ===========================================================
+function parseUrlParameters(){
+  const params = new URLSearchParams(location.search);
+  quizState.topicSlug = params.get("topic") || "";
+  quizState.difficulty = params.get("difficulty") || "simple";
+
+  if(!quizState.topicSlug) throw new Error("Topic not provided in URL");
+
+  const match = findCurriculumMatch(quizState.topicSlug);
+
+  // fallback mode for classes without books (5–10)
+  if(!match){
+    UI.updateHeader(`Class ${CLASS_ID} – ${quizState.topicSlug.replace(/_/g," ")}`, quizState.difficulty);
+    quizState.subject = "General"; 
     return;
   }
-  
-  // Assuming 'hidePaywall' was called successfully in auth-paywall.js [6]
-  UI.showStatus("Loading quiz...");
-  
-  try {
-    const questions = await fetchQuestions(topic, diff);
-    UI.renderQuiz(questions);
-    console.log(LOG, "Quiz loaded:", questions.length);
-    
-    // 🔥 Missing step in source: Unhide quiz content after load
-    const quizContent = document.getElementById("quiz-content");
-    if (quizContent) quizContent.classList.remove("hidden");
-    
-  } catch (e) {
-    console.error(LOG, "Quiz loading failed:", e);
-    UI.showStatus("Failed to load quiz.");
-    // Ensure paywall remains hidden if authentication succeeded but loading failed
+
+  quizState.subject = match.subjectName;
+  const chapterName = match.chapterTitle.replace(/quiz/ig,"").trim();
+  UI.updateHeader(`Class ${CLASS_ID} – ${quizState.subject} – ${chapterName}`, quizState.difficulty);
+}
+
+
+// ===========================================================
+function renderQuestion(){
+  const i = quizState.currentQuestionIndex;
+  const q = quizState.questions[i];
+  if(!q) return UI.showStatus("No questions found");
+
+  UI.renderQuestion(q, i+1, quizState.userAnswers[q.id], quizState.isSubmitted);
+  UI.updateNavigation?.(i, quizState.questions.length, quizState.isSubmitted);
+  UI.hideStatus();
+}
+
+
+// ===========================================================
+function handleNavigation(dir){
+  let i = quizState.currentQuestionIndex + dir;
+  if(i>=0 && i<quizState.questions.length){
+    quizState.currentQuestionIndex=i;
+    renderQuestion();
   }
 }
-document.addEventListener("DOMContentLoaded", main);
+
+function handleAnswerSelection(id,opt){
+  if(!quizState.isSubmitted){
+    quizState.userAnswers[id]=opt;
+    renderQuestion();
+  }
+}
+
+
+// ===========================================================
+async function handleSubmit(){
+  if(quizState.isSubmitted) return;
+  quizState.isSubmitted=true;
+
+  quizState.score = quizState.questions.filter(q => 
+    quizState.userAnswers[q.id]?.toUpperCase() === q.correct_answer.toUpperCase()
+  ).length;
+
+  const result = {
+    classId: CLASS_ID,
+    subject: quizState.subject,
+    topic: quizState.topicSlug,
+    difficulty: quizState.difficulty,
+    score: quizState.score,
+    total: quizState.questions.length,
+    answers: quizState.userAnswers
+  };
+
+  const user = getAuthUser();
+  if(user) try{ await saveResult(result) }catch(e){ console.warn(e) }
+
+  quizState.currentQuestionIndex=0;
+  renderQuestion();
+  UI.showResults(quizState.score, quizState.questions.length);
+  UI.renderAllQuestionsForReview?.(quizState.questions, quizState.userAnswers);
+  UI.updateNavigation?.(0, quizState.questions.length,true);
+}
+
+
+// ===========================================================
+async function loadQuiz(){
+  try{
+    UI.showStatus("Fetching questions...");
+    const q = await fetchQuestions(quizState.topicSlug, quizState.difficulty);
+    quizState.questions=q;
+    quizState.userAnswers=Object.fromEntries(q.map(x=>[x.id,null]));
+    renderQuestion();
+    UI.attachAnswerListeners?.(handleAnswerSelection);
+    UI.showView?.("quiz-content");
+  }catch(e){
+    UI.showStatus("⚠ "+e.message,"text-red-600");
+  }
+}
+
+
+// ===========================================================
+async function onAuthChange(u){
+  if(u){
+    if(await checkAccess()) loadQuiz();
+    else UI.showView("paywall-screen");
+  }else UI.showView("paywall-screen");
+}
+
+
+// ===========================================================
+function attachDomEvents(){
+  document.addEventListener("click",e=>{
+    const b = e.target.closest("button,a"); if(!b) return;
+
+    if(b.id==="prev-btn") return handleNavigation(-1);
+    if(b.id==="next-btn") return handleNavigation(1);
+    if(b.id==="submit-btn") return handleSubmit();
+    if(b.id==="google-signin-btn") return signInWithGoogle();
+    if(b.id==="logout-nav-btn") return signOut();
+    if(b.id==="back-to-chapters-btn") history.back();
+  });
+}
+
+
+// ===========================================================
+async function init(){
+  UI.initializeElements();
+  parseUrlParameters();
+  await initializeServices();
+  await initializeAuthListener(onAuthChange);
+  attachDomEvents();
+  UI.hideStatus();
+}
+
+document.addEventListener("DOMContentLoaded", init);
