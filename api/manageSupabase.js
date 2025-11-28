@@ -23,14 +23,7 @@ function normalizeQType(t) {
   return "MCQ";
 }
 
-/* ⭐ FINAL-UPDATED TABLE NAMING LOGIC — as requested
-   --------------------------------------------------
-   RULES YOU CONFIRMED (Option A + keep-first-word):
-   - Always keep the first word (even if SOME/AS/THE etc)
-   - Decide last word only from meaningful keywords
-   - If single word → sets_quiz
-   - Never repeat words unnecessarily
-*/
+/* ⭐ FINAL-UPDATED TABLE NAMING LOGIC — NO CHANGE */
 function buildTableName(meta) {
   let chapter = (meta.chapter || "")
     .toLowerCase()
@@ -38,115 +31,125 @@ function buildTableName(meta) {
     .replace(/\s+/g, " ")
     .trim();
 
-  // Words to ignore for last-word selection
-  const skip = ["as", "of", "the", "a", "an", "in", "on", "for", "to"];
-
+  const skip = ["as","of","the","a","an","in","on","for","to"];
   const words = chapter.split(" ").filter(Boolean);
-
-  // ALWAYS KEEP FIRST WORD
   const first = words[0];
-
-  // Determine last meaningful keyword
   const filtered = words.filter(w => !skip.includes(w));
 
   const last = filtered.length > 1
     ? filtered[filtered.length - 1]
     : words.length > 1
     ? words[words.length - 1]
-    : first;  // single-word fallback
+    : first;
 
   return `${first}_${last}_quiz`;
 }
 
 export default async function handler(req, res) {
   const origin = req.headers.origin || "*";
-  Object.entries(getCorsHeaders(origin)).forEach(([k, v]) => res.setHeader(k, v));
-  res.setHeader("Access-Control-Max-Age", "86400");
+  Object.entries(getCorsHeaders(origin)).forEach(([k,v])=>res.setHeader(k,v));
+  res.setHeader("Access-Control-Max-Age","86400");
 
-  if (req.method === "OPTIONS") return res.status(200).end();
-  if (req.method !== "POST")
-    return res.status(405).json({ ok: false, error: "Only POST allowed" });
+  if (req.method==="OPTIONS") return res.status(200).end();
+  if (req.method!=="POST") return res.status(405).json({ok:false,error:"Only POST allowed"});
 
   try {
-    const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+    const body = typeof req.body==="string" ? JSON.parse(req.body) : req.body;
     const { meta, csv } = body || {};
     if (!meta || !csv || !Array.isArray(csv)) {
-      return res.status(400).json({ ok: false, error: "Missing meta/csv array." });
+      return res.status(400).json({ok:false,error:"Missing meta/csv array."});
     }
 
-    const supabaseUrl =
-      process.env.SUPABASE_URL_11 || process.env.SUPABASE_URL;
-    const supabaseKey =
-      process.env.SUPABASE_SERVICE_KEY_11 || process.env.SUPABASE_SERVICE_KEY;
+    const supabaseUrl = process.env.SUPABASE_URL_11 || process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_KEY_11 || process.env.SUPABASE_SERVICE_KEY;
     if (!supabaseUrl || !supabaseKey) {
-      return res
-        .status(500)
-        .json({ ok: false, error: "Supabase config missing." });
+      return res.status(500).json({ok:false,error:"Supabase config missing."});
     }
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // 🔹 Table Name Now Fully Fixed — NO OTHER LOGIC CHANGED
     const table = buildTableName(meta);
 
-    // Ensure table exists
-    const rpcRes = await supabase.rpc("ensure_table_exists", { table_name: table });
+    const rpcRes = await supabase.rpc("ensure_table_exists",{ table_name:table });
     if (rpcRes.error) throw rpcRes.error;
 
-    // ---------------------------------------------
-    // 🔥 ONLY REQUIRED ADDITION — GLOBAL GRANTS ADDED
-    // ---------------------------------------------
-    await supabase.rpc("exec_sql", {
-      sql: `
-        ALTER TABLE public.${table} ENABLE ROW LEVEL SECURITY;
-
-        DO $do$
-        BEGIN
-          IF NOT EXISTS (
-            SELECT 1 FROM pg_policies WHERE policyname = '${table}_select_policy'
-          ) THEN
-            EXECUTE 'CREATE POLICY ${table}_select_policy ON public.${table}
-                     FOR SELECT TO anon, authenticated
-                     USING (true);';
-          END IF;
-        END;
-        $do$;
-
-        -- 🔥 added exactly as requested
-        GRANT USAGE ON SCHEMA public TO anon, authenticated;
-        GRANT SELECT ON ALL TABLES IN SCHEMA public TO anon, authenticated;
-        ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO anon, authenticated;
-      `
+    await supabase.rpc("exec_sql",{
+      sql:`ALTER TABLE public.${table} ENABLE ROW LEVEL SECURITY;
+           DO $do$ BEGIN
+             IF NOT EXISTS(SELECT 1 FROM pg_policies WHERE policyname='${table}_select_policy') THEN
+               EXECUTE 'CREATE POLICY ${table}_select_policy ON public.${table}
+                        FOR SELECT TO anon, authenticated USING (true);';
+             END IF;
+           END $do$;
+           GRANT USAGE ON SCHEMA public TO anon,authenticated;
+           GRANT SELECT ON ALL TABLES IN SCHEMA public TO anon,authenticated;
+           ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO anon,authenticated;`
     });
 
-    // Clear previous rows
-    await supabase.from(table).delete().neq("id", 0);
+    await supabase.from(table).delete().neq("id",0);
 
-    // Insert cleaned rows
-    const rows = csv.map((row) => ({
+    const rows = csv.map((row)=>({
       difficulty: normalizeDifficulty(row.difficulty),
       question_type: normalizeQType(row.question_type),
-      question_text: (row.question_text || "").trim(),
-      scenario_reason_text: (row.scenario_reason_text || "").trim(),
-      option_a: (row.option_a || "").trim(),
-      option_b: (row.option_b || "").trim(),
-      option_c: (row.option_c || "").trim(),
-      option_d: (row.option_d || "").trim(),
-      correct_answer_key: (row.correct_answer_key || "").trim().toUpperCase(),
+      question_text:(row.question_text||"").trim(),
+      scenario_reason_text:(row.scenario_reason_text||"").trim(),
+      option_a:(row.option_a||"").trim(),
+      option_b:(row.option_b||"").trim(),
+      option_c:(row.option_c||"").trim(),
+      option_d:(row.option_d||"").trim(),
+      correct_answer_key:(row.correct_answer_key||"").trim().toUpperCase(),
     }));
 
-    const { data, error } = await supabase.from(table).insert(rows);
-    if (error) throw error;
+    const {data,error}=await supabase.from(table).insert(rows);
+    if(error) throw error;
+
+    // ------------------------------------------------------------------  
+    // 🔥 ONLY NEW ADDITION → Update usage_logs (no deviation anywhere)
+    // ------------------------------------------------------------------
+    
+    const { data: existing } = await supabase
+      .from("usage_logs")
+      .select("refresh_count")
+      .eq("table_name", table)
+      .single();
+
+    if(existing) {
+      await supabase.from("usage_logs")
+        .update({
+          refresh_count: existing.refresh_count + 1,
+          inserted_count: rows.length,
+          updated_at: new Date(),  
+          class_name: meta.class_name,
+          subject: meta.subject,
+          book: meta.book,
+          chapter: meta.chapter
+        })
+        .eq("table_name", table);
+    } else {
+      await supabase.from("usage_logs").insert({
+        class_name: meta.class_name,
+        subject: meta.subject,
+        book: meta.book,
+        chapter: meta.chapter,
+        table_name: table,
+        inserted_count: rows.length,
+        refresh_count: 0,
+        created_at: new Date(),
+        updated_at: new Date()
+      });
+    }
+
+    // ------------------------------------------------------------------
 
     return res.status(200).json({
-      ok: true,
-      message: "Table updated successfully.",
-      new_table_id: table,
-      inserted: data?.length || rows.length,
+      ok:true,
+      message:"Table updated successfully.",
+      new_table_id:table,
+      inserted:data?.length||rows.length,
     });
 
-  } catch (err) {
-    console.error("❌ manageSupabase error:", err);
-    return res.status(500).json({ ok: false, error: err.message });
+  } catch(err) {
+    console.error("❌ manageSupabase error:",err);
+    return res.status(500).json({ok:false,error:err.message});
   }
 }
