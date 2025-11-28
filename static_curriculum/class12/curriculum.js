@@ -180,4 +180,98 @@ export const curriculum = {
       { "chapter_title": "Probability Distributions", "table_id": "", "section": "Commerce" },
       { "chapter_title": "Linear Programming", "table_id": "", "section": "Commerce" },
       { "chapter_title": "Correlation & Regression", "table_id": "", "section": "Commerce" },
-      { "chapter_title": "Index Numbers & Time Series", "table_id
+      { "chapter_title": "Index Numbers & Time Series", "table_id": "", "section": "Commerce" },
+      { "chapter_title": "Inferential Statistics", "table_id": "", "section": "Commerce" },
+      { "chapter_title": "Calculus & Its Applications", "table_id": "", "section": "Commerce" },
+      { "chapter_title": "Financial Mathematics II", "table_id": "", "section": "Commerce" }
+    ]
+  },
+
+  "History": {
+    "Themes in Indian History": [
+      { "chapter_title": "Bricks, Beads and Bones", "table_id": "", "section": "Humanities" },
+      { "chapter_title": "Kings, Farmers and Towns", "table_id": "", "section": "Humanities" },
+      { "chapter_title": "Kinship, Caste and Class", "table_id": "", "section": "Humanities" },
+      { "chapter_title": "Thinkers, Beliefs and Buildings", "table_id": "", "section": "Humanities" },
+      { "chapter_title": "Through the Eyes of Travellers", "table_id": "", "section": "Humanities" },
+      { "chapter_title": "Bhakti-Sufi Traditions", "table_id": "", "section": "Humanities" },
+      { "chapter_title": "An Imperial Capital: Vijayanagara", "table_id": "", "section": "Humanities" },
+      { "chapter_title": "Peasants, Zamindars & the State", "table_id": "", "section": "Humanities" },
+      { "chapter_title": "Colonialism & Countryside", "table_id": "", "section": "Humanities" },
+      { "chapter_title": "Rebels & Raj", "table_id": "", "section": "Humanities" },
+      { "chapter_title": "Colonial Cities", "table_id": "", "section": "Humanities" },
+      { "chapter_title": "Mahatma Gandhi & National Movement", "table_id": "", "section": "Humanities" },
+      { "chapter_title": "Understanding Partition", "table_id": "", "section": "Humanities" },
+      { "chapter_title": "Making of Indian Constitution", "table_id": "", "section": "Humanities" }
+    ]
+  },
+
+  "Political Science": {
+    "Contemporary World Politics": [
+      { "chapter_title": "Cold War Era", "table_id": "", "section": "Humanities" },
+      { "chapter_title": "US Hegemony", "table_id": "", "section": "Humanities" },
+      { "chapter_title": "Alternative Centres of Power", "table_id": "", "section": "Humanities" },
+      { "chapter_title": "South Asia", "table_id": "", "section": "Humanities" },
+      { "chapter_title": "International Organisations", "table_id": "", "section": "Humanities" },
+      { "chapter_title": "Security in Contemporary World", "table_id": "", "section": "Humanities" },
+      { "chapter_title": "Environment & Natural Resources", "table_id": "", "section": "Humanities" },
+      { "chapter_title": "Globalisation", "table_id": "", "section": "Humanities" }
+    ],
+    "Politics in India Since Independence": [
+      { "chapter_title": "Nation Building & Challenges", "table_id": "", "section": "Humanities" },
+      { "chapter_title": "One Party Dominance", "table_id": "", "section": "Humanities" },
+      { "chapter_title": "Planned Development", "table_id": "", "section": "Humanities" },
+      { "chapter_title": "India’s External Relations", "table_id": "", "section": "Humanities" },
+      { "chapter_title": "Democracy & Challenges", "table_id": "", "section": "Humanities" },
+      { "chapter_title": "Crisis of Democratic Order", "table_id": "", "section": "Humanities" },
+      { "chapter_title": "New Social Movements", "table_id": "", "section": "Humanities" },
+      { "chapter_title": "Democratic Resurgence", "table_id": "", "section": "Humanities" },
+      { "chapter_title": "Recent Political Developments", "table_id": "", "section": "Humanities" }
+    ]
+  },
+
+  "Sociology": {
+    "Indian Society": [
+      { "chapter_title": "Structural Change", "table_id": "", "section": "Humanities" },
+      { "chapter_title": "Cultural Change", "table_id": "", "section": "Humanities" },
+      { "chapter_title": "Unity & Diversity", "table_id": "", "section": "Humanities" },
+      { "chapter_title": "Social Stratification", "table_id": "", "section": "Humanities" },
+      { "chapter_title": "Population, Health & Environment", "table_id": "", "section": "Humanities" }
+    ],
+    "Social Change & Development": [
+      { "chapter_title": "Change in Rural Society", "table_id": "", "section": "Humanities" },
+      { "chapter_title": "Change in Industrial Society", "table_id": "", "section": "Humanities" },
+      { "chapter_title": "Social Movements", "table_id": "", "section": "Humanities" },
+      { "chapter_title": "Mass Media & Communication", "table_id": "", "section": "Humanities" },
+      { "chapter_title": "Globalisation & Society", "table_id": "", "section": "Humanities" }
+    ]
+  },
+
+  "Geography": {
+    "Fundamentals of Human Geography": [
+      { "chapter_title": "Human Geography Nature & Scope", "table_id": "", "section": "Humanities" },
+      { "chapter_title": "World Population", "table_id": "", "section": "Humanities" },
+      { "chapter_title": "Population Composition", "table_id": "", "section": "Humanities" },
+      { "chapter_title": "Human Development", "table_id": "", "section": "Humanities" },
+      { "chapter_title": "Primary Activities", "table_id": "", "section": "Humanities" },
+      { "chapter_title": "Secondary Activities", "table_id": "", "section": "Humanities" },
+      { "chapter_title": "Tertiary & Quaternary Activities", "table_id": "", "section": "Humanities" },
+      { "chapter_title": "Transport & Communication", "table_id": "", "section": "Humanities" },
+      { "chapter_title": "International Trade", "table_id": "", "section": "Humanities" }
+    ],
+    "India People & Economy": [
+      { "chapter_title": "Population Distribution & Density", "table_id": "", "section": "Humanities" },
+      { "chapter_title": "Migration", "table_id": "", "section": "Humanities" },
+      { "chapter_title": "Human Development in India", "table_id": "", "section": "Humanities" },
+      { "chapter_title": "Human Settlements", "table_id": "", "section": "Humanities" },
+      { "chapter_title": "Land Resources & Agriculture", "table_id": "", "section": "Humanities" },
+      { "chapter_title": "Water Resources", "table_id": "", "section": "Humanities" },
+      { "chapter_title": "Mineral & Energy Resources", "table_id": "", "section": "Humanities" },
+      { "chapter_title": "Manufacturing Industries", "table_id": "", "section": "Humanities" },
+      { "chapter_title": "Transport, Communication & Trade", "table_id": "", "section": "Humanities" }
+    ]
+  }
+
+};
+
+export default curriculum;
