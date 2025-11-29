@@ -28,7 +28,7 @@ function normalizeQType(t) {
 
 
 // =====================================================================
-// 🔥 UPDATED Table Name Builder — 100% identical to UI naming logic
+// Table Name Builder — EXACT CLONE of chapter-selection.html logic
 // =====================================================================
 function buildTableName(meta) {
   let chapter = (meta.chapter || "")
@@ -38,11 +38,12 @@ function buildTableName(meta) {
     .trim();
 
   const skip = ["as","of","the","a","an","in","on","for","to"];
-  const words = chapter.split(" ").filter(Boolean);
+
+  const words = chapter.split(" ");
   const filtered = words.filter(w => !skip.includes(w));
 
   let first = filtered[0] || words[0];
-  let last  = filtered.length > 1 ? filtered[filtered.length-1] : words[words.length-1];
+  let last  = filtered[filtered.length-1] || words[words.length-1];
 
   return `${first}_${last}_${meta.class_name||"11"}_quiz`;
 }
@@ -73,7 +74,7 @@ export default async function handler(req, res) {
 
 
     // ===========================================================================================
-    // 🔥 FIX APPLIED: Supabase credentials restored EXACTLY as you had originally
+    // Supabase credentials unchanged
     // ===========================================================================================
     const supabaseUrl =
       process.env.SUPABASE_URL_11 || process.env.SUPABASE_URL;
