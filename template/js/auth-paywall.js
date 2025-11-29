@@ -77,7 +77,7 @@ export async function initializeAuthListener(callback = null) {
   await initializeServices();
   const { auth } = getInitializedClients();
 
-  // ⭐ ADDED — expose auth globally so header & quiz can read login state
+  // ⭐ Expose Firebase Auth globally — required for header username display
   window.auth = auth;
 
   if (callback) externalCallback = callback;
