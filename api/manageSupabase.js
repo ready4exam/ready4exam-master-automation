@@ -28,7 +28,7 @@ function normalizeQType(t) {
 
 
 // =====================================================================
-// Table Name Builder (unchanged)
+// 🔥 UPDATED Table Name Builder — 100% identical to UI naming logic
 // =====================================================================
 function buildTableName(meta) {
   let chapter = (meta.chapter || "")
@@ -38,15 +38,11 @@ function buildTableName(meta) {
     .trim();
 
   const skip = ["as","of","the","a","an","in","on","for","to"];
-  const roman = ["i","ii","iii","iv","v","vi","vii","viii","ix","x"];
+  const words = chapter.split(" ").filter(Boolean);
+  const filtered = words.filter(w => !skip.includes(w));
 
-  const w = chapter.split(" ").filter(Boolean);
-  const f = w.filter(x => !skip.includes(x));
-
-  let first = f.length ? f[0] : w[0];
-  let last  = f.length >1 ? f[f.length-1] : w[w.length-1];
-
-  if (roman.includes(last) && f.length>=2) last=`${f[f.length-2]}_${last}`;
+  let first = filtered[0] || words[0];
+  let last  = filtered.length > 1 ? filtered[filtered.length-1] : words[words.length-1];
 
   return `${first}_${last}_${meta.class_name||"11"}_quiz`;
 }
