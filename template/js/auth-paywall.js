@@ -77,8 +77,8 @@ export async function initializeAuthListener(callback = null) {
   await initializeServices();
   const { auth } = getInitializedClients();
 
-+ // ⭐ ADDED — expose auth globally so header & quiz can read login state
-+ window.auth = auth;
+  // ⭐ ADDED — expose auth globally so header & quiz can read login state
+  window.auth = auth;
 
   if (callback) externalCallback = callback;
 
