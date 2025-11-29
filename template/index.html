@@ -8,89 +8,92 @@
 
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Merriweather:wght@400;700&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
-<script src="https://unpkg.com/lucide@latest"></script>
 
 <script>
 tailwind.config = {
-  darkMode:"class",
   theme:{
     extend:{
       fontFamily:{sans:['Inter'],serif:['Merriweather']},
       colors:{'cbse-blue':'#133b6a','gold':'#ffbe0b','heading':'#0f172a'},
       backgroundImage:{
-        'hero-grad':'linear-gradient(135deg,#0f172a,#1e3a8a,#22c55e)'
+        'hero-grad':'linear-gradient(135deg, #0f172a 0%, #1e3a8a 50%, #22c55e 100%)'
       }
     }
   }
 }
 </script>
 
+<script src="https://unpkg.com/lucide@latest"></script>
+
 <style>
-body{margin:0; font-family:'Inter',sans-serif; overflow-x:hidden; background:#eef3fa;}
-body.dark{background:#0f172a;color:#e2e8f0;}
-.dark .subject-card{background:#1e293b;color:white;}
-.dark .glass-nav{background:rgba(19,59,106,.65);}
-.subject-card{
-  background:white; padding:1.4rem 1rem;border-radius:18px;
+body{margin:0;background:#eef3fa;font-family:'Inter',sans-serif;overflow-x:hidden;}
+.subject-card{width:100%;background:white;padding:1.4rem 1rem;border-radius:18px;
   border:1px solid rgba(0,0,0,.05);box-shadow:0 6px 18px rgba(0,0,0,.07);
-  transition:.35s; cursor:pointer;
-}
-.subject-card:hover{transform:translateY(-5px) scale(1.02);}
-.hero{
-  background-image:linear-gradient(to right,#0f172a,#1e3a8a,#22c55e);
-  color:white;text-align:center;padding:55px 18px;border-radius:20px;margin-bottom:40px;
-  box-shadow:0 12px 35px rgba(0,0,0,.25);
-}
+  transition:.35s;cursor:pointer;}
+.subject-card:hover{transform:translateY(-6px) scale(1.02);box-shadow:0 12px 32px rgba(0,0,0,.14);}
+.card-header{display:flex;align-items:center;gap:.9rem;margin-bottom:.9rem;}
+.card-title{font-size:1.2rem;font-weight:800;color:#0f172a;}
+.card-description{font-size:.95rem;color:#475569;line-height:1.45rem;}
+.card-button{padding:.65rem 1.4rem;font-size:.95rem;font-weight:600;border-radius:12px;color:white;transition:.3s}
+.science{background:#16a34a;} .commerce{background:#1d4ed8;} .arts{background:#9333ea;}
+.glass-nav{position:sticky;top:0;z-index:50;backdrop-filter:blur(12px);background:rgba(19,59,106,.92);box-shadow:0 0 25px rgba(0,0,0,.18);}
+.fade-in{animation:fade .7s ease forwards;opacity:0;}@keyframes fade{to{opacity:1}}
 .quote-card{
-  background:white; border-left:8px solid #1e3a8a; border-radius:12px;
-  padding:18px 22px; margin-top:40px;font-size:1.05rem;line-height:1.5rem;
-  color:#334155; box-shadow:0 6px 22px rgba(0,0,0,.12);
+  background:white; border-left:8px solid #1e3a8a;
+  border-radius:12px; padding:18px 22px; margin-top:35px;
+  font-size:1.05rem; color:#334155; line-height:1.55rem;
+  box-shadow:0 8px 22px rgba(0,0,0,.12);
 }
-.dark .quote-card{background:#1e293b;color:#e5e7eb;border-color:#22c55e;}
-.streak{
-  background:#ffffff;border-radius:14px;padding:14px;text-align:center;
-  font-size:1rem; font-weight:600; margin:25px auto; max-width:350px;
-  box-shadow:0 6px 18px rgba(0,0,0,.08);
+.hero{
+  background:var(--grad);
+  background-image:linear-gradient(to right, #0f172a,#1e3a8a,#22c55e);
+  color:white; padding:55px 18px;border-radius:20px;margin-bottom:40px;
+  box-shadow:0 12px 35px rgba(0,0,0,.22);
 }
-.dark .streak{background:#1e293b;}
-.flashcard{
-  background:#ffffff;padding:12px 16px;border-radius:10px;text-align:center;
-  font-weight:600;font-size:1rem;border-left:5px solid #1e3a8a;
-  margin:10px 0;cursor:pointer;transition:.25s;
-}
-.flashcard:hover{transform:scale(1.03);}
-.dark .flashcard{background:#1e293b;color:white;border-left-color:#22c55e;}
 </style>
 </head>
 
-<body class="flex flex-col min-h-screen transition-all duration-300">
+<body class="flex flex-col min-h-screen">
 
-<!-- HEADER -->
-<header class="glass-nav w-full py-4 px-5 flex justify-between items-center">
+
+<header class="glass-nav w-full py-4 px-5">
   <h1 class="text-2xl font-extrabold text-gold tracking-wide">Ready4<span class="text-white">Exam</span></h1>
-  <button id="themeToggle" class="text-white text-sm border px-3 py-1 rounded-lg hover:bg-white hover:text-black">
-    🌙 Dark Mode
-  </button>
+  <p class="text-white text-sm opacity-85 italic mt-1 ml-1">Learn • Practice • Grow Strong — Every Day.</p>
 </header>
 
-<main class="flex-grow w-full max-w-[1000px] mx-auto px-4 py-10 fade-in">
 
-<!-- HERO -->
-<section class="hero">
-  <h2 class="text-3xl md:text-4xl font-extrabold">CBSE Class {{CLASS}}</h2>
-  <p id="class-note" class="mt-4 text-base md:text-lg max-w-2xl mx-auto"></p>
-  <p id="ncert-line" class="text-sm mt-4 italic opacity-95"></p>
+<main class="flex-grow w-full max-w-[1050px] mx-auto px-4 py-10 fade-in">
+
+<!-- 🔥 Hero Welcome -->
+<section class="hero text-center leading-relaxed">
+  <h2 class="text-3xl md:text-4xl font-extrabold tracking-wide">CBSE Class {{CLASS}} Learning Hub</h2>
+  <p id="class-note" class="mt-4 text-base md:text-lg max-w-2xl mx-auto opacity-95"></p>
 </section>
 
-<!-- STREAK TRACKER -->
-<div id="streak-box" class="streak">🔥 Study Streak: <span id="streak-count">0</span> Days</div>
 
-<!-- STREAM SECTION (11-12) -->
+<!-- STREAMS FOR CLASS 11 & 12 -->
 <div id="stream-section" class="grid grid-cols-1 md:grid-cols-3 gap-6 hidden">
-  <div onclick="showSubjects('Science')" class="subject-card"><div class="card-header"><i data-lucide="flask-conical" class="text-green-700 h-8 w-8"></i><h3 class="card-title">Science</h3></div><p>Physics • Chem • Bio • Maths</p></div>
-  <div onclick="showSubjects('Commerce')" class="subject-card"><div class="card-header"><i data-lucide="briefcase" class="text-blue-700 h-8 w-8"></i><h3 class="card-title">Commerce</h3></div><p>Accountancy • Economics • BST</p></div>
-  <div onclick="showSubjects('Humanities')" class="subject-card"><div class="card-header"><i data-lucide="landmark" class="text-purple-700 h-8 w-8"></i><h3 class="card-title">Humanities / Arts</h3></div><p>History • Pol. Sci • Geo etc.</p></div>
+
+  <div onclick="showSubjects('Science')" class="subject-card">
+    <div class="card-header"><i data-lucide="flask-conical" class="text-green-700 h-8 w-8"></i><h3 class="card-title">Science</h3></div>
+    <p class="card-description">Physics, Chemistry, Biology & Maths.</p>
+    <div class="mt-5 text-center"><button class="card-button science">Explore Subjects</button></div>
+  </div>
+
+  <div onclick="showSubjects('Commerce')" class="subject-card">
+    <div class="card-header"><i data-lucide="briefcase" class="text-blue-700 h-8 w-8"></i><h3 class="card-title">Commerce</h3></div>
+    <p class="card-description">Accountancy • Economics • Business Studies.</p>
+    <div class="mt-5 text-center"><button class="card-button commerce">Explore Subjects</button></div>
+  </div>
+
+  <div onclick="showSubjects('Humanities')" class="subject-card">
+    <div class="card-header"><i data-lucide="landmark" class="text-purple-700 h-8 w-8"></i><h3 class="card-title">Humanities / Arts</h3></div>
+    <p class="card-description">History • Pol. Science • Geography • Sociology & more.</p>
+    <div class="mt-5 text-center"><button class="card-button arts">Explore Subjects</button></div>
+  </div>
+
 </div>
+
 
 <!-- SUBJECT LIST (Class 5–10) -->
 <div id="subject-section" class="hidden mt-10 fade-in">
@@ -99,102 +102,92 @@ body.dark{background:#0f172a;color:#e2e8f0;}
   <div id="subject-grid" class="grid gap-5 md:grid-cols-2 lg:grid-cols-3"></div>
 </div>
 
-<!-- Flashcards -->
-<div class="mt-10">
-  <h3 class="text-xl font-bold mb-2">Quick Revision 🔥</h3>
-  <div id="flashcards"></div>
-</div>
 
-<!-- Motivation -->
-<div class="quote-card text-center font-semibold">
+<!-- 🌟 Universal Growth Message -->
+<div class="quote-card text-center">
   You don’t need to be perfect — just better than yesterday.<br/>
-  One concept at a time. One step forward. Keep going. 🚀
+  One chapter at a time, one concept at a time. Keep growing. 🌱🚀
 </div>
 
 </main>
+
 
 <footer class="bg-cbse-blue text-white text-center py-6 mt-auto">
   <small>© 2025 Ready4Exam Academic Portal.</small>
 </footer>
 
 
-<!-- SCRIPT -->
+
+<!-- ================== SCRIPT ================== -->
 <script type="module">
 import { curriculum } from "./js/curriculum.js";
 
-const CLASS=parseInt("{{CLASS}}",10);
-const isSenior = CLASS===11||CLASS===12;
+const CLASS = parseInt("{{CLASS}}",10);
+const isSenior = CLASS===11 || CLASS===12;
 
-// NCERT LINE
-document.getElementById("ncert-line").innerHTML = ({
-  5:"🌿 Content aligned 100% to NCERT foundation concepts.",
-  6:"📘 NCERT based learning — simple, clear & conceptual.",
-  7:"🧠 NCERT-driven chapter practice — strong basics, great growth.",
-  8:"⭐ Fully NCERT-aligned — concepts built step-by-step.",
-  9:"⚡ NCERT-authentic questions for deeper clarity.",
- 10:"🔥 Every question is NCERT-rooted & exam-relevant.",
- 11:"📖 NCERT-aligned content for deep subject grounding.",
- 12:"🏆 Pure NCERT-based learning — board-perfect material."
-}[CLASS])
+const note=document.getElementById("class-note");
+const streamSection=document.getElementById("stream-section");
+const subjectSection=document.getElementById("subject-section");
+const grid=document.getElementById("subject-grid");
+const title=document.getElementById("selected-stream-title");
+const back=document.getElementById("back-btn");
 
-// CLASS WELCOME MESSAGE
-(document.getElementById("class-note").innerHTML = ({
-5:"Curiosity becomes knowledge — explore, question & grow.",
-6:"Concept building year — step into learning with confidence.",
-7:"Your foundations strengthen here — learn with clarity.",
-8:"Prepare to rise — structured NCERT learning awaits.",
-9:"Concept mastering begins — consistent study wins.",
-10:"Discipline + NCERT = Board power. You are ready.",
-11:"Stream, depth & future. This is the launchpad.",
-12:"The year that shapes results. Learn strategically."
-}[CLASS]));
 
-// Senior shows streams
-if(isSenior)document.getElementById("stream-section").classList.remove("hidden");
-else loadSubjects();
-
-// SUBJECT FLOW
-window.showSubjects=function(s){
-document.getElementById("stream-section").classList.add("hidden");
-const ss=document.getElementById("subject-section");
-ss.classList.remove("hidden");document.getElementById("back-btn").classList.remove("hidden");
-document.getElementById("selected-stream-title").textContent=`${s} Stream — Subjects`; populateSubjects(s)
+// 🔥 Class-Based Intro
+if(CLASS>=5 && CLASS<=8){
+  note.innerHTML="Curiosity today becomes learning tomorrow — explore subjects & build your base.";
+} else if(CLASS===9||CLASS===10){
+  note.innerHTML="You are entering deeper concepts — consistency will turn effort into confidence.";
+} else if(CLASS===11){
+  note.innerHTML="Your foundation year begins — explore your stream & build strong concepts.";
+} else if(CLASS===12){
+  note.innerHTML="Your boards & future pathway start here — learn smart, revise strong.";
 }
-window.backToStreams=()=>{subjectTag();}
 
-// SUBJECT FOR 5–10
+
+// Senior logic
+if(isSenior){
+  streamSection.classList.remove("hidden");
+}else{
+  loadSubjects();
+}
+
+
+// STREAM FLOW
+window.showSubjects=function(stream){
+  streamSection.classList.add("hidden");
+  subjectSection.classList.remove("hidden");
+  back.classList.remove("hidden");
+  title.textContent=`${stream} Stream — Subjects`;
+  populateSubjects(stream);
+};
+
+window.backToStreams=()=>{subjectSection.classList.add("hidden");streamSection.classList.remove("hidden");};
+
 function loadSubjects(){
-document.getElementById("subject-section").classList.remove("hidden");
-document.getElementById("back-btn").classList.add("hidden");
-document.getElementById("selected-stream-title").textContent=`Subjects — Class ${CLASS}`;
-populateSubjects();
+  subjectSection.classList.remove("hidden");
+  back.classList.add("hidden");
+  title.textContent=`Subjects — Class ${CLASS}`;
+  populateSubjects();
 }
 
-// GRID BUILDER
+// SUBJECT GRID
 function populateSubjects(stream){
-const g=document.getElementById("subject-grid");g.innerHTML="";
-Object.keys(curriculum).forEach(sub=>{
-if(stream&&!Object.values(curriculum[sub]).some(c=>Array.isArray(c)&&c.some(ch=>ch.section?.includes(stream))))return;
-g.innerHTML+=`<a href="chapter-selection.html?subject=${encodeURIComponent(sub)}" class="subject-card"><div class="card-header"><i data-lucide="book-open" class="text-cbse-blue h-8 w-8"></i><h3>${sub}</h3></div><p>View chapters</p></a>`;
-});
-lucide.createIcons();
+  grid.innerHTML="";
+  Object.keys(curriculum).forEach(sub=>{
+    if(stream && !Object.values(curriculum[sub]).some(c=>Array.isArray(c)&&c.some(x=>x.section?.includes(stream)))) return;
+
+    grid.innerHTML+=`
+    <a href="chapter-selection.html?subject=${encodeURIComponent(sub)}" class="subject-card">
+      <div class="card-header"><i data-lucide="book-open" class="text-cbse-blue h-8 w-8"></i>
+      <h3 class="card-title">${sub}</h3></div>
+      <p class="card-description">View chapters for ${sub}</p>
+      <div class="mt-5 text-center"><button class="card-button bg-cbse-blue">View Chapters</button></div>
+    </a>`;
+  });
+
+  lucide.createIcons();
 }
-
-// Flashcards
-const facts=[
-"NCERT concepts form exam backbone — master them.",
-"Revise formulas daily — small effort, big gains.",
-"Concept clarity beats memorization every time."
-];
-facts.forEach(f=>document.getElementById("flashcards").innerHTML+=`<div class="flashcard">${f}</div>`);
-
-// DARK MODE
-document.getElementById("themeToggle").onclick=()=>document.body.classList.toggle("dark");
-
-// Streak Counter (LocalStorage)
-const k="r4e_streak";let s=localStorage.getItem(k)||0;
-document.getElementById("streak-count").textContent=s;
-setInterval(()=>{s++;localStorage.setItem(k,s);document.getElementById("streak-count").textContent=s;},86400000);
 </script>
 
 </body>
