@@ -27,19 +27,15 @@ if (!GITHUB_TOKEN) {
 
 console.log(`⚙️ Running createClassRepo.js → CLASS=${CLASS}`);
 
-// Paths
 const ROOT = process.cwd();
 const TEMPLATE_DIR = path.join(ROOT, "template");
 const OUTPUT_DIR = path.join(ROOT, "output");
 if (!fs.existsSync(OUTPUT_DIR)) fs.mkdirSync(OUTPUT_DIR);
 
-// Repo naming
 const REPO_NAME = `ready4exam-class-${CLASS}`;
 const CLONE_URL = `https://${GITHUB_TOKEN}:x-oauth-basic@github.com/${REPO_OWNER}/${REPO_NAME}.git`;
 const TARGET_DIR = path.join(OUTPUT_DIR, REPO_NAME);
 
-// ------------------------------------------------------------
-// PLACEHOLDER REPLACEMENTS
 // ------------------------------------------------------------
 const replacements = {
   "%%FIREBASE_API_KEY%%": process.env.FIREBASE_API_KEY || "",
@@ -55,11 +51,7 @@ const replacements = {
 };
 
 // ------------------------------------------------------------
-// CHECK / CREATE REPO
-// ------------------------------------------------------------
 async function ensureRepoExists() {
-  console.log(`🔍 Checking repository → ${REPO_NAME}`);
-
   const apiURL = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}`;
   const headers = {
     Authorization: `token ${GITHUB_TOKEN}`,
@@ -68,41 +60,32 @@ async function ensureRepoExists() {
   };
 
   const res = await fetch(apiURL, { headers });
-
   if (res.status === 200) return console.log(`✅ Repo exists`);
 
   if (res.status === 404) {
-    console.log(`📦 Creating new repository → ${REPO_NAME}`);
-    const createRes = await fetch("https://api.github.com/user/repos", {
+    console.log(`📦 Creating repo → ${REPO_NAME}`);
+    await fetch("https://api.github.com/user/repos", {
       method: "POST",
       headers,
       body: JSON.stringify({ name: REPO_NAME, private: false, auto_init: true }),
     });
-
-    if (!createRes.ok) {
-      console.error("❌ Repo creation failed:", await createRes.text());
-      process.exit(1);
-    }
     return console.log(`🎉 Repo created`);
   }
 
-  console.error("❌ GitHub API Error:", await res.text());
+  console.error(await res.text());
   process.exit(1);
 }
 
-// ------------------------------------------------------------
-// APPLY FIREBASE/SUPABASE REPLACEMENTS
 // ------------------------------------------------------------
 function applyReplacementsToFile(filePath) {
   let content = fs.readFileSync(filePath, "utf8");
   for (const [key, value] of Object.entries(replacements))
     content = content.replace(new RegExp(key, "g"), value);
-
   fs.writeFileSync(filePath, content, "utf8");
 }
 
 // ------------------------------------------------------------
-// 🔥 TEMPLATE COPY + CURRICULUM OVERRIDE (MAIN FIX HERE)
+// 🔥 THE IMPORTANT PART — CURRICULUM OVERRIDE FIX
 // ------------------------------------------------------------
 function copyRecursive(src, dest) {
   if (!fs.existsSync(dest)) fs.mkdirSync(dest, { recursive: true });
@@ -111,7 +94,6 @@ function copyRecursive(src, dest) {
     const srcPath  = path.join(src, item);
     const destPath = path.join(dest, item);
 
-    // 🔥 curriculum override → use generated instead of template
     if (item === "curriculum.js") {
       const generated = path.join(ROOT, "classes_repo", `class${CLASS}`, "js", "curriculum.js`);
 
@@ -119,7 +101,7 @@ function copyRecursive(src, dest) {
         console.log(`🔁 Using BUILT curriculum.js for Class ${CLASS}`);
         fs.copyFileSync(generated, destPath);
       } else {
-        console.log(`⚠ Using TEMPLATE curriculum.js (no built file found)`);
+        console.log(`⚠ No built curriculum found → using template`);
         fs.copyFileSync(srcPath, destPath);
       }
       continue;
@@ -138,17 +120,10 @@ function copyRecursive(src, dest) {
 // ------------------------------------------------------------
 function cloneOrPullRepo() {
   if (!fs.existsSync(TARGET_DIR)) {
-    console.log("📥 Cloning repo...");
     execSync(`git clone ${CLONE_URL} ${TARGET_DIR}`, { stdio: "inherit" });
   } else {
-    console.log("🔄 Pulling latest...");
     execSync(`git -C ${TARGET_DIR} pull`, { stdio: "inherit" });
   }
-}
-
-function copyTemplate() {
-  console.log("📁 Copying template → Repo");
-  copyRecursive(TEMPLATE_DIR, TARGET_DIR);
 }
 
 function commitAndPush() {
@@ -162,7 +137,6 @@ function commitAndPush() {
     return console.log("ℹ️ No changes — nothing to commit");
   }
 
-  console.log("⬆️ Pushing…");
   execSync(`git -C ${TARGET_DIR} push`, { stdio: "inherit" });
   console.log(`🎉 Class ${CLASS} deployment complete`);
 }
@@ -171,7 +145,7 @@ function commitAndPush() {
 async function run() {
   await ensureRepoExists();
   cloneOrPullRepo();
-  copyTemplate();
+  copyRecursive(TEMPLATE_DIR, TARGET_DIR);
   commitAndPush();
 }
 run();
