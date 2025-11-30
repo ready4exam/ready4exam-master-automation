@@ -133,7 +133,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const subject = params.get("subject") || "Science";
 
     if (window.auth) {
-      auth.onAuthStateChanged(user => {
+     window.auth.onAuthStateChanged(user => {
         if (user?.email) {
           const username = user.email.split("@")[0];
           document.getElementById("user-welcome").textContent = `Welcome, ${username}`;
