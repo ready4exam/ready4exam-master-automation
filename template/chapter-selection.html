@@ -154,7 +154,9 @@ startBtn.onclick=()=>{
     errorMsg.textContent="Please select Chapter & Difficulty.";
     return errorMsg.classList.remove("hidden");
   }
-  location.href=`quiz-engine.html?topic=${buildTable(selectedChapter)}&difficulty=${selectedDifficulty}`;
+
+  /* --------------- FIX APPLIED HERE ✔ --------------- */
+  location.href=`quiz-engine.html?subject=${subject}&topic=${buildTable(selectedChapter)}&difficulty=${selectedDifficulty}`;
 };
 
 renderBooks();
