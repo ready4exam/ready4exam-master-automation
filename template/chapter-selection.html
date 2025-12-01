@@ -67,7 +67,9 @@
 
 <script type="module">
 import curriculum from "./js/curriculum.js";
+import { transliterate as tr } from "https://cdn.jsdelivr.net/npm/transliteration/+esm";   // 🔥 Added (Only required change)
 
+// Existing variables remain unchanged
 const CLASS_ID = "{{CLASS}}"; // automation replaces 11 or 12
 const subject   = new URLSearchParams(location.search).get("subject") || "";
 
@@ -140,12 +142,26 @@ document.querySelectorAll(".difficulty-btn").forEach(btn=>{
   };
 });
 
-/* ----------------------------- */
+/* -----------------------------
+   🔥 Updated Table-Builder Logic (Same as Backend)
+------------------------------*/
 function buildTable(ch){
-  let x=ch.toLowerCase().replace(/[^a-z0-9\s]/g," ").replace(/\s+/g," ").trim().split(" ");
-  const skip=["as","of","the","a","an","in","on","for","to"];
-  let f=x.filter(w=>!skip.includes(w));
-  return `${f[0]}_${f[f.length-1]}_${CLASS_ID}_quiz`;
+  let raw = ch || "";
+  let chapter = tr(raw)
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g," ")
+    .replace(/\s+/g," ")
+    .trim();
+
+  const skip=["as","of","the","a","an","in","on","for","to","ki","ke","ka"];
+
+  let words = chapter.split(" ");
+  let filtered = words.filter(w=>!skip.includes(w));
+
+  let first = filtered[0] || words[0] || "ch";
+  let last  = filtered[filtered.length-1] || words[words.length-1] || "x";
+
+  return `${first}_${last}_${CLASS_ID}_quiz`;
 }
 
 /* ----------------------------- */
@@ -155,12 +171,10 @@ startBtn.onclick=()=>{
     return errorMsg.classList.remove("hidden");
   }
 
-  /* --------------- FIX APPLIED HERE ✔ --------------- */
   location.href=`quiz-engine.html?subject=${subject}&topic=${buildTable(selectedChapter)}&difficulty=${selectedDifficulty}`;
 };
 
 renderBooks();
 </script>
-
 </body>
 </html>
