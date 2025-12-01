@@ -1,6 +1,7 @@
 // /api/manageSupabase.js
 import { createClient } from "@supabase/supabase-js";
 import { getCorsHeaders } from "./cors.js";
+import { transliterate as tr } from "transliteration";   // 🔥 added for Hindi/Sanskrit safe support
 
 export const config = { runtime: "nodejs" };
 
@@ -28,24 +29,28 @@ function normalizeQType(t) {
 
 
 // =====================================================================
-// Table Name Builder — EXACT CLONE of chapter-selection.html logic
+// Table Name Builder — UPGRADED (Hindi + Sanskrit Compatible)
 // =====================================================================
 function buildTableName(meta) {
-  let chapter = (meta.chapter || "")
+  let chapterRaw = meta.chapter || "";
+  let grade = meta.class_name || "11";
+
+  // 🔥 Convert Hindi/Sanskrit → English sound-based string
+  let chapter = tr(chapterRaw)
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 
-  const skip = ["as","of","the","a","an","in","on","for","to"];
+  const skip = ["as","of","the","a","an","in","on","for","to","ki","ke","ka"];
 
   const words = chapter.split(" ");
   const filtered = words.filter(w => !skip.includes(w));
 
-  let first = filtered[0] || words[0];
-  let last  = filtered[filtered.length-1] || words[words.length-1];
+  let first = filtered[0] || words[0] || "ch";
+  let last  = filtered[filtered.length-1] || words[words.length-1] || "x";
 
-  return `${first}_${last}_${meta.class_name||"11"}_quiz`;
+  return `${first}_${last}_${grade}_quiz`;
 }
 
 
