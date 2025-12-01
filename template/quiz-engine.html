@@ -40,7 +40,6 @@
     <div>
       <h2 id="chapter-name-display" class="text-xl font-bold text-accent-gold leading-tight"></h2>
 
-      <!-- 🔥 Restored Header Subtitle EXACTLY as requested -->
       <p class="text-sm text-white opacity-90 italic mt-1 leading-snug">
         Ready4Exam helps students excel — by Ready4Industry.
       </p>
@@ -61,11 +60,9 @@
 </header>
 
 
-<!-- STATUS -->
 <div id="status-message" class="text-center p-6 font-semibold text-blue-700 hidden"></div>
 
 
-<!-- PAYWALL -->
 <div id="paywall-screen" class="flex flex-col items-center justify-center flex-grow p-12">
   <div class="bg-white rounded-xl p-10 shadow-xl border text-center max-w-md">
     <h2 class="text-2xl font-bold text-gray-800 mb-4">Sign in to Continue</h2>
@@ -78,7 +75,6 @@
 </div>
 
 
-<!-- QUIZ -->
 <main id="quiz-content" class="hidden flex flex-col items-center max-w-4xl mx-auto px-4 py-8">
   <div id="question-list" class="w-full space-y-6 mb-8"></div>
 
@@ -93,7 +89,6 @@
 </main>
 
 
-<!-- RESULTS -->
 <section id="results-screen" class="hidden flex flex-col items-center text-center py-10 px-6">
   <h2 class="text-3xl font-extrabold text-green-600 mb-4">Quiz Completed!</h2>
   <p class="text-lg text-gray-700 mb-3">Your Final Score:</p>
@@ -117,7 +112,6 @@
 </footer>
 
 
-<!-- DIFFICULTY SWITCH -->
 <script>
 function changeDifficulty(level){
   const url = new URL(window.location.href);
@@ -127,7 +121,24 @@ function changeDifficulty(level){
 </script>
 
 
-<!-- 🔥 FIXED — AUTH BLOCK (only change made) -->
+<!-- -------------- REQUIRED AUTH INIT (ONLY ADDITION) ---------------- -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-app.js";
+
+const firebaseConfig = {
+  apiKey: window.__firebase_config.apiKey,
+  authDomain: window.__firebase_config.authDomain,
+  projectId: window.__firebase_config.projectId,
+  storageBucket: window.__firebase_config.storageBucket,
+  messagingSenderId: window.__firebase_config.messagingSenderId,
+  appId: window.__firebase_config.appId
+};
+
+initializeApp(firebaseConfig);
+</script>
+
+
+<!-- -------------- FIXED AUTH LISTENER (NO OTHER EDITS) -------------- -->
 <script type="module">
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-auth.js";
 
