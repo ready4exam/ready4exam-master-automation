@@ -39,7 +39,6 @@
 
     <div>
       <h2 id="chapter-name-display" class="text-xl font-bold text-accent-gold leading-tight"></h2>
-
       <p class="text-sm text-white opacity-90 italic mt-1 leading-snug">
         Ready4Exam helps students excel — by Ready4Industry.
       </p>
@@ -121,24 +120,16 @@ function changeDifficulty(level){
 </script>
 
 
-<!-- -------------- REQUIRED AUTH INIT (ONLY ADDITION) ---------------- -->
+<!-- 🔥 REQUIRED AUTH INIT -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-app.js";
 
-const firebaseConfig = {
-  apiKey: window.__firebase_config.apiKey,
-  authDomain: window.__firebase_config.authDomain,
-  projectId: window.__firebase_config.projectId,
-  storageBucket: window.__firebase_config.storageBucket,
-  messagingSenderId: window.__firebase_config.messagingSenderId,
-  appId: window.__firebase_config.appId
-};
-
+const firebaseConfig = window.__firebase_config;
 initializeApp(firebaseConfig);
 </script>
 
 
-<!-- -------------- FIXED AUTH LISTENER (NO OTHER EDITS) -------------- -->
+<!-- 🔥 AUTH LISTENER + AUTO FIX FOR NO-REFRESH LOGIN -->
 <script type="module">
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-auth.js";
 
@@ -154,10 +145,20 @@ document.addEventListener("DOMContentLoaded", () => {
 
       document.getElementById("logout-nav-btn").onclick = async () => {
         await signOut(auth);
-        location.href = "index.html";
+        location.href = "index.html"; // You confirmed this works
       };
     }
   });
+
+  /* 🔥 Ensures header loads immediately after login (no refresh needed) */
+  setTimeout(() => {
+    const user = getAuth().currentUser;
+    if (user) {
+      const username = user.email.split("@")[0];
+      document.getElementById("user-welcome").textContent = `Welcome, ${username}`;
+      document.getElementById("logout-nav-btn").classList.remove("hidden");
+    }
+  }, 400);
 
   const urlParams = new URLSearchParams(location.search);
   const subject = urlParams.get("subject");
@@ -191,7 +192,7 @@ window.__firebase_config = {
 
 <script type="module" src="./js/config.js"></script>
 <script type="module" src="./js/auth-paywall.js"></script>
-<script type="module" src="./js/api.js"></script>
+script type="module" src="./js/api.js"></script>
 <script type="module" src="./js/ui-renderer.js"></script>
 <script type="module" src="./js/quiz-engine.js"></script>
 
