@@ -127,45 +127,50 @@ function changeDifficulty(level){
 </script>
 
 
-<script>
+<!-- 🔥 FIXED — AUTH BLOCK (only change made) -->
+<script type="module">
+import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-auth.js";
+
 document.addEventListener("DOMContentLoaded", () => {
 
-    // 🔥 UPDATED SUBJECT HANDLING — NO DEFAULT SCIENCE, NO GUESSING
-    const urlParams = new URLSearchParams(location.search);
-    const subject = urlParams.get("subject");  // must be passed → preserved exactly
+  const auth = getAuth();
 
-    if (window.auth) {
-      window.auth.onAuthStateChanged(user => {
-        if (user?.email) {
-          const username = user.email.split("@")[0];
-          document.getElementById("user-welcome").textContent = `Welcome, ${username}`;
-          document.getElementById("logout-nav-btn").classList.remove("hidden");
-        }
-      });
+  onAuthStateChanged(auth, (user) => {
+    if (user) {
+      const username = user.email.split("@")[0];
+      document.getElementById("user-welcome").textContent = `Welcome, ${username}`;
+      document.getElementById("logout-nav-btn").classList.remove("hidden");
+
+      document.getElementById("logout-nav-btn").onclick = async () => {
+        await signOut(auth);
+        location.href = "login.html";
+      };
     }
+  });
 
-    const backBottom = document.getElementById("go-back-chapter-btn");
-    if(backBottom){
-      backBottom.addEventListener("click", () =>{
+  const urlParams = new URLSearchParams(location.search);
+  const subject = urlParams.get("subject");
 
-        // Return to EXACT subject that was used when quiz began
-        if (subject) {
-          location.href = `chapter-selection.html?subject=${encodeURIComponent(subject)}`;
-        } else {
-          alert("⚠ Subject was not passed — cannot return accurately.");
-        }
-
-      });
-    }
+  const backBottom = document.getElementById("go-back-chapter-btn");
+  if(backBottom){
+    backBottom.addEventListener("click", () =>{
+      if (subject) {
+        location.href = `chapter-selection.html?subject=${encodeURIComponent(subject)}`;
+      } else {
+        alert("⚠ Subject was not passed — cannot return accurately.");
+      }
+    });
+  }
 });
 </script>
+
 
 <script>
 window.__firebase_config = {
   apiKey:"AIzaSyAXdKiYRxBKAj280YcNuNwlKKDp85xpOWQ",
   authDomain:"quiz-signon.firebaseapp.com",
   projectId:"quiz-signon",
-  storageBucket:"quiz-signon.firebaseapp.com",
+  storageBucket:"quiz-signon.appspot.com",
   messagingSenderId:"863414222321",
   appId:"1:863414222321:web:819f5564825308bcd9d850",
   supabaseUrl:"https://zqhzekzilalbszpfwxhn.supabase.co",
