@@ -35,7 +35,6 @@ function buildTableName(meta) {
   let chapterRaw = meta.chapter || "";
   let grade = meta.class_name || "11";
 
-  // 🔥 Convert Hindi/Sanskrit → English sound-based string
   let chapter = tr(chapterRaw)
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, " ")
@@ -64,12 +63,15 @@ export default async function handler(req, res) {
   Object.entries(getCorsHeaders(origin)).forEach(([k,v]) => res.setHeader(k,v));
   res.setHeader("Access-Control-Max-Age","86400");
 
+  // ✅ THE ONLY FIX ADDED (forces GitHub Pages CORS to always pass)
+  res.setHeader("Access-Control-Allow-Origin", "https://ready4exam.github.io");
+
+
   if (req.method==="OPTIONS") return res.status(200).end();
   if (req.method!=="POST") return res.status(405).json({ok:false,error:"Only POST allowed"});
 
 
   try {
-    // Parse payload
     const body = typeof req.body==="string" ? JSON.parse(req.body) : req.body;
     const { meta, csv } = body || {};
 
@@ -77,10 +79,6 @@ export default async function handler(req, res) {
       return res.status(400).json({ok:false,error:"Missing meta/csv"});
     }
 
-
-    // ===========================================================================================
-    // Supabase credentials unchanged
-    // ===========================================================================================
     const supabaseUrl =
       process.env.SUPABASE_URL_11 || process.env.SUPABASE_URL;
     const supabaseKey =
@@ -91,19 +89,12 @@ export default async function handler(req, res) {
     }
 
     const supabase = createClient(supabaseUrl, supabaseKey);
-    // ===========================================================================================
 
-
-    // Build table name
     const table = buildTableName(meta);
 
-
-    // Ensure table exists
     const rpcRes = await supabase.rpc("ensure_table_exists",{ table_name:table });
     if (rpcRes.error) throw rpcRes.error;
 
-
-    // Policies + Grants auto-applied once per table
     await supabase.rpc("exec_sql",{
       sql:`ALTER TABLE public.${table} ENABLE ROW LEVEL SECURITY;
            DO $do$ BEGIN
@@ -117,12 +108,8 @@ export default async function handler(req, res) {
            ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO anon, authenticated;`
     });
 
-
-    // Wipe rows before insert
     await supabase.from(table).delete().neq("id",0);
 
-
-    // Prepare rows
     const rows = csv.map(r => ({
       difficulty: normalizeDifficulty(r.difficulty),
       question_type: normalizeQType(r.question_type),
@@ -138,10 +125,6 @@ export default async function handler(req, res) {
     const { data, error } = await supabase.from(table).insert(rows);
     if (error) throw error;
 
-
-    // ===========================================================================================
-    // usage_logs insert/update (existing behaviour preserved)
-    // ===========================================================================================
     const existing = await supabase
       .from("usage_logs")
       .select("refresh_count")
@@ -175,8 +158,6 @@ export default async function handler(req, res) {
           updated_at:new Date()
         });
     }
-    // ===========================================================================================
-
 
     return res.status(200).json({
       ok:true,
