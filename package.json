@@ -12,7 +12,8 @@
     "nodemailer": "^6.9.12",
     "date-fns": "^3.6.0",
     "@octokit/rest": "^21.0.1",
-    "@google/generative-ai": "^0.5.0"
+    "@google/generative-ai": "^0.5.0",
+    "transliteration": "^2.3.5"   // ✅ ADD THIS
   },
   "license": "MIT",
   "author": "Ready4Exam Dev Team"
