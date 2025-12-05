@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repo
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Setup Node.js
@@ -16,51 +16,73 @@ jobs:
         with:
           node-version: 18
 
-      - name: Count chapters (no external JS file)
-        run: |
-          echo "📘 Curriculum Summary for Class 5–12"
-          echo "--------------------------------------"
+      - name: Count chapters (runs JS inside the Action)
+        uses: actions/github-script@v6
+        with:
+          # run the following JavaScript in the runner workspace (no external file needed)
+          script: |
+            const fs = require('fs');
+            const path = require('path');
 
-          for CLASS in 5 6 7 8 9 10 11 12
-          do
-            FILE="staticcurriculum/class${CLASS}/curriculum.js"
+            // Adjust this if your folder name differs:
+            const BASE = path.join(process.env.GITHUB_WORKSPACE || process.cwd(), 'staticcurriculum');
 
-            if [ ! -f "$FILE" ]; then
-              echo "⚠ Class ${CLASS}: curriculum.js not found"
-              continue
-            fi
+            if (!fs.existsSync(BASE)) {
+              core = require('@actions/core');
+              console.log(`❌ Base folder not found: ${BASE}`);
+              // Fail the step so you can see the error in the UI
+              core.setFailed(`Base folder not found: ${BASE}`);
+              return;
+            }
 
-            echo ""
-            echo "▶ Class ${CLASS}"
+            console.log('');
+            console.log('📘 Curriculum Summary for Class 5–12');
+            console.log('--------------------------------------');
 
-            # create a temporary Node script (use single-quoted heredoc so bash won't expand anything)
-            cat > /tmp/count_curriculum.js <<'JSCODE'
-/*
-  Temporary Node script created by GitHub Action.
-  It reads process.env.CLASS and requires the curriculum.js file
-  relative to the repository root (process.cwd()).
-*/
-const path = require('path');
+            const classes = ['5','6','7','8','9','10','11','12'];
 
-const classNum = process.env.CLASS;
-if (!classNum) {
-  console.error('CLASS env var not set');
-  process.exit(2);
-}
+            let grandSubjects = 0;
+            let grandChapters = 0;
 
-const curriculumPath = path.join(process.cwd(), 'staticcurriculum', `class${classNum}`, 'curriculum.js');
+            for (const cls of classes) {
+              const curriculumPath = path.join(BASE, `class${cls}`, 'curriculum.js');
 
-let curriculum;
-try {
-  curriculum = require(curriculumPath);
-} catch (err) {
-  console.error('Error requiring', curriculumPath, err && err.message ? err.message : err);
-  process.exit(3);
-}
+              if (!fs.existsSync(curriculumPath)) {
+                console.log(`⚠ Class ${cls}: curriculum.js not found at ${curriculumPath}`);
+                continue;
+              }
 
-const subjectCount = Array.isArray(curriculum) ? curriculum.length : 0;
-let chapterCount = 0;
+              let curriculum;
+              try {
+                // require() resolves absolute path fine
+                curriculum = require(curriculumPath);
+              } catch (err) {
+                console.log(`❌ Error loading class ${cls} curriculum: ${err && err.message ? err.message : err}`);
+                continue;
+              }
 
-if (Array.isArray(curriculum)) {
-  curriculum.forEach(sub => {
-    if (sub && Array.isArray(sub.chapters)) cha
+              const subjectCount = Array.isArray(curriculum) ? curriculum.length : 0;
+              let chapterCount = 0;
+
+              if (Array.isArray(curriculum)) {
+                for (const subj of curriculum) {
+                  if (subj && Array.isArray(subj.chapters)) chapterCount += subj.chapters.length;
+                  // If your structure stores chapters differently, adapt the above line.
+                }
+              }
+
+              grandSubjects += subjectCount;
+              grandChapters += chapterCount;
+
+              console.log('');
+              console.log(`▶ Class ${cls}`);
+              console.log(`  Subjects      : ${subjectCount}`);
+              console.log(`  Total Chapters: ${chapterCount}`);
+              console.log('--------------------------------------');
+            }
+
+            console.log('');
+            console.log('📊 GRAND TOTALS');
+            console.log(`  Subjects sum : ${grandSubjects}`);
+            console.log(`  Chapters sum : ${grandChapters}`);
+            console.log('');
