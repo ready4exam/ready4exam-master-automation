@@ -16,5 +16,39 @@ jobs:
         with:
           node-version: 18
 
-      - name: Run chapter count script
-        run: node ./scripts/countChapters.js
+      - name: Count chapters
+        run: |
+          echo "📘 Curriculum Summary for Class 5–12"
+          echo "--------------------------------------"
+
+          for CLASS in 5 6 7 8 9 10 11 12
+          do
+            FILE="staticcurriculum/class${CLASS}/curriculum.js"
+
+            if [ ! -f "$FILE" ]; then
+              echo "⚠ Class ${CLASS}: curriculum.js not found"
+              continue
+            fi
+
+            echo ""
+            echo "▶ Class ${CLASS}"
+
+            # Run Node inline using node -e
+            node -e "
+const curriculum = require('./staticcurriculum/class${CLASS}/curriculum.js');
+
+let subjectCount = Array.isArray(curriculum) ? curriculum.length : 0;
+let chapterCount = 0;
+
+if (Array.isArray(curriculum)) {
+  curriculum.forEach(sub => {
+    const chapters = Array.isArray(sub.chapters) ? sub.chapters : [];
+    chapterCount += chapters.length;
+  });
+}
+
+console.log('  Subjects:', subjectCount);
+console.log('  Total Chapters:', chapterCount);
+"
+            echo "--------------------------------------"
+          done
