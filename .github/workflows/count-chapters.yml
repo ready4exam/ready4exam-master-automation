@@ -11,98 +11,89 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Setup Node
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 18
 
-      - name: Count Curriculum Chapters
-        uses: actions/github-script@v6
-        with:
-          script: |
-            const fs = require('fs');
-            const path = require('path');
+      - name: Create and run counting script
+        run: |
+          echo "📘 Curriculum Summary"          
+          echo "--------------------------------------"
 
-            // GitHub Script automatically exposes: core, github, context
-            // ❗ DO NOT redeclare core
+          # Create a temporary counting script
+          cat << 'EOF' > count.js
+const fs = require("fs");
+const path = require("path");
 
-            const workspace = process.env.GITHUB_WORKSPACE;
+const workspace = process.cwd();
+const candidates = ["staticcurriculum", "static_curriculum", "static-curriculum"];
 
-            // Candidate base folders
-            const candidates = ['staticcurriculum', 'static_curriculum', 'static-curriculum'];
+let BASE = null;
 
-            let BASE = null;
-            for (const c of candidates) {
-              const full = path.join(workspace, c);
-              if (fs.existsSync(full) && fs.statSync(full).isDirectory()) {
-                BASE = full;
-                break;
-              }
-            }
+// Detect correct curriculum folder
+for (const name of candidates) {
+  const full = path.join(workspace, name);
+  if (fs.existsSync(full) && fs.statSync(full).isDirectory()) {
+    BASE = full;
+    break;
+  }
+}
 
-            if (!BASE) {
-              core.setFailed(`Could not find curriculum folder. Tried: ${candidates.join(', ')}`);
-              return;
-            }
+if (!BASE) {
+  console.error("❌ Curriculum folder not found.");
+  process.exit(1);
+}
 
-            console.log(`\nUsing curriculum base folder: ${BASE}\n`);
+console.log(`Using curriculum folder: ${BASE}`);
 
-            // Detect class folders
-            const classDirs = fs.readdirSync(BASE, { withFileTypes: true })
-              .filter(d => d.isDirectory() && /^class\d+$/i.test(d.name))
-              .map(d => d.name)
-              .sort((a,b) => Number(a.replace('class','')) - Number(b.replace('class','')));
+const dirs = fs.readdirSync(BASE)
+  .filter(d => /^class\d+$/.test(d))
+  .sort((a,b) => Number(a.replace("class","")) - Number(b.replace("class","")));
 
-            if (!classDirs.length) {
-              core.setFailed(`No class directories found inside ${BASE}`);
-              return;
-            }
+let totalSubjects = 0;
+let totalChapters = 0;
 
-            let grandSubjects = 0;
-            let grandChapters = 0;
+for (const dir of dirs) {
+  const classNum = dir.replace("class","");
+  const curriculumPath = path.join(BASE, dir, "curriculum.js");
 
-            for (const dirName of classDirs) {
-              const classNum = dirName.replace(/class/i, '');
-              const curriculumPath = path.join(BASE, dirName, 'curriculum.js');
+  if (!fs.existsSync(curriculumPath)) {
+    console.log(`⚠ Missing curriculum.js for class ${classNum}`);
+    continue;
+  }
 
-              if (!fs.existsSync(curriculumPath)) {
-                console.log(`⚠ Missing: ${curriculumPath}`);
-                continue;
-              }
+  let curriculum;
+  try {
+    curriculum = require(curriculumPath);
+  } catch (err) {
+    console.error(`❌ Error reading ${curriculumPath}: ${err.message}`);
+    continue;
+  }
 
-              // Require curriculum file
-              let curriculum;
-              try {
-                delete require.cache[require.resolve(curriculumPath)];
-                curriculum = require(curriculumPath);
-              } catch (error) {
-                console.log(`❌ Error loading ${curriculumPath}: ${error.message}`);
-                continue;
-              }
+  const subjects = Array.isArray(curriculum) ? curriculum.length : 0;
+  let chapters = 0;
 
-              const subjectCount = Array.isArray(curriculum)
-                ? curriculum.length
-                : 0;
+  if (Array.isArray(curriculum)) {
+    for (const s of curriculum) {
+      if (Array.isArray(s.chapters)) chapters += s.chapters.length;
+    }
+  }
 
-              let chapterCount = 0;
+  totalSubjects += subjects;
+  totalChapters += chapters;
 
-              if (Array.isArray(curriculum)) {
-                for (const subject of curriculum) {
-                  if (subject && Array.isArray(subject.chapters)) {
-                    chapterCount += subject.chapters.length;
-                  }
-                }
-              }
+  console.log(`\n▶ Class ${classNum}`);
+  console.log(`  Subjects      : ${subjects}`);
+  console.log(`  Chapters      : ${chapters}`);
+  console.log("--------------------------------------");
+}
 
-              grandSubjects += subjectCount;
-              grandChapters += chapterCount;
+console.log("\n📊 GRAND TOTALS");
+console.log(`  Total Subjects : ${totalSubjects}`);
+console.log(`  Total Chapters : ${totalChapters}`);
+console.log("");
+EOF
 
-              console.log(`\n▶ Class ${classNum}`);
-              console.log(`  Subjects       : ${subjectCount}`);
-              console.log(`  Chapter Count  : ${chapterCount}`);
-              console.log('----------------------------------');
-            }
-
-            console.log(`\n📊 GRAND TOTALS`);
-            console.log(`  Total Subjects : ${grandSubjects}`);
-            console.log(`  Total Chapters : ${grandChapters}\n`);
+          # Run the script
+          node count.js
