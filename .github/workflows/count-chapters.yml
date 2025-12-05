@@ -32,22 +32,23 @@ jobs:
             echo ""
             echo "▶ Class $CLASS"
 
-            # Run Node script inline
-            node <<'EOF'
-              const fs = require("fs");
+            # Run Node script inline with variable expansion
+            node <<EOF
               const curriculum = require("./staticcurriculum/class${CLASS}/curriculum.js");
 
-              let subjectCount = curriculum.length;
+              let subjectCount = Array.isArray(curriculum) ? curriculum.length : 0;
               let chapterCount = 0;
 
-              curriculum.forEach(sub => {
-                let chapters = sub.chapters || [];
-                chapterCount += chapters.length;
-              });
+              if (Array.isArray(curriculum)) {
+                curriculum.forEach(sub => {
+                  const chapters = sub.chapters || [];
+                  chapterCount += chapters.length;
+                });
+              }
 
               console.log("  Subjects:", subjectCount);
               console.log("  Total Chapters:", chapterCount);
-            EOF
+EOF
 
             echo "----------------------------------"
           done
