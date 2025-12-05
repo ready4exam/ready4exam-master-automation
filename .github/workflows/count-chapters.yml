@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout repo
         uses: actions/checkout@v4
 
       - name: Setup Node.js
@@ -16,7 +16,7 @@ jobs:
         with:
           node-version: 18
 
-      - name: Count chapters
+      - name: Count chapters (no external JS file)
         run: |
           echo "📘 Curriculum Summary for Class 5–12"
           echo "--------------------------------------"
@@ -33,22 +33,34 @@ jobs:
             echo ""
             echo "▶ Class ${CLASS}"
 
-            # Run Node inline using node -e
-            node -e "
-const curriculum = require('./staticcurriculum/class${CLASS}/curriculum.js');
+            # create a temporary Node script (use single-quoted heredoc so bash won't expand anything)
+            cat > /tmp/count_curriculum.js <<'JSCODE'
+/*
+  Temporary Node script created by GitHub Action.
+  It reads process.env.CLASS and requires the curriculum.js file
+  relative to the repository root (process.cwd()).
+*/
+const path = require('path');
 
-let subjectCount = Array.isArray(curriculum) ? curriculum.length : 0;
+const classNum = process.env.CLASS;
+if (!classNum) {
+  console.error('CLASS env var not set');
+  process.exit(2);
+}
+
+const curriculumPath = path.join(process.cwd(), 'staticcurriculum', `class${classNum}`, 'curriculum.js');
+
+let curriculum;
+try {
+  curriculum = require(curriculumPath);
+} catch (err) {
+  console.error('Error requiring', curriculumPath, err && err.message ? err.message : err);
+  process.exit(3);
+}
+
+const subjectCount = Array.isArray(curriculum) ? curriculum.length : 0;
 let chapterCount = 0;
 
 if (Array.isArray(curriculum)) {
   curriculum.forEach(sub => {
-    const chapters = Array.isArray(sub.chapters) ? sub.chapters : [];
-    chapterCount += chapters.length;
-  });
-}
-
-console.log('  Subjects:', subjectCount);
-console.log('  Total Chapters:', chapterCount);
-"
-            echo "--------------------------------------"
-          done
+    if (sub && Array.isArray(sub.chapters)) cha
