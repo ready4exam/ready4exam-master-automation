@@ -18,7 +18,7 @@ jobs:
 
       - name: Create and run counting script
         run: |
-          echo "📘 Curriculum Summary"          
+          echo "📘 Curriculum Summary"
           echo "--------------------------------------"
 
           # Create a temporary counting script
