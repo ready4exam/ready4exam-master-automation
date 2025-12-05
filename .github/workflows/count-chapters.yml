@@ -1,28 +1,53 @@
-name: Count Curriculum Chapters
+name: Curriculum Chapter Count
 
 on:
-  workflow_dispatch:
-  push:
-    branches:
-      - main
-    paths:
-      - "static_curriculum/**"
+  workflow_dispatch: {}
 
 jobs:
-  count-chapters:
+  count-curriculum:
     runs-on: ubuntu-latest
-
     steps:
-      - name: 🧩 Checkout repository
+      - name: Checkout Repo
         uses: actions/checkout@v4
 
-      - name: ⚙️ Setup Node.js
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 18
 
-      - name: ▶️ Run Chapter Count Script
+      - name: Generate Curriculum Summary
         run: |
-          echo "Current working directory: $(pwd)"
-          ls -R
-          node ./scripts/countChapters.js
+          echo "📘 Curriculum Summary for Class 5–12"
+          echo "----------------------------------"
+
+          for CLASS in 5 6 7 8 9 10 11 12
+          do
+            FILE="staticcurriculum/class${CLASS}/curriculum.js"
+
+            if [ ! -f "$FILE" ]; then
+              echo "⚠ Class $CLASS — curriculum.js not found!"
+              continue
+            fi
+
+            echo ""
+            echo "▶ Class $CLASS"
+
+            # Run Node script inline
+            node <<'EOF'
+              const fs = require("fs");
+              const curriculum = require("./staticcurriculum/class${CLASS}/curriculum.js");
+
+              let subjectCount = curriculum.length;
+              let chapterCount = 0;
+
+              curriculum.forEach(sub => {
+                let chapters = sub.chapters || [];
+                chapterCount += chapters.length;
+              });
+
+              console.log("  Subjects:", subjectCount);
+              console.log("  Total Chapters:", chapterCount);
+            EOF
+
+            echo "----------------------------------"
+          done
