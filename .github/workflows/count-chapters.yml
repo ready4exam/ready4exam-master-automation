@@ -1,59 +1,20 @@
-// scripts/countChapters.js
-const fs = require("fs");
-const path = require("path");
+name: Count Curriculum Chapters
 
-const BASE_DIR = path.join(__dirname, "..", "staticcurriculum"); 
-// 🔥 IMPORTANT: folder must be exactly "staticcurriculum"
+on:
+  workflow_dispatch: {}
 
-console.log("\n📘 Counting chapters in all curriculum.js files...\n");
+jobs:
+  count-curriculum:
+    runs-on: ubuntu-latest
 
-// Detect folders like class5, class6, etc.
-function detectClasses() {
-  return fs.readdirSync(BASE_DIR)
-    .filter(name => /^class\d+$/.test(name))
-    .map(name => name.replace("class", ""))
-    .sort((a, b) => Number(a) - Number(b));
-}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-function loadCurriculum(classNum) {
-  const filePath = path.join(BASE_DIR, `class${classNum}`, "curriculum.js");
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
 
-  if (!fs.existsSync(filePath)) {
-    console.log(`⚠ Skipping class${classNum} — curriculum.js not found`);
-    return null;
-  }
-
-  try {
-    return require(filePath);
-  } catch (err) {
-    console.error(`❌ Error loading curriculum.js for class ${classNum}:`, err.message);
-    return null;
-  }
-}
-
-const allClasses = detectClasses();
-let finalChapterCount = 0;
-
-allClasses.forEach(cls => {
-  const curriculum = loadCurriculum(cls);
-  if (!curriculum) return;
-
-  let subjectCount = curriculum.length;
-  let chapterCount = 0;
-
-  curriculum.forEach(sub => {
-    const chapters = Array.isArray(sub.chapters) ? sub.chapters : [];
-    chapterCount += chapters.length;
-  });
-
-  finalChapterCount += chapterCount;
-
-  console.log(`\n▶ Class ${cls}`);
-  console.log(`   Subjects       : ${subjectCount}`);
-  console.log(`   Total Chapters : ${chapterCount}`);
-  console.log("--------------------------------------");
-});
-
-console.log("\n===============================");
-console.log("📊 FINAL TOTAL CHAPTERS:", finalChapterCount);
-console.log("===============================\n");
+      - name: Run chapter count script
+        run: node ./scripts/countChapters.js
