@@ -141,7 +141,7 @@ export default async function handler(req, res) {
     const prompt = `
 Return ONLY valid JSON. No markdown.
 
-Generate 60+ exam-grade questions:
+Generate 60 NCERT exam-grade questions:
 Class: ${meta.class_name}
 Subject: ${meta.subject}
 Chapter: ${meta.chapter}
