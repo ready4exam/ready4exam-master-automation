@@ -1,5 +1,5 @@
-// /api/gemini.js — BULLETPROOF JSON GENERATOR (FINAL VERSION)
-// Survives dirty Gemini output: markdown, arrays, broken JSON, extra text, multiple blocks.
+// /api/gemini.js — FINAL PRODUCTION VERSION (v1beta + gemini-2.5-flash)
+// Fully stable, JSON repair, handles all Gemini output issues.
 
 import { getCorsHeaders } from "./cors.js";
 export const config = { runtime: "nodejs" };
@@ -16,9 +16,9 @@ const REQUIRED_FIELDS = [
   "scenario_reason_text"
 ];
 
-// -------------------------------------------------------------
-// BASIC HELPERS
-// -------------------------------------------------------------
+// ------------------------------------------------------------------
+// HELPERS
+// ------------------------------------------------------------------
 function tryParseJson(str) {
   try {
     return JSON.parse(str);
@@ -27,7 +27,6 @@ function tryParseJson(str) {
   }
 }
 
-// Auto-fix smart quotes, trailing commas, nonsense escapes
 function repairJson(text) {
   if (!text) return text;
 
@@ -40,37 +39,32 @@ function repairJson(text) {
     .replace(/\r/g, " ");
 }
 
-// -------------------------------------------------------------
-// Extract JSON from Gemini output (robust)
-// -------------------------------------------------------------
+// Extract valid JSON from messy Gemini output
 function extractQuestionsObject(text) {
   if (!text) return null;
 
   const cleaned = repairJson(text);
 
-  // 1️⃣ Try whole text
+  // Whole JSON
   let obj = tryParseJson(cleaned);
   if (obj && Array.isArray(obj.questions)) return obj;
 
-  // 2️⃣ Try fenced blocks ```json ... ```
+  // Fenced blocks
   const fenceRegex = /```(?:json)?\s*([\s\S]*?)```/gi;
   let match;
   while ((match = fenceRegex.exec(cleaned)) !== null) {
     const candidate = tryParseJson(repairJson(match[1]));
-    if (candidate && Array.isArray(candidate.questions)) {
-      return candidate;
-    }
+    if (candidate && Array.isArray(candidate.questions)) return candidate;
   }
 
-  // 3️⃣ Handle plain arrays like [ {...}, {...} ]
+  // Top-level array
   const arr = tryParseJson(cleaned);
-  if (Array.isArray(arr)) {
-    return { questions: arr };
-  }
+  if (Array.isArray(arr)) return { questions: arr };
 
-  // 4️⃣ Extract all balanced JSON blocks { ... }
+  // Balanced braces extraction
   const blocks = [];
   let depth = 0, start = -1;
+
   for (let i = 0; i < cleaned.length; i++) {
     if (cleaned[i] === "{") {
       if (depth === 0) start = i;
@@ -100,9 +94,6 @@ function extractQuestionsObject(text) {
   return null;
 }
 
-// -------------------------------------------------------------
-// Normalizer (same as your previous version)
-// -------------------------------------------------------------
 function normalize(q) {
   q.correct_answer_key = (q.correct_answer_key || "A").trim().toUpperCase();
   if (!["A", "B", "C", "D"].includes(q.correct_answer_key)) {
@@ -125,9 +116,9 @@ function normalize(q) {
   };
 }
 
-// -------------------------------------------------------------
-// HANDLER
-// -------------------------------------------------------------
+// ------------------------------------------------------------------
+// MAIN HANDLER
+// ------------------------------------------------------------------
 export default async function handler(req, res) {
   const origin = req.headers.origin || "*";
   Object.entries(getCorsHeaders(origin)).forEach(([k, v]) =>
@@ -144,25 +135,25 @@ export default async function handler(req, res) {
     const { meta } = body;
     if (!meta) throw new Error("Missing meta");
 
-    const apiKey = process.env.GEMINI_API_KEY || process.env.google_api;
+    const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) throw new Error("Missing GEMINI_API_KEY");
 
     const prompt = `
-Return ONLY valid JSON. No markdown. No explanations.
+Return ONLY valid JSON. No markdown.
 
-Generate 60+ NCERT exam-grade questions:
+Generate 60+ exam-grade questions:
 Class: ${meta.class_name}
 Subject: ${meta.subject}
 Chapter: ${meta.chapter}
 
-Valid JSON:
+Format:
 {
  "questions": [
    {
      "difficulty": "Simple" | "Medium" | "Advanced",
      "question_type": "MCQ" | "AR" | "Case-Based",
      "question_text": "...",
-     "scenario_reason_text": "",   // for MCQ
+     "scenario_reason_text": "",
      "option_a": "...",
      "option_b": "...",
      "option_c": "...",
@@ -173,19 +164,20 @@ Valid JSON:
 }
     `;
 
+    // ✔ Use the endpoint that matched your successful curl
     const model = "gemini-2.5-flash";
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ role: "user", parts: [{ text: prompt }] }]
-        })
-      }
-    );
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ role: "user", parts: [{ text: prompt }] }]
+      })
+    });
 
     const rawText = await response.text();
+    console.log("🧪 Gemini RAW snippet:", rawText.slice(0, 500));
 
     let outer;
     try {
@@ -194,40 +186,34 @@ Valid JSON:
       outer = { output_text: rawText };
     }
 
+    // Detect quota exceeded
+    if (outer?.error?.code === 429) {
+      throw new Error("Gemini quota exceeded — try again later.");
+    }
+
     const innerText =
       outer?.candidates?.[0]?.content?.parts?.[0]?.text ||
       outer?.output_text ||
       rawText;
 
-    console.log("🧪 Gemini Raw Output (first 400 chars):", innerText.slice(0, 400));
-
-    // --------------------------
-    // FINAL ROBUST EXTRACTION
-    // --------------------------
     let parsed = extractQuestionsObject(innerText);
 
     if (!parsed || !parsed.questions || parsed.questions.length === 0) {
       throw new Error(
-        "Gemini returned invalid JSON. Raw snippet: " +
-          innerText.slice(0, 300)
+        "Gemini returned invalid JSON. Snippet: " + innerText.slice(0, 300)
       );
     }
 
     const questions = parsed.questions;
 
     if (questions.length < 40) {
-      // allow 40+ instead of strict 60 to prevent failures
-      console.warn(
-        `⚠ Warning: Only ${questions.length} questions generated (minimum 40 accepted).`
-      );
+      console.warn(`⚠ Only ${questions.length} questions generated — continuing.`);
     }
 
-    // Field validation
+    // Validate fields
     for (const q of questions) {
       for (const f of REQUIRED_FIELDS) {
-        if (!(f in q)) {
-          q[f] = ""; // auto-fill missing fields
-        }
+        if (!(f in q)) q[f] = "";
       }
     }
 
@@ -240,9 +226,7 @@ Valid JSON:
     console.error("❌ Gemini error:", err);
     return res.status(500).json({
       ok: false,
-      error:
-        err.message ||
-        "Gemini failed to produce valid questions — try again."
+      error: err.message || "Gemini failed — try again."
     });
   }
 }
