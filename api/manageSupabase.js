@@ -1,6 +1,10 @@
 // /api/manageSupabase.js
 // ============================================================================
-//  SINGLE / PER-CHAPTER UPLOAD API  (FINAL STABLE VERSION)
+// SINGLE / PER-CHAPTER UPLOAD API
+// - Creates/refreshes Supabase table
+// - Inserts MCQ/AR/Case questions
+// - Updates usage_logs (Option 2: ALWAYS UPDATE SAME ROW)
+// - Updates curriculum.js in correct class repo
 // ============================================================================
 
 import { createClient } from "@supabase/supabase-js";
@@ -34,7 +38,7 @@ const SKIP_WORDS = ["as","of","the","a","an","in","on","for","to","ki","ke","ka"
 const norm = s => (s ?? "").toString().trim().toLowerCase();
 
 // =====================================================================
-// Table Name Builder
+// TABLE NAME BUILDER — MATCHES FRONTEND EXACTLY
 // =====================================================================
 function buildTableName(meta) {
   const grade = meta.class_name || "11";
@@ -43,21 +47,17 @@ function buildTableName(meta) {
   let subjectSlug = tr(rawSubject)
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-
-  subjectSlug = (subjectSlug.split(" ")[0]) || "subject";
+    .trim()
+    .split(" ")[0] || "subject";
 
   const chapterRaw = meta.chapter || "";
   let chapter = tr(chapterRaw)
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, " ")
-    .replace(/\s+/g, " ")
     .trim();
 
   const words = chapter.split(" ").filter(Boolean);
   const filtered = words.filter(w => !SKIP_WORDS.includes(w));
-
   const first = filtered[0] || words[0] || "ch";
   const last  = filtered[filtered.length - 1] || words[words.length - 1] || "x";
 
@@ -65,35 +65,24 @@ function buildTableName(meta) {
 }
 
 // =====================================================================
-// GitHub API Helpers
+// GITHUB HELPERS
 // =====================================================================
 async function fetchGithubFile({ owner, repo, path, token }) {
   const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
 
   const resp = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: "application/vnd.github+json"
-    }
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json" }
   });
 
   if (!resp.ok) {
     console.error(`❌ GitHub GET failed for ${repo}/${path}:`, resp.status, await resp.text());
     return null;
   }
-
   return await resp.json();
 }
 
 async function updateGithubFile({ owner, repo, path, token, content, sha, message }) {
   const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
-
-  const body = {
-    message,
-    content: Buffer.from(content, "utf8").toString("base64"),
-    sha,
-    branch: "main"
-  };
 
   const resp = await fetch(url, {
     method: "PUT",
@@ -102,109 +91,94 @@ async function updateGithubFile({ owner, repo, path, token, content, sha, messag
       Accept: "application/vnd.github+json",
       "Content-Type": "application/json"
     },
-    body: JSON.stringify(body)
+    body: JSON.stringify({
+      message,
+      content: Buffer.from(content, "utf8").toString("base64"),
+      sha,
+      branch: "main"
+    })
   });
 
   if (!resp.ok) {
-    console.error(`❌ GitHub PUT failed:`, resp.status, await resp.text());
+    console.error(`❌ GitHub PUT failed for ${repo}/${path}:`, resp.status, await resp.text());
     return null;
   }
-
   return await resp.json();
 }
 
-// =====================================================================
-// Curriculum Parser — FINAL FIXED VERSION
-// =====================================================================
-function parseCurriculumJsToObject(fileText) {
+function parseCurriculumJsToObject(text) {
   try {
-    let src = fileText.trim();
+    let clean = text.replace(/export\s+default\s+/, "")
+                    .replace(/export\s+const\s+curriculum\s*=\s*/, "")
+                    .trim();
 
-    // Remove "export default ..."
-    src = src.replace(/^export\s+default\s+/, "");
+    clean = clean.replace(/;$/, "");
 
-    // Remove "export const curriculum = ..."
-    src = src.replace(/^export\s+const\s+curriculum\s*=\s*/, "");
-
-    // Remove "export default curriculum;"
-    src = src.replace(/export\s+default\s+curriculum\s*;?/g, "");
-
-    // Remove "export { curriculum };"
-    src = src.replace(/export\s*\{\s*curriculum\s*\}\s*;?/g, "");
-
-    // Remove ending semicolon
-    src = src.replace(/;?\s*$/, "");
-
-    const wrapped = `(${src})`;
-    return eval(wrapped);
-  } catch (err) {
-    console.error("❌ Failed to parse curriculum.js:", err);
+    return eval(`(${clean})`);
+  } catch (e) {
+    console.error("❌ Failed to parse curriculum.js:", e);
     return null;
   }
 }
 
-// Serializer
 function serializeCurriculumObjectToJs(obj) {
   return `export const curriculum = ${JSON.stringify(obj, null, 2)};\nexport default curriculum;\n`;
 }
 
 // =====================================================================
-// Curriculum Updater (with subdivision fallback)
+// APPLY table_id TO curriculum.js
 // =====================================================================
 function applyTableIdToCurriculum(curriculum, meta, tableName) {
   const subjectKey = meta.subject;
   const chapterTitle = meta.chapter;
-  const subdivision = meta.book;
+  const subdivision = meta.book || null;
 
-  if (!curriculum[subjectKey]) {
+  if (!curriculum || !subjectKey || !curriculum[subjectKey]) {
     console.warn("⚠ Subject not found:", subjectKey);
     return false;
   }
 
-  const subjectNode = curriculum[subjectKey];
   let updated = false;
 
-  const match = ch => norm(ch.chapter_title) === norm(chapterTitle);
+  const subjectNode = curriculum[subjectKey];
 
-  // CASE 1: subject is a flat array
+  const match = ch => norm(ch?.chapter_title) === norm(chapterTitle);
+
+  // CASE 1: Flat chapters
   if (Array.isArray(subjectNode)) {
-    subjectNode.forEach(ch => {
+    for (const ch of subjectNode) {
       if (match(ch)) {
         ch.table_id = tableName;
         updated = true;
       }
-    });
+    }
     return updated;
   }
 
-  // CASE 2: subject contains groups (Physics, Chemistry…)
-  const groups = Object.keys(subjectNode);
-  let groupsToSearch = [];
+  // CASE 2: Subdivisions
+  const groups = subdivision ? [subdivision] : Object.keys(subjectNode);
 
-  if (subdivision && subjectNode[subdivision]) {
-    groupsToSearch = [subdivision];
-  } else {
-    console.warn("⚠ subdivision not found → searching all groups");
-    groupsToSearch = groups;
-  }
+  for (const g of groups) {
+    const arr = subjectNode[g];
+    if (!Array.isArray(arr)) continue;
 
-  for (const group of groupsToSearch) {
-    const list = subjectNode[group];
-    if (!Array.isArray(list)) continue;
-
-    list.forEach(ch => {
+    for (const ch of arr) {
       if (match(ch)) {
         ch.table_id = tableName;
         updated = true;
       }
-    });
+    }
+  }
+
+  if (!updated) {
+    console.warn("⚠ No matching chapter found:", chapterTitle);
   }
 
   return updated;
 }
 
 // =====================================================================
-// High-Level GitHub Updater
+// UPDATE curriculum.js IN correct repo
 // =====================================================================
 async function updateCurriculumForChapter(meta, tableName) {
   const owner = process.env.GITHUB_OWNER;
@@ -220,31 +194,25 @@ async function updateCurriculumForChapter(meta, tableName) {
   const path = "js/curriculum.js";
 
   const file = await fetchGithubFile({ owner, repo, path, token });
-  if (!file?.content) {
-    console.warn("⚠ Could not fetch curriculum.js");
-    return;
-  }
+  if (!file?.content || !file?.sha) return;
 
-  const text = Buffer.from(file.content, "base64").toString("utf8");
-  const curriculumObj = parseCurriculumJsToObject(text);
-  if (!curriculumObj) return;
+  const original = Buffer.from(file.content, "base64").toString("utf8");
+  const obj = parseCurriculumJsToObject(original);
+  if (!obj) return;
 
-  const changed = applyTableIdToCurriculum(curriculumObj, meta, tableName);
-  if (!changed) {
-    console.warn("⚠ No chapter updated for:", meta.chapter);
-    return;
-  }
+  const changed = applyTableIdToCurriculum(obj, meta, tableName);
+  if (!changed) return;
 
-  const newText = serializeCurriculumObjectToJs(curriculumObj);
+  const updatedText = serializeCurriculumObjectToJs(obj);
 
   await updateGithubFile({
     owner,
     repo,
     path,
     token,
-    content: newText,
+    content: updatedText,
     sha: file.sha,
-    message: `update table_id for "${meta.chapter}" (${tableName})`
+    message: `chore: update table_id for ${meta.chapter} → ${tableName}`
   });
 }
 
@@ -252,49 +220,38 @@ async function updateCurriculumForChapter(meta, tableName) {
 // MAIN HANDLER
 // =====================================================================
 export default async function handler(req, res) {
-  const origin = req.headers.origin || "*";
-  Object.entries(getCorsHeaders(origin)).forEach(([k, v]) =>
-    res.setHeader(k, v)
-  );
 
+  const origin = req.headers.origin || "*";
+  Object.entries(getCorsHeaders(origin)).forEach(([k, v]) => res.setHeader(k, v));
   res.setHeader("Access-Control-Allow-Origin", "https://ready4exam.github.io");
-  res.setHeader("Access-Control-Max-Age", "86400");
 
   if (req.method === "OPTIONS") return res.status(200).end();
-  if (req.method !== "POST")
-    return res.status(405).json({ ok: false, error: "Only POST allowed" });
+  if (req.method !== "POST") return res.status(405).json({ ok: false, error: "Only POST allowed" });
 
   try {
-    const data =
-      typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+    const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+    const { meta, csv } = body || {};
 
-    const { meta, csv } = data;
+    if (!meta || !csv || !Array.isArray(csv)) {
+      return res.status(400).json({ ok: false, error: "Invalid payload." });
+    }
 
-    if (!meta || !csv)
-      return res.status(400).json({ ok: false, error: "Missing meta or CSV" });
+    const supabase = createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_KEY
+    );
 
-    const supabaseUrl =
-      process.env.SUPABASE_URL_11 || process.env.SUPABASE_URL;
-    const supabaseKey =
-      process.env.SUPABASE_SERVICE_KEY_11 || process.env.SUPABASE_SERVICE_KEY;
+    // Build correct table_id
+    const table = buildTableName(meta);
 
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    // Ensure table exists
+    const exists = await supabase.rpc("ensure_table_exists", { table_name: table });
+    if (exists.error) throw exists.error;
 
-    const tableName = buildTableName(meta);
+    // Reset questions
+    await supabase.from(table).delete().neq("id", 0);
 
-    await supabase.rpc("ensure_table_exists", {
-      table_name: tableName
-    });
-
-    await supabase.rpc("exec_sql", {
-      sql: `
-        ALTER TABLE public.${tableName} ENABLE ROW LEVEL SECURITY;
-        GRANT SELECT ON public.${tableName} TO anon, authenticated;
-      `
-    });
-
-    await supabase.from(tableName).delete().neq("id", 0);
-
+    // Insert new rows
     const rows = csv.map(r => ({
       difficulty: normalizeDifficulty(r.difficulty),
       question_type: normalizeQType(r.question_type),
@@ -307,17 +264,62 @@ export default async function handler(req, res) {
       correct_answer_key: (r.correct_answer_key || "").trim().toUpperCase()
     }));
 
-    await supabase.from(tableName).insert(rows);
+    const inserted = await supabase.from(table).insert(rows);
+    if (inserted.error) throw inserted.error;
 
-    await updateCurriculumForChapter(meta, tableName);
+    // ===========================================================
+    // OPTION 2 — ALWAYS UPDATE SAME USAGE_LOGS ROW
+    // ===========================================================
+    const lookup = await supabase
+      .from("usage_logs")
+      .select("*")
+      .eq("table_name", table)
+      .maybeSingle();
 
-    res.status(200).json({
+    if (lookup?.data) {
+      // UPDATE ONLY (never overwrite missing meta)
+      await supabase
+        .from("usage_logs")
+        .update({
+          refresh_count: (lookup.data.refresh_count || 0) + 1,
+          inserted_count: rows.length,
+          updated_at: new Date(),
+
+          class_name: meta.class_name || lookup.data.class_name,
+          subject: meta.subject || lookup.data.subject,
+          book: meta.book ?? lookup.data.book,
+          chapter: meta.chapter ?? lookup.data.chapter
+        })
+        .eq("table_name", table);
+    } else {
+      // INSERT ONCE
+      await supabase
+        .from("usage_logs")
+        .insert({
+          table_name: table,
+          class_name: meta.class_name || "",
+          subject: meta.subject || "",
+          book: meta.book || "",
+          chapter: meta.chapter || "",
+          inserted_count: rows.length,
+          refresh_count: 0,
+          created_at: new Date(),
+          updated_at: new Date()
+        });
+    }
+
+    // Update curriculum.js in repo
+    await updateCurriculumForChapter(meta, table);
+
+    return res.status(200).json({
       ok: true,
-      message: "Uploaded + curriculum updated",
-      table_name: tableName
+      table_name: table,
+      inserted: rows.length,
+      message: "Upload complete."
     });
+
   } catch (err) {
     console.error("❌ manageSupabase ERROR:", err);
-    res.status(500).json({ ok: false, error: err.message });
+    return res.status(500).json({ ok: false, error: err.message });
   }
 }
