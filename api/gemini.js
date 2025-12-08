@@ -1,157 +1,178 @@
 // ============================================================================
-// /api/gemini.js — FINAL STABLE VERSION (JSON-Guaranteed + CORS + No Perplexity)
+//  /api/gemini.js — FINAL PRODUCTION VERSION (CORS + 2.5-FLASH + JSON SAFE)
 // ============================================================================
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 export const config = { runtime: "nodejs" };
 
-// CORS ENABLED
-function setCORS(res) {
-  res.setHeader("Access-Control-Allow-Origin", "https://ready4exam.github.io");
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-  res.setHeader("Access-Control-Max-Age", "86400");
-}
-
+// API Keys
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
-// -----------------------------------------------------------------------------
-// Strong JSON cleaner
-// -----------------------------------------------------------------------------
-function cleanModelOutput(raw) {
-  if (!raw) return "";
+// ============================================================================
+//  CORS HEADERS
+// ============================================================================
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "https://ready4exam.github.io",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+  "Access-Control-Max-Age": "86400"
+};
 
-  let t = raw.trim();
+function sendCORS(res) {
+  Object.entries(CORS_HEADERS).forEach(([k, v]) => res.setHeader(k, v));
+}
+
+// ============================================================================
+//  JSON Extractor (very safe, handles markdown, text garbage, etc.)
+// ============================================================================
+function extractJSON(raw) {
+  if (!raw) return { ok: false, error: "EMPTY_OUTPUT" };
+
+  let text = raw.trim();
 
   // Remove markdown fences
-  t = t.replace(/```json/gi, "").replace(/```/g, "");
+  text = text.replace(/```json/gi, "").replace(/```/g, "");
 
-  // Remove text before first [
-  const first = t.indexOf("[");
-  if (first > 0) t = t.slice(first);
+  // Cut everything before first {
+  const first = text.indexOf("{");
+  if (first > 0) text = text.slice(first);
 
-  // Remove text after last ]
-  const last = t.lastIndexOf("]");
-  if (last > 0) t = t.slice(0, last + 1);
-
-  return t;
-}
-
-// -----------------------------------------------------------------------------
-// Safe JSON extractor
-// -----------------------------------------------------------------------------
-function extractJSON(raw) {
-  const cleaned = cleanModelOutput(raw);
+  // Brace balancing
+  const open = (text.match(/{/g) || []).length;
+  const close = (text.match(/}/g) || []).length;
+  if (open > close) text += "}".repeat(open - close);
 
   try {
-    const arr = JSON.parse(cleaned);
-    if (Array.isArray(arr)) return { ok: true, questions: arr };
-  } catch (err) {
-    return { ok: false, error: "JSON_PARSE_FAIL", raw: cleaned };
-  }
+    const parsed = JSON.parse(text);
 
-  return { ok: false, error: "INVALID_JSON_FORMAT", raw: cleaned };
+    if (Array.isArray(parsed)) return { ok: true, questions: parsed };
+
+    if (Array.isArray(parsed.questions)) return { ok: true, questions: parsed.questions };
+
+    return { ok: false, error: "INVALID_JSON_SHAPE", raw: text };
+
+  } catch (e) {
+    return { ok: false, error: "INVALID_JSON_PARSE", raw: text };
+  }
 }
 
-// -----------------------------------------------------------------------------
-// Gemini call
-// -----------------------------------------------------------------------------
-async function askGemini(prompt) {
+// ============================================================================
+//  GEMINI CALL (using correct model: gemini-2.5-flash)
+// ============================================================================
+async function callGemini(prompt) {
   const client = new GoogleGenerativeAI(GEMINI_API_KEY);
 
-  // Correct model names for your key
-  const model = client.getGenerativeModel({ model: "gemini-2.0-flash" });
+  // IMPORTANT — YOUR FREE TIER SUPPORTS ONLY THIS MODEL
+  const model = client.getGenerativeModel({
+    model: "gemini-2.5-flash"
+  });
 
   const result = await model.generateContent(prompt);
   return result.response.text();
 }
 
-// -----------------------------------------------------------------------------
-// MAIN HANDLER
-// -----------------------------------------------------------------------------
-export default async function handler(req, res) {
-  setCORS(res);
+// ============================================================================
+//  (OPTIONAL) Perplexity Backup — Disabled But Kept
+// ============================================================================
+// async function callPerplexity(prompt) {
+//   return "";  // disabled for now
+// }
 
+// ============================================================================
+//  MAIN HANDLER
+// ============================================================================
+export default async function handler(req, res) {
+  sendCORS(res);
+
+  // Handle OPTIONS
   if (req.method === "OPTIONS") return res.status(200).end();
-  if (req.method !== "POST")
+
+  // Allow ONLY POST
+  if (req.method !== "POST") {
     return res.status(405).json({ ok: false, error: "Only POST allowed" });
+  }
 
   try {
-    const body =
-      typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+    const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+    const meta = body?.meta;
 
-    const { meta } = body || {};
-    if (!meta) return res.status(400).json({ ok: false, error: "NO_META" });
+    if (!meta) {
+      return res.status(400).json({ ok: false, error: "NO_META" });
+    }
 
+    // ========================================================================
+    // BUILD PROMPT
+    // ========================================================================
     const prompt = `
-Generate EXACTLY 60 exam questions in STRICT JSON format.
+Generate 60 high-quality exam questions for:
 
-CLASS: ${meta.class_name}
-SUBJECT: ${meta.subject}
-CHAPTER: ${meta.chapter}
+Class: ${meta.class_name}
+Subject: ${meta.subject}
+Chapter: ${meta.chapter}
 
-Return **ONLY A JSON ARRAY**:
+Return ONLY pure JSON array (no explanation, no markdown):
+
 [
   {
-    "difficulty": "Simple | Medium | Advanced",
-    "question_type": "MCQ | AR | Case-Based",
+    "difficulty": "Simple|Medium|Advanced",
+    "question_type": "MCQ|AR|Case-Based",
     "question_text": "...",
     "scenario_reason_text": "...",
     "option_a": "...",
     "option_b": "...",
     "option_c": "...",
     "option_d": "...",
-    "correct_answer_key": "A | B | C | D"
+    "correct_answer_key": "A|B|C|D"
   }
 ]
-
-RULES:
-- NO explanation
-- NO description
-- NO markdown
-- NO text outside JSON
-- Output must start with '[' and end with ']'
 `;
 
-    const raw = await askGemini(prompt);
+    const start = Date.now();
 
-    // FIRST EXTRACTION
-    let parsed = extractJSON(raw);
-    if (parsed.ok)
-      return res.status(200).json({
-        ok: true,
-        engine: "gemini",
-        questions: parsed.questions,
-        count: parsed.questions.length
-      });
+    // ========================================================================
+    // 1️⃣ GEMINI — 3 Attempts
+    // ========================================================================
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        const raw = await callGemini(prompt);
+        const parsed = extractJSON(raw);
 
-    // SECOND ATTEMPT → repair JSON automatically
-    const attemptFix = cleanModelOutput(raw);
-    try {
-      const fixed = JSON.parse(attemptFix);
-      return res.status(200).json({
-        ok: true,
-        engine: "gemini",
-        repaired: true,
-        questions: fixed,
-        count: fixed.length
-      });
-    } catch (err) {
-      return res.status(500).json({
-        ok: false,
-        error: "GEMINI_INVALID_JSON",
-        raw: attemptFix
-      });
+        if (parsed.ok) {
+          return res.status(200).json({
+            ok: true,
+            engine: "gemini",
+            attempts: attempt,
+            questions: parsed.questions,
+            count: parsed.questions.length,
+            durationMs: Date.now() - start
+          });
+        }
+
+      } catch (err) {
+        console.error("Gemini attempt failed:", err);
+
+        // Specific: quota exceeded → stop retrying
+        if (String(err).includes("quota")) break;
+      }
     }
+
+    // ========================================================================
+    // 2️⃣ PERPLEXITY DISABLED (for safety)
+    // ========================================================================
+    // const backup = await callPerplexity(prompt);
+    // return res.status(500).json({ ok: false, error: "PERPLEXITY_DISABLED" });
+
+    // ========================================================================
+    // FAILURE
+    // ========================================================================
+    return res.status(500).json({
+      ok: false,
+      error: "GEMINI_INVALID_JSON"
+    });
+
   } catch (err) {
-    console.error("❌ GEMINI FATAL ERROR:", err);
+    console.error("❌ GEMINI ROUTE ERROR:", err);
     return res.status(500).json({ ok: false, error: err.message });
   }
 }
-
-// -----------------------------------------------------------------------------
-// Perplexity (Disabled but kept for reference)
-// -----------------------------------------------------------------------------
-// async function callPerplexity(prompt) { ... }
-// -----------------------------------------------------------------------------
