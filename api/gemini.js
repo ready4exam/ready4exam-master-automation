@@ -1,5 +1,5 @@
 // ============================================================================
-// /api/gemini.js — FINAL PRODUCTION VERSION (NodeJS + Ultra JSON Extractor)
+// /api/gemini.js — FINAL PRODUCTION VERSION (Balanced Difficulty + Ultra JSON Extractor)
 // ============================================================================
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
@@ -19,7 +19,7 @@ function extractJSON(raw) {
   // Remove markdown fences
   text = text.replace(/```json/gi, "").replace(/```/g, "");
 
-  // Extract only the JSON array
+  // Extract only array [ ... ]
   const first = text.indexOf("[");
   const last = text.lastIndexOf("]");
 
@@ -30,13 +30,15 @@ function extractJSON(raw) {
   // Remove trailing commas
   text = text.replace(/,\s*]/g, "]").replace(/,\s*}/g, "}");
 
-  // Fix fancy quotes
+  // Replace fancy quotes
   text = text.replace(/‘|’/g, "'").replace(/“|”/g, '"');
 
   try {
     const parsed = JSON.parse(text);
+
     if (Array.isArray(parsed)) return { ok: true, questions: parsed };
     if (Array.isArray(parsed.questions)) return { ok: true, questions: parsed.questions };
+
     return { ok: false, error: "INVALID_JSON_SHAPE", raw: text };
   } catch (e) {
     return { ok: false, error: "INVALID_JSON_PARSE", raw: text };
@@ -58,22 +60,17 @@ async function callGemini(prompt) {
 //  MAIN HANDLER — WITH CORS
 // ============================================================================
 export default async function handler(req, res) {
-  // ---------------- CORS HEADERS ----------------
+  // CORS support
   res.setHeader("Access-Control-Allow-Origin", "https://ready4exam.github.io");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   res.setHeader("Access-Control-Allow-Credentials", "true");
 
-  if (req.method === "OPTIONS") {
-    return res.status(200).end();
-  }
-
-  if (req.method !== "POST") {
+  if (req.method === "OPTIONS") return res.status(200).end();
+  if (req.method !== "POST")
     return res.status(405).json({ ok: false, error: "ONLY_POST_ALLOWED" });
-  }
 
   try {
-    // Parse body
     const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
     const meta = body?.meta;
 
@@ -81,44 +78,57 @@ export default async function handler(req, res) {
       return res.status(400).json({ ok: false, error: "NO_META_PROVIDED" });
     }
 
-    // ========================================================================
-    //  STRONG PROMPT — Forces JSON-ONLY output (Fixes invalid JSON issues)
-    // ========================================================================
+    // ============================================================================
+    //  ⭐ FINAL PRODUCTION PROMPT — Balanced Difficulty, JSON-only
+    // ============================================================================
     const prompt = `
-YOU MUST OUTPUT ONLY A VALID JSON ARRAY. 
-NO explanations, NO markdown, NO headings, NO extra text.
+YOU MUST OUTPUT ONLY A VALID JSON ARRAY.
+NO explanations, NO markdown, NO headings, NO commentary.
 
-Generate EXACTLY 60 questions for:
+Generate EXACTLY 60 NCERT-grade questions for:
 
 Class: ${meta.class_name}
 Subject: ${meta.subject}
 Chapter: ${meta.chapter}
 
-Return ONLY the array below:
+== JSON FORMAT (EVERY OBJECT MUST MATCH) ==
+{
+  "difficulty": "Simple" | "Medium" | "Advanced",
+  "question_type": "MCQ" | "AR" | "Case-Based",
+  "question_text": "...",
+  "scenario_reason_text": "...",
+  "option_a": "...",
+  "option_b": "...",
+  "option_c": "...",
+  "option_d": "...",
+  "correct_answer_key": "A" | "B" | "C" | "D"
+}
 
+== REQUIRED DISTRIBUTION ==
+- 20 Simple
+- 20 Medium
+- 20 Advanced
+- At least 10 must be AR or Case-Based
+
+== RULES ==
+- MCQ MUST have scenario_reason_text = ""
+- AR & Case-Based MUST have meaningful scenario_reason_text
+- correct_answer_key MUST be uppercase A/B/C/D
+- No duplicate questions
+- No answers outside A/B/C/D
+
+== OUTPUT ONLY ==
 [
-  {
-    "difficulty": "Simple",
-    "question_type": "MCQ",
-    "question_text": "....",
-    "scenario_reason_text": "....",
-    "option_a": "....",
-    "option_b": "....",
-    "option_c": "....",
-    "option_d": "....",
-    "correct_answer_key": "A"
-  }
+  { ... 60 QUESTIONS ... }
 ]
-
-If you output ANYTHING outside the array → you FAIL.
-    `;
+`;
 
     const start = Date.now();
 
     // ========================================================================
     //  GEMINI ATTEMPTS (3 tries)
     // ========================================================================
-    for (let i = 1; i <= 3; i++) {
+    for (let attempt = 1; attempt <= 3; attempt++) {
       try {
         const raw = await callGemini(prompt);
         const parsed = extractJSON(raw);
@@ -127,18 +137,18 @@ If you output ANYTHING outside the array → you FAIL.
           return res.status(200).json({
             ok: true,
             engine: "gemini",
-            attempts: i,
-            geminiAttempts: i,
+            attempts: attempt,
             questions: parsed.questions,
             count: parsed.questions.length,
             durationMs: Date.now() - start
           });
         }
-      } catch (e) {
-        console.error("Gemini attempt failed:", e);
+      } catch (err) {
+        console.error(`❌ Gemini attempt ${attempt} failed:`, err);
       }
     }
 
+    // All attempts failed
     return res.status(500).json({
       ok: false,
       error: "GEMINI_INVALID_JSON"
