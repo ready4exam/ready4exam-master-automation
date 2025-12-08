@@ -1,5 +1,6 @@
-// /api/gemini.js — Node Runtime Compatible (NO EDGE)
+// /api/gemini.js — Node.js Runtime + FULL CORS SUPPORT
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { getCorsHeaders } from "./cors.js";
 
 export const config = { runtime: "nodejs" };
 
@@ -7,33 +8,25 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const PERPLEXITY_API_KEY = process.env.PERPLEXITY_API_KEY;
 
 // -------------------------------------------------------
-// JSON Extractor — Stable, Compact, 100% Compatible
+// JSON Extractor
 // -------------------------------------------------------
 function extractJSON(raw) {
   if (!raw) return { ok: false, error: "EMPTY_OUTPUT" };
 
   let text = raw.trim();
-
-  // Remove ```json fences
   text = text.replace(/```json/gi, "").replace(/```/g, "");
 
-  // Remove anything before first {
   const first = text.indexOf("{");
   if (first > 0) text = text.slice(first);
 
-  // Brace balancing
   const opens = (text.match(/{/g) || []).length;
   const closes = (text.match(/}/g) || []).length;
-  if (opens > closes) {
-    text += "}".repeat(opens - closes);
-  }
+  if (opens > closes) text += "}".repeat(opens - closes);
 
   try {
     const parsed = JSON.parse(text);
-
     if (Array.isArray(parsed)) return { ok: true, questions: parsed };
     if (Array.isArray(parsed.questions)) return { ok: true, questions: parsed.questions };
-
     return { ok: false, error: "INVALID_JSON_SHAPE", raw: text };
   } catch (e) {
     return { ok: false, error: "INVALID_JSON_PARSE", raw: text };
@@ -46,9 +39,8 @@ function extractJSON(raw) {
 async function callGemini(prompt) {
   const client = new GoogleGenerativeAI(GEMINI_API_KEY);
   const model = client.getGenerativeModel({ model: "gemini-1.5-flash" });
-
-  const out = await model.generateContent(prompt);
-  return out.response.text();
+  const res = await model.generateContent(prompt);
+  return res.response.text();
 }
 
 // -------------------------------------------------------
@@ -66,12 +58,7 @@ async function callPerplexity(prompt) {
     body: JSON.stringify({
       model: "sonar-pro",
       max_tokens: 4000,
-      messages: [
-        {
-          role: "user",
-          content: prompt
-        }
-      ]
+      messages: [{ role: "user", content: prompt }]
     })
   });
 
@@ -80,57 +67,46 @@ async function callPerplexity(prompt) {
 }
 
 // -------------------------------------------------------
-// MAIN HANDLER — Node Compatible
+// MAIN HANDLER — NOW WITH CORS HEADERS
 // -------------------------------------------------------
 export default async function handler(req, res) {
-  try {
-    // ★ Correct body parsing for Node
-    const body =
-      typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+  // ---------------- CORS ----------------
+  const origin = req.headers.origin || "*";
 
+  Object.entries(getCorsHeaders(origin)).forEach(([k, v]) =>
+    res.setHeader(k, v)
+  );
+
+  // Force GitHub Pages allowed
+  res.setHeader("Access-Control-Allow-Origin", "https://ready4exam.github.io");
+  res.setHeader("Access-Control-Max-Age", "86400");
+
+  if (req.method === "OPTIONS") return res.status(200).end();
+  if (req.method !== "POST")
+    return res.status(405).json({ ok: false, error: "Only POST allowed" });
+
+  try {
+    const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
     const meta = body?.meta;
 
-    if (!meta) {
-      return res.status(400).json({ ok: false, error: "NO_META" });
-    }
+    if (!meta) return res.status(400).json({ ok: false, error: "NO_META" });
 
     const prompt = `
-      Generate 60 high-quality questions for:
-      Class: ${meta.class_name}
+      Generate 60 questions for
+      Class ${meta.class_name}
       Subject: ${meta.subject}
       Chapter: ${meta.chapter}
-
-      Return ONLY a JSON array like:
-      [
-        {
-          "difficulty": "Simple|Medium|Advanced",
-          "question_type": "MCQ|AR|Case-Based",
-          "question_text": "...",
-          "scenario_reason_text": "...",
-          "option_a": "...",
-          "option_b": "...",
-          "option_c": "...",
-          "option_d": "...",
-          "correct_answer_key": "A|B|C|D"
-        }
-      ]
-
-      Do NOT add explanations.
-      Do NOT add notes.
-      Do NOT add markdown.
-      Only raw JSON array.
+      
+      Return ONLY JSON array.
     `;
 
     const start = Date.now();
 
-    // ---------------------------------------------------
-    // 1️⃣ GEMINI (3 tries)
-    // ---------------------------------------------------
+    // ------------ GEMINI TRY 3 TIMES -------------
     for (let i = 1; i <= 3; i++) {
       try {
         const out = await callGemini(prompt);
         const parsed = extractJSON(out);
-
         if (parsed.ok) {
           return res.status(200).json({
             ok: true,
@@ -143,18 +119,14 @@ export default async function handler(req, res) {
           });
         }
       } catch (err) {
-        // If quota exhausted → fallback immediately
-        if (String(err).toLowerCase().includes("quota")) break;
+        if (String(err).includes("quota")) break;
       }
     }
 
-    // ---------------------------------------------------
-    // 2️⃣ PERPLEXITY FALLBACK (3 tries)
-    // ---------------------------------------------------
+    // ------------ PERPLEXITY FALLBACK -------------
     for (let i = 1; i <= 3; i++) {
       const out = await callPerplexity(prompt);
       const parsed = extractJSON(out);
-
       if (parsed.ok) {
         return res.status(200).json({
           ok: true,
@@ -168,16 +140,14 @@ export default async function handler(req, res) {
       }
     }
 
-    // ---------------------------------------------------
-    // 3️⃣ TOTAL FAILURE
-    // ---------------------------------------------------
+    // ------------ TOTAL FAILURE -------------
     return res.status(500).json({
       ok: false,
       error: "PERPLEXITY_INVALID_JSON"
     });
 
   } catch (err) {
-    console.error("❌ GEMINI ROUTE ERROR:", err);
+    console.error("❌ GEMINI ERROR:", err);
     return res.status(500).json({
       ok: false,
       error: err.message
