@@ -1,15 +1,27 @@
-// /api/gemini.js — Node.js Runtime + FULL CORS SUPPORT
+// /api/gemini.js — Node Runtime + Full CORS Support
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { getCorsHeaders } from "./cors.js";
 
 export const config = { runtime: "nodejs" };
 
+// ------------------------------------------------------
+// CORS HEADERS (Required for GitHub Pages frontend)
+// ------------------------------------------------------
+function setCors(res) {
+  res.setHeader("Access-Control-Allow-Origin", "https://ready4exam.github.io");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.setHeader("Access-Control-Allow-Credentials", "true");
+}
+
+// ------------------------------------------------------
+// API KEYS
+// ------------------------------------------------------
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const PERPLEXITY_API_KEY = process.env.PERPLEXITY_API_KEY;
 
-// -------------------------------------------------------
+// ------------------------------------------------------
 // JSON Extractor
-// -------------------------------------------------------
+// ------------------------------------------------------
 function extractJSON(raw) {
   if (!raw) return { ok: false, error: "EMPTY_OUTPUT" };
 
@@ -19,9 +31,9 @@ function extractJSON(raw) {
   const first = text.indexOf("{");
   if (first > 0) text = text.slice(first);
 
-  const opens = (text.match(/{/g) || []).length;
-  const closes = (text.match(/}/g) || []).length;
-  if (opens > closes) text += "}".repeat(opens - closes);
+  const open = (text.match(/{/g) || []).length;
+  const close = (text.match(/}/g) || []).length;
+  if (open > close) text += "}".repeat(open - close);
 
   try {
     const parsed = JSON.parse(text);
@@ -33,19 +45,19 @@ function extractJSON(raw) {
   }
 }
 
-// -------------------------------------------------------
+// ------------------------------------------------------
 // Gemini Call
-// -------------------------------------------------------
+// ------------------------------------------------------
 async function callGemini(prompt) {
   const client = new GoogleGenerativeAI(GEMINI_API_KEY);
   const model = client.getGenerativeModel({ model: "gemini-1.5-flash" });
-  const res = await model.generateContent(prompt);
-  return res.response.text();
+  const out = await model.generateContent(prompt);
+  return out.response.text();
 }
 
-// -------------------------------------------------------
+// ------------------------------------------------------
 // Perplexity Call
-// -------------------------------------------------------
+// ------------------------------------------------------
 async function callPerplexity(prompt) {
   const url = "https://api.perplexity.ai/chat/completions";
 
@@ -66,47 +78,60 @@ async function callPerplexity(prompt) {
   return data?.choices?.[0]?.message?.content || "";
 }
 
-// -------------------------------------------------------
-// MAIN HANDLER — NOW WITH CORS HEADERS
-// -------------------------------------------------------
+// ------------------------------------------------------
+// MAIN HANDLER — NOW WITH CORS
+// ------------------------------------------------------
 export default async function handler(req, res) {
-  // ---------------- CORS ----------------
-  const origin = req.headers.origin || "*";
+  // Apply CORS for all requests
+  setCors(res);
 
-  Object.entries(getCorsHeaders(origin)).forEach(([k, v]) =>
-    res.setHeader(k, v)
-  );
+  if (req.method === "OPTIONS") {
+    return res.status(200).end();
+  }
 
-  // Force GitHub Pages allowed
-  res.setHeader("Access-Control-Allow-Origin", "https://ready4exam.github.io");
-  res.setHeader("Access-Control-Max-Age", "86400");
-
-  if (req.method === "OPTIONS") return res.status(200).end();
-  if (req.method !== "POST")
+  if (req.method !== "POST") {
     return res.status(405).json({ ok: false, error: "Only POST allowed" });
+  }
 
   try {
+    // Parse frontend payload
     const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
     const meta = body?.meta;
 
-    if (!meta) return res.status(400).json({ ok: false, error: "NO_META" });
+    if (!meta) {
+      return res.status(400).json({ ok: false, error: "NO_META" });
+    }
 
     const prompt = `
-      Generate 60 questions for
-      Class ${meta.class_name}
+      Generate 60 high-quality questions for:
+      Class: ${meta.class_name}
       Subject: ${meta.subject}
       Chapter: ${meta.chapter}
-      
-      Return ONLY JSON array.
+
+      Return ONLY RAW JSON array:
+      [
+        {
+          "difficulty": "Simple|Medium|Advanced",
+          "question_type": "MCQ|AR|Case-Based",
+          "question_text": "...",
+          "scenario_reason_text": "...",
+          "option_a": "...",
+          "option_b": "...",
+          "option_c": "...",
+          "option_d": "...",
+          "correct_answer_key": "A|B|C|D"
+        }
+      ]
     `;
 
     const start = Date.now();
 
-    // ------------ GEMINI TRY 3 TIMES -------------
+    // 1️⃣ Try Gemini (3 attempts)
     for (let i = 1; i <= 3; i++) {
       try {
-        const out = await callGemini(prompt);
-        const parsed = extractJSON(out);
+        const raw = await callGemini(prompt);
+        const parsed = extractJSON(raw);
+
         if (parsed.ok) {
           return res.status(200).json({
             ok: true,
@@ -118,15 +143,16 @@ export default async function handler(req, res) {
             durationMs: Date.now() - start
           });
         }
-      } catch (err) {
-        if (String(err).includes("quota")) break;
+      } catch (e) {
+        if (String(e).includes("quota")) break;
       }
     }
 
-    // ------------ PERPLEXITY FALLBACK -------------
+    // 2️⃣ Perplexity fallback (3 attempts)
     for (let i = 1; i <= 3; i++) {
-      const out = await callPerplexity(prompt);
-      const parsed = extractJSON(out);
+      const raw = await callPerplexity(prompt);
+      const parsed = extractJSON(raw);
+
       if (parsed.ok) {
         return res.status(200).json({
           ok: true,
@@ -140,7 +166,7 @@ export default async function handler(req, res) {
       }
     }
 
-    // ------------ TOTAL FAILURE -------------
+    // 3️⃣ Total failure
     return res.status(500).json({
       ok: false,
       error: "PERPLEXITY_INVALID_JSON"
@@ -148,9 +174,6 @@ export default async function handler(req, res) {
 
   } catch (err) {
     console.error("❌ GEMINI ERROR:", err);
-    return res.status(500).json({
-      ok: false,
-      error: err.message
-    });
+    return res.status(500).json({ ok: false, error: err.message });
   }
 }
