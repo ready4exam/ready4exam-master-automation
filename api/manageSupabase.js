@@ -40,13 +40,11 @@ const SKIP_WORDS = ["as","of","the","a","an","in","on","for","to","ki","ke","ka"
 const norm = s => (s ?? "").toString().trim().toLowerCase();
 
 // =====================================================================
-// Table Name Builder (SUBJECT + CHAPTER + CLASS)
-//    => <subject>_<firstword>_<lastword>_<class>_quiz
+// Table Name Builder
 // =====================================================================
 function buildTableName(meta) {
   const grade = meta.class_name || "11";
 
-  // ---- SUBJECT SLUG from curriculum.js subject key ----
   const rawSubject = meta.subject || "";
   let subjectSlug = tr(rawSubject)
     .toLowerCase()
@@ -54,12 +52,9 @@ function buildTableName(meta) {
     .replace(/\s+/g, " ")
     .trim();
 
-  // take only first word of subject: "Physics Part I" -> "physics"
   subjectSlug = (subjectSlug.split(" ")[0]) || "subject";
 
-  // ---- CHAPTER SLUG (same transliteration logic as before) ----
   const chapterRaw = meta.chapter || "";
-
   let chapter = tr(chapterRaw)
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, " ")
@@ -72,14 +67,12 @@ function buildTableName(meta) {
   const first = filtered[0] || words[0] || "ch";
   const last  = filtered[filtered.length - 1] || words[words.length - 1] || "x";
 
-  // ---- FINAL TABLE NAME ----
   return `${subjectSlug}_${first}_${last}_${grade}_quiz`;
 }
 
 // =====================================================================
-// GitHub helpers: fetch + update curriculum.js
+// GitHub helpers
 // =====================================================================
-
 async function fetchGithubFile({ owner, repo, path, token }) {
   const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
 
@@ -95,8 +88,7 @@ async function fetchGithubFile({ owner, repo, path, token }) {
     return null;
   }
 
-  const json = await resp.json();
-  return json; // includes content (base64), sha, etc.
+  return await resp.json();
 }
 
 async function updateGithubFile({ owner, repo, path, token, content, sha, message }) {
@@ -127,21 +119,15 @@ async function updateGithubFile({ owner, repo, path, token, content, sha, messag
   return await resp.json();
 }
 
-// Parse `export default { ... }` → JS object, then stringify back.
 function parseCurriculumJsToObject(fileText) {
   try {
     let src = fileText.trim();
 
-    // remove leading "export default"
     src = src.replace(/^export\s+default\s+/, "");
-
-    // remove trailing ";" if present
     src = src.replace(/;?\s*$/, "");
 
     const wrapped = `(${src})`;
 
-    // Eval in local context – this is safe-ish because content is trusted repo code
-    // eslint-disable-next-line no-eval
     const obj = eval(wrapped);
     return obj;
   } catch (e) {
@@ -151,76 +137,81 @@ function parseCurriculumJsToObject(fileText) {
 }
 
 function serializeCurriculumObjectToJs(obj) {
-  // Keep it simple: JSON-ish style as JS export
-  const body = JSON.stringify(obj, null, 2);
-  return `export default ${body};\n`;
+  return `export default ${JSON.stringify(obj, null, 2)};\n`;
 }
 
-// Update table_id for matching chapter in curriculum object
-// Structure cases:
-//  - curriculum[subject] = [chapters...]
-//  - curriculum[subject] = { bookA: [chapters...], bookB: [chapters...] }
+// =====================================================================
+// FIXED: subdivision-supportive table_id update
+// =====================================================================
 function applyTableIdToCurriculum(curriculum, meta, tableName) {
   const subjectKey = meta.subject;
   const chapterTitle = meta.chapter;
-  const bookName = meta.book || null;
+  const subdivision = meta.book || null; // subdivision for class 5–10, book for 11–12
 
   if (!subjectKey || !curriculum || !curriculum[subjectKey]) {
-    console.warn("⚠ Subject not found in curriculum.js for:", subjectKey);
+    console.warn("⚠ Subject not found:", subjectKey);
     return false;
   }
 
   const subjectNode = curriculum[subjectKey];
   let updated = false;
 
-  const matchChapter = (chapterObj) => {
-    if (!chapterObj || typeof chapterObj !== "object") return false;
-    return norm(chapterObj.chapter_title) === norm(chapterTitle);
-  };
+  const matchChapter = obj =>
+    obj && norm(obj.chapter_title) === norm(chapterTitle);
 
+  // ---------------------------
+  // CASE 1: subject → flat chapters
+  // ---------------------------
   if (Array.isArray(subjectNode)) {
-    // No books, direct chapter list
     for (const ch of subjectNode) {
       if (matchChapter(ch)) {
         ch.table_id = tableName;
         updated = true;
       }
     }
-  } else if (subjectNode && typeof subjectNode === "object") {
-    // With books
-    const bookKeysToSearch = bookName ? [bookName] : Object.keys(subjectNode);
+    return updated;
+  }
 
-    for (const bk of bookKeysToSearch) {
-      const arr = subjectNode[bk];
-      if (!Array.isArray(arr)) continue;
+  // ---------------------------
+  // CASE 2: subject → subdivisions/books
+  // ---------------------------
+  const groups = Object.keys(subjectNode);
 
-      for (const ch of arr) {
-        if (matchChapter(ch)) {
-          ch.table_id = tableName;
-          updated = true;
-        }
+  const groupsToSearch = subdivision ? [subdivision] : groups;
+
+  for (const group of groupsToSearch) {
+    const arr = subjectNode[group];
+    if (!Array.isArray(arr)) continue;
+
+    for (const ch of arr) {
+      if (matchChapter(ch)) {
+        ch.table_id = tableName;
+        updated = true;
       }
     }
   }
 
   if (!updated) {
-    console.warn(
-      "⚠ No matching chapter found to update table_id:",
-      { subjectKey, bookName, chapterTitle }
-    );
+    console.warn("⚠ No matching chapter found for update:", {
+      subject: subjectKey,
+      subdivision,
+      chapterTitle
+    });
   }
 
   return updated;
 }
 
-// High-level: update js/curriculum.js in ready4exam-class-<class>
+// =====================================================================
+// High-level curriculum updater
+// =====================================================================
 async function updateCurriculumForChapter(meta, tableName) {
   const owner = process.env.GIT_OWNER;
   const token = process.env.GIT_TOKEN;
   const className = meta.class_name || "11";
 
   if (!owner || !token) {
-    console.warn("⚠ GIT_OWNER or GIT_TOKEN missing in env; skipping curriculum.js update.");
+    console.warn("⚠ Missing GitHub credentials; skipping curriculum update.");
     return;
   }
 
@@ -228,8 +219,8 @@ async function updateCurriculumForChapter(meta, tableName) {
   const path = "js/curriculum.js";
 
   const file = await fetchGithubFile({ owner, repo, path, token });
-  if (!file || !file.content || !file.sha) {
-    console.warn("⚠ Unable to fetch curriculum.js from GitHub; skipping update.");
+  if (!file?.content || !file?.sha) {
+    console.warn("⚠ Could not fetch curriculum.js");
     return;
   }
 
@@ -238,10 +229,7 @@ async function updateCurriculumForChapter(meta, tableName) {
   if (!curriculumObj) return;
 
   const changed = applyTableIdToCurriculum(curriculumObj, meta, tableName);
-  if (!changed) {
-    // No match → no commit to avoid noise
-    return;
-  }
+  if (!changed) return;
 
   const newText = serializeCurriculumObjectToJs(curriculumObj);
 
@@ -252,7 +240,7 @@ async function updateCurriculumForChapter(meta, tableName) {
     token,
     content: newText,
     sha: file.sha,
-    message: `chore: update table_id for "${meta.chapter}" -> ${tableName}`
+    message: `chore: update table_id for "${meta.chapter}" (${tableName})`
   });
 }
 
@@ -260,10 +248,8 @@ async function updateCurriculumForChapter(meta, tableName) {
 // MAIN HANDLER
 // =====================================================================
 export default async function handler(req, res) {
-  // ---------------- CORS ----------------
   const origin = req.headers.origin || "*";
   Object.entries(getCorsHeaders(origin)).forEach(([k, v]) => res.setHeader(k, v));
-  // Force GitHub Pages origin allowed
   res.setHeader("Access-Control-Allow-Origin", "https://ready4exam.github.io");
   res.setHeader("Access-Control-Max-Age", "86400");
 
@@ -273,7 +259,6 @@ export default async function handler(req, res) {
   }
 
   try {
-    // ---------------- Parse Body ----------------
     const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
     const { meta, csv } = body || {};
 
@@ -281,7 +266,6 @@ export default async function handler(req, res) {
       return res.status(400).json({ ok: false, error: "Missing meta or CSV array" });
     }
 
-    // ---------------- Init Supabase ----------------
     const supabaseUrl =
       process.env.SUPABASE_URL_11 || process.env.SUPABASE_URL;
     const supabaseKey =
@@ -293,14 +277,11 @@ export default async function handler(req, res) {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // ---------------- Build Table Name ----------------
     const table = buildTableName(meta);
 
-    // ---------------- Ensure Table Exists ----------------
     const exists = await supabase.rpc("ensure_table_exists", { table_name: table });
     if (exists.error) throw exists.error;
 
-    // ---------------- RLS + Policies ----------------
     await supabase.rpc("exec_sql", {
       sql: `
         ALTER TABLE public.${table} ENABLE ROW LEVEL SECURITY;
@@ -321,10 +302,8 @@ export default async function handler(req, res) {
       `
     });
 
-    // ---------------- Clear Existing Rows ----------------
     await supabase.from(table).delete().neq("id", 0);
 
-    // ---------------- Insert Rows ----------------
     const rows = csv.map(r => ({
       difficulty:          normalizeDifficulty(r.difficulty),
       question_type:       normalizeQType(r.question_type),
@@ -340,7 +319,6 @@ export default async function handler(req, res) {
     const inserted = await supabase.from(table).insert(rows);
     if (inserted.error) throw inserted.error;
 
-    // ---------------- Update usage_logs ----------------
     const lookup = await supabase
       .from("usage_logs")
       .select("refresh_count")
@@ -356,7 +334,7 @@ export default async function handler(req, res) {
           updated_at: new Date(),
           class_name: meta.class_name,
           subject: meta.subject,
-          book: meta.book,
+          book: meta.book,   // subdivision OR book
           chapter: meta.chapter
         })
         .eq("table_name", table);
@@ -376,11 +354,8 @@ export default async function handler(req, res) {
         });
     }
 
-    // ---------------- Update curriculum.js in GitHub ----------------
-    // Overwrites table_id even if already present
     await updateCurriculumForChapter(meta, table);
 
-    // ---------------- Response ----------------
     return res.status(200).json({
       ok: true,
       message: "Table updated, usage_logs updated, curriculum.js updated",
