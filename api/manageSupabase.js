@@ -38,7 +38,7 @@ const SKIP_WORDS = ["as","of","the","a","an","in","on","for","to","ki","ke","ka"
 const norm = s => (s ?? "").toString().trim().toLowerCase();
 
 // =====================================================================
-// TABLE NAME BUILDER — MATCHES FRONTEND EXACTLY
+// TABLE NAME BUILDER — MATCHES FRONTEND
 // =====================================================================
 function buildTableName(meta) {
   const grade = meta.class_name || "11";
@@ -227,7 +227,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ ok:false, error:"Invalid payload" });
     }
 
-    // USE ONLY THESE VARIABLES (your request)
+    // Use ONLY these env vars (your requirement)
     const supabaseUrl = process.env.SUPABASE_URL_11;
     const supabaseKey = process.env.SUPABASE_SERVICE_KEY_11;
 
@@ -237,16 +237,12 @@ export default async function handler(req, res) {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Build table
     const table = buildTableName(meta);
 
-    // Ensure table exists
     await supabase.rpc("ensure_table_exists", { table_name: table });
 
-    // Reset
     await supabase.from(table).delete().neq("id", 0);
 
-    // Insert rows
     const rows = csv.map(r => ({
       difficulty: normalizeDifficulty(r.difficulty),
       question_type: normalizeQType(r.question_type),
@@ -261,9 +257,7 @@ export default async function handler(req, res) {
 
     await supabase.from(table).insert(rows);
 
-    // ================================================
-    // OPTION 2 — ALWAYS UPDATE SAME usage_logs ROW
-    // ================================================
+    // usage_logs: ALWAYS update same row
     const lookup = await supabase
       .from("usage_logs")
       .select("*")
@@ -277,7 +271,6 @@ export default async function handler(req, res) {
           refresh_count: (lookup.data.refresh_count || 0) + 1,
           inserted_count: rows.length,
           updated_at: new Date(),
-
           class_name: meta.class_name || lookup.data.class_name,
           subject: meta.subject || lookup.data.subject,
           book: meta.book ?? lookup.data.book,
@@ -298,7 +291,6 @@ export default async function handler(req, res) {
       });
     }
 
-    // Update curriculum.js
     await updateCurriculumForChapter(meta, table);
 
     res.status(200).json({
