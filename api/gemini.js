@@ -48,4 +48,88 @@ function extractJSON(raw) {
 }
 
 // -----------------------------------------------
-// G
+// Gemini Call
+// -----------------------------------------------
+async function callGemini(prompt) {
+  const client = new GoogleGenerativeAI(GEMINI_API_KEY);
+  const model = client.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+  const result = await model.generateContent(prompt);
+  return result.response.text();
+}
+
+// -----------------------------------------------
+// Perplexity — kept but NEVER CALLED
+// -----------------------------------------------
+/*
+async function callPerplexity(prompt) {
+  // preserved but unused
+}
+*/
+
+// -----------------------------------------------
+// HANDLER — GEMINI ONLY
+// -----------------------------------------------
+export default async function handler(req, res) {
+  // CORS
+  const origin = req.headers.origin || "*";
+  Object.entries(corsHeaders(origin)).forEach(([k, v]) => res.setHeader(k, v));
+  if (req.method === "OPTIONS") return res.status(200).end();
+
+  if (req.method !== "POST")
+    return res.status(405).json({ ok: false, error: "Only POST allowed" });
+
+  try {
+    const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+    const meta = body?.meta;
+
+    if (!meta) return res.status(400).json({ ok: false, error: "NO_META" });
+
+    const prompt = `
+      Generate exactly 60 questions for:
+      Class ${meta.class_name}
+      Subject ${meta.subject}
+      Chapter ${meta.chapter}
+
+      Return ONLY JSON array.
+      No markdown.
+      No explanation.
+    `;
+
+    const start = Date.now();
+
+    // -----------------------------
+    // 1️⃣ Gemini (3 attempts)
+    // -----------------------------
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        const raw = await callGemini(prompt);
+        const parsed = extractJSON(raw);
+
+        if (parsed.ok) {
+          return res.status(200).json({
+            ok: true,
+            engine: "gemini",
+            attempts: attempt,
+            questions: parsed.questions,
+            count: parsed.questions.length,
+            durationMs: Date.now() - start
+          });
+        }
+      } catch (err) {
+        console.log("Gemini attempt failed:", err.message);
+      }
+    }
+
+    // ❌ NO PERPLEXITY ATTEMPT HERE — COMPLETELY REMOVED
+
+    return res.status(500).json({
+      ok: false,
+      error: "GEMINI_INVALID_JSON"
+    });
+
+  } catch (err) {
+    console.error("❌ GEMINI ERROR:", err);
+    return res.status(500).json({ ok: false, error: err.message });
+  }
+}
