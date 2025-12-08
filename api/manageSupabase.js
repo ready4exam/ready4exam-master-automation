@@ -141,12 +141,12 @@ function serializeCurriculumObjectToJs(obj) {
 }
 
 // =====================================================================
-// FIXED: subdivision-supportive table_id update
+// FIXED: subdivision-supportive table_id update (PATCH APPLIED)
 // =====================================================================
 function applyTableIdToCurriculum(curriculum, meta, tableName) {
   const subjectKey = meta.subject;
   const chapterTitle = meta.chapter;
-  const subdivision = meta.book || null; // subdivision for class 5–10, book for 11–12
+  const subdivision = meta.book || null;
 
   if (!subjectKey || !curriculum || !curriculum[subjectKey]) {
     console.warn("⚠ Subject not found:", subjectKey);
@@ -159,9 +159,7 @@ function applyTableIdToCurriculum(curriculum, meta, tableName) {
   const matchChapter = obj =>
     obj && norm(obj.chapter_title) === norm(chapterTitle);
 
-  // ---------------------------
-  // CASE 1: subject → flat chapters
-  // ---------------------------
+  // CASE 1: subject → flat array
   if (Array.isArray(subjectNode)) {
     for (const ch of subjectNode) {
       if (matchChapter(ch)) {
@@ -172,12 +170,23 @@ function applyTableIdToCurriculum(curriculum, meta, tableName) {
     return updated;
   }
 
-  // ---------------------------
   // CASE 2: subject → subdivisions/books
-  // ---------------------------
   const groups = Object.keys(subjectNode);
 
-  const groupsToSearch = subdivision ? [subdivision] : groups;
+  // -------- PATCH START --------
+  let groupsToSearch = [];
+
+  if (subdivision && subjectNode[subdivision]) {
+    groupsToSearch = [subdivision];
+  } else {
+    console.warn("⚠ subdivision/book not found; searching all groups:", {
+      subject: subjectKey,
+      received_book: subdivision,
+      available_groups: groups
+    });
+    groupsToSearch = groups;
+  }
+  // -------- PATCH END ----------
 
   for (const group of groupsToSearch) {
     const arr = subjectNode[group];
@@ -334,7 +343,7 @@ export default async function handler(req, res) {
           updated_at: new Date(),
           class_name: meta.class_name,
           subject: meta.subject,
-          book: meta.book,   // subdivision OR book
+          book: meta.book,
           chapter: meta.chapter
         })
         .eq("table_name", table);
