@@ -1,12 +1,6 @@
 // /api/manageSupabase.js
 // ============================================================================
 //  SINGLE / PER-CHAPTER UPLOAD API
-//  - Creates/refreshes Supabase table for a chapter
-//  - Inserts MCQ/AR/Case questions
-//  - Updates usage_logs
-//  - Updates js/curriculum.js in ready4exam-class-<class> repo with table_id
-//  - Table name is UNIQUE per subject + chapter + class:
-//      <subject>_<firstword>_<lastword>_<class>_quiz
 // ============================================================================
 
 import { createClient } from "@supabase/supabase-js";
@@ -16,7 +10,7 @@ import { transliterate as tr } from "transliteration";
 export const config = { runtime: "nodejs" };
 
 // =====================================================================
-// Helpers: Normalizers
+// Helpers
 // =====================================================================
 function normalizeDifficulty(d) {
   if (!d) return "Simple";
@@ -71,7 +65,7 @@ function buildTableName(meta) {
 }
 
 // =====================================================================
-// GitHub helpers
+// GitHub Helpers
 // =====================================================================
 async function fetchGithubFile({ owner, repo, path, token }) {
   const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
@@ -119,17 +113,24 @@ async function updateGithubFile({ owner, repo, path, token, content, sha, messag
   return await resp.json();
 }
 
+// =====================================================================
+// Curriculum Parser (FIXED)
+// =====================================================================
 function parseCurriculumJsToObject(fileText) {
   try {
     let src = fileText.trim();
 
+    // Remove "export default ..."
     src = src.replace(/^export\s+default\s+/, "");
+
+    // Remove "export const curriculum = ..."
+    src = src.replace(/^export\s+const\s+curriculum\s*=\s*/, "");
+
+    // Remove ending semicolon
     src = src.replace(/;?\s*$/, "");
 
     const wrapped = `(${src})`;
-
-    const obj = eval(wrapped);
-    return obj;
+    return eval(wrapped);
   } catch (e) {
     console.error("❌ Failed to parse curriculum.js:", e);
     return null;
@@ -137,11 +138,11 @@ function parseCurriculumJsToObject(fileText) {
 }
 
 function serializeCurriculumObjectToJs(obj) {
-  return `export default ${JSON.stringify(obj, null, 2)};\n`;
+  return `export const curriculum = ${JSON.stringify(obj, null, 2)};\n`;
 }
 
 // =====================================================================
-// FIXED: subdivision-supportive table_id update (PATCH APPLIED)
+// Curriculum Updater (subdivision fallback applied)
 // =====================================================================
 function applyTableIdToCurriculum(curriculum, meta, tableName) {
   const subjectKey = meta.subject;
@@ -156,10 +157,9 @@ function applyTableIdToCurriculum(curriculum, meta, tableName) {
   const subjectNode = curriculum[subjectKey];
   let updated = false;
 
-  const matchChapter = obj =>
-    obj && norm(obj.chapter_title) === norm(chapterTitle);
+  const matchChapter = obj => obj && norm(obj.chapter_title) === norm(chapterTitle);
 
-  // CASE 1: subject → flat array
+  // Case: flat list under subject
   if (Array.isArray(subjectNode)) {
     for (const ch of subjectNode) {
       if (matchChapter(ch)) {
@@ -170,23 +170,19 @@ function applyTableIdToCurriculum(curriculum, meta, tableName) {
     return updated;
   }
 
-  // CASE 2: subject → subdivisions/books
   const groups = Object.keys(subjectNode);
-
-  // -------- PATCH START --------
   let groupsToSearch = [];
 
   if (subdivision && subjectNode[subdivision]) {
     groupsToSearch = [subdivision];
   } else {
-    console.warn("⚠ subdivision/book not found; searching all groups:", {
+    console.warn("⚠ subdivision/book not found; searching all:", {
       subject: subjectKey,
       received_book: subdivision,
       available_groups: groups
     });
     groupsToSearch = groups;
   }
-  // -------- PATCH END ----------
 
   for (const group of groupsToSearch) {
     const arr = subjectNode[group];
@@ -200,23 +196,15 @@ function applyTableIdToCurriculum(curriculum, meta, tableName) {
     }
   }
 
-  if (!updated) {
-    console.warn("⚠ No matching chapter found for update:", {
-      subject: subjectKey,
-      subdivision,
-      chapterTitle
-    });
-  }
-
   return updated;
 }
 
 // =====================================================================
-// High-level curriculum updater
+// High-Level Updater
 // =====================================================================
 async function updateCurriculumForChapter(meta, tableName) {
-  const owner = process.env.GITHUB_OWNER;
-  const token = process.env.GITHUB_TOKEN;
+  const owner = process.env.GITHUB_OWNER;   // FIXED
+  const token = process.env.GITHUB_TOKEN;   // FIXED
   const className = meta.class_name || "11";
 
   if (!owner || !token) {
@@ -263,31 +251,28 @@ export default async function handler(req, res) {
   res.setHeader("Access-Control-Max-Age", "86400");
 
   if (req.method === "OPTIONS") return res.status(200).end();
-  if (req.method !== "POST") {
+  if (req.method !== "POST")
     return res.status(405).json({ ok: false, error: "Only POST allowed" });
-  }
 
   try {
     const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
     const { meta, csv } = body || {};
 
-    if (!meta || !csv || !Array.isArray(csv)) {
+    if (!meta || !csv || !Array.isArray(csv))
       return res.status(400).json({ ok: false, error: "Missing meta or CSV array" });
-    }
 
-    const supabaseUrl =
-      process.env.SUPABASE_URL_11 || process.env.SUPABASE_URL;
-    const supabaseKey =
-      process.env.SUPABASE_SERVICE_KEY_11 || process.env.SUPABASE_SERVICE_KEY;
+    // Supabase
+    const supabaseUrl = process.env.SUPABASE_URL_11 || process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_KEY_11 || process.env.SUPABASE_SERVICE_KEY;
 
-    if (!supabaseUrl || !supabaseKey) {
+    if (!supabaseUrl || !supabaseKey)
       return res.status(500).json({ ok: false, error: "Supabase config missing" });
-    }
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     const table = buildTableName(meta);
 
+    // Ensure table exists
     const exists = await supabase.rpc("ensure_table_exists", { table_name: table });
     if (exists.error) throw exists.error;
 
@@ -311,23 +296,25 @@ export default async function handler(req, res) {
       `
     });
 
+    // Clear and Insert
     await supabase.from(table).delete().neq("id", 0);
 
     const rows = csv.map(r => ({
-      difficulty:          normalizeDifficulty(r.difficulty),
-      question_type:       normalizeQType(r.question_type),
-      question_text:       (r.question_text || "").trim(),
-      scenario_reason_text:(r.scenario_reason_text || "").trim(),
-      option_a:            (r.option_a || "").trim(),
-      option_b:            (r.option_b || "").trim(),
-      option_c:            (r.option_c || "").trim(),
-      option_d:            (r.option_d || "").trim(),
-      correct_answer_key:  (r.correct_answer_key || "").trim().toUpperCase()
+      difficulty: normalizeDifficulty(r.difficulty),
+      question_type: normalizeQType(r.question_type),
+      question_text: (r.question_text || "").trim(),
+      scenario_reason_text: (r.scenario_reason_text || "").trim(),
+      option_a: (r.option_a || "").trim(),
+      option_b: (r.option_b || "").trim(),
+      option_c: (r.option_c || "").trim(),
+      option_d: (r.option_d || "").trim(),
+      correct_answer_key: (r.correct_answer_key || "").trim().toUpperCase()
     }));
 
     const inserted = await supabase.from(table).insert(rows);
     if (inserted.error) throw inserted.error;
 
+    // Usage logs
     const lookup = await supabase
       .from("usage_logs")
       .select("refresh_count")
@@ -363,6 +350,7 @@ export default async function handler(req, res) {
         });
     }
 
+    // Update curriculum
     await updateCurriculumForChapter(meta, table);
 
     return res.status(200).json({
