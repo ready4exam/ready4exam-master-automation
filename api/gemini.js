@@ -1,48 +1,51 @@
-// /api/gemini.js — FINAL STABLE VERSION
+// /api/gemini.js — FINAL PRODUCTION VERSION (Stable, Frontend-Compatible)
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import fetch from "node-fetch";
 
-export const config = {
-  runtime: "edge",
-};
+export const config = { runtime: "edge" };
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const PERPLEXITY_API_KEY = process.env.PERPLEXITY_API_KEY;
 
-// ----------------------------
-// JSON EXTRACTION UTIL
-// ----------------------------
+// ========================================================
+//  JSON EXTRACTOR — Strong & Compact
+// ========================================================
 function extractJSON(raw) {
   if (!raw) return { ok: false, error: "EMPTY_OUTPUT" };
 
   let text = raw.trim();
 
-  // Remove markdown fences
+  // Remove Markdown fences
   text = text.replace(/```json/gi, "").replace(/```/g, "");
 
-  // Remove explanation before JSON
-  const firstBrace = text.indexOf("{");
-  if (firstBrace > 0) text = text.slice(firstBrace);
+  // Remove explanation before first "{"
+  const first = text.indexOf("{");
+  if (first > 0) text = text.slice(first);
 
-  // Balanced brace fix
-  let open = (text.match(/{/g) || []).length;
-  let close = (text.match(/}/g) || []).length;
-  if (open > close) text += "}".repeat(open - close);
+  // Balanced braces
+  const openCount = (text.match(/{/g) || []).length;
+  const closeCount = (text.match(/}/g) || []).length;
+  if (openCount > closeCount) {
+    text += "}".repeat(openCount - closeCount);
+  }
 
-  // Try parse
+  // Parse JSON
   try {
     const parsed = JSON.parse(text);
-    if (Array.isArray(parsed)) return { ok: true, data: parsed };
-    if (Array.isArray(parsed.questions)) return { ok: true, data: parsed.questions };
-    return { ok: true, data: parsed };
+
+    // Standardize structure
+    if (Array.isArray(parsed)) return { ok: true, questions: parsed };
+    if (Array.isArray(parsed.questions)) return { ok: true, questions: parsed.questions };
+    if (parsed && typeof parsed === "object") return { ok: true, questions: parsed };
+
+    return { ok: false, error: "INVALID_JSON_SHAPE", raw: text };
   } catch (e) {
     return { ok: false, error: "INVALID_JSON_PARSE", raw: text };
   }
 }
 
-// ----------------------------
-// GEMINI CALL
-// ----------------------------
+// ========================================================
+//  GEMINI CALL
+// ========================================================
 async function callGemini(prompt) {
   const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
   const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
@@ -51,16 +54,16 @@ async function callGemini(prompt) {
   return result.response.text();
 }
 
-// ----------------------------
-// PERPLEXITY CALL
-// ----------------------------
+// ========================================================
+//  PERPLEXITY CALL
+// ========================================================
 async function callPerplexity(prompt) {
   const url = "https://api.perplexity.ai/chat/completions";
 
-  const response = await fetch(url, {
+  const res = await fetch(url, {
     method: "POST",
     headers: {
-      "Authorization": `Bearer ${PERPLEXITY_API_KEY}`,
+      Authorization: `Bearer ${PERPLEXITY_API_KEY}`,
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
@@ -70,76 +73,108 @@ async function callPerplexity(prompt) {
     })
   });
 
-  const data = await response.json();
+  const data = await res.json();
   return data?.choices?.[0]?.message?.content || "";
 }
 
-// ----------------------------
-// MAIN HANDLER
-// ----------------------------
+// ========================================================
+//  MAIN HANDLER
+// ========================================================
 export default async function handler(req) {
   try {
-    const { prompt } = await req.json();
+    const { meta } = await req.json();
+    const prompt = `
+      Generate 60 high-quality questions for:
+      Class ${meta.class_name}
+      Subject: ${meta.subject}
+      Chapter: ${meta.chapter}
 
-    let final = null;
+      Return ONLY JSON array:
+      [
+        {
+          "difficulty": "Simple|Medium|Advanced",
+          "question_type": "MCQ|AR|Case-Based",
+          "question_text": "...",
+          "scenario_reason_text": "...",
+          "option_a": "...",
+          "option_b": "...",
+          "option_c": "...",
+          "option_d": "...",
+          "correct_answer_key": "A|B|C|D"
+        }
+      ]
+    `;
 
-    // ----------------------------
-    // 1. GEMINI (3 attempts)
-    // ----------------------------
+    const start = Date.now();
+
+    // ----------------------------------------------------
+    // 1️⃣ GEMINI (3 attempts)
+    // ----------------------------------------------------
     for (let i = 1; i <= 3; i++) {
       try {
         const out = await callGemini(prompt);
         const parsed = extractJSON(out);
 
         if (parsed.ok) {
+          const duration = Date.now() - start;
+
           return new Response(
             JSON.stringify({
               ok: true,
               engine: "gemini",
               attempts: i,
-              questions: parsed.data
+              geminiAttempts: i,
+              durationMs: duration,
+              questions: parsed.questions,
+              count: parsed.questions.length
             }),
             { status: 200 }
           );
         }
       } catch (err) {
-        if (String(err).includes("quota")) break; // go to fallback
+        if (String(err).includes("quota")) break;
       }
     }
 
-    // If Gemini quota exhausted → fallback
-    // OR Gemini JSON failed 3 times
-    // ----------------------------
-    // 2. PERPLEXITY (3 attempts)
-    // ----------------------------
+    // ----------------------------------------------------
+    // 2️⃣ PERPLEXITY FALLBACK (3 attempts)
+    // ----------------------------------------------------
     for (let i = 1; i <= 3; i++) {
       const out = await callPerplexity(prompt);
       const parsed = extractJSON(out);
 
       if (parsed.ok) {
+        const duration = Date.now() - start;
+
         return new Response(
           JSON.stringify({
             ok: true,
             engine: "perplexity",
             attempts: i,
-            questions: parsed.data
+            geminiAttempts: 3, // Gemini used all retries
+            durationMs: duration,
+            questions: parsed.questions,
+            count: parsed.questions.length
           }),
           { status: 200 }
         );
       }
     }
 
-    // ----------------------------
-    // Total failure
-    // ----------------------------
+    // ----------------------------------------------------
+    // 3️⃣ TOTAL FAILURE
+    // ----------------------------------------------------
     return new Response(
-      JSON.stringify({ ok: false, error: "PERPLEXITY_INVALID_JSON" }),
+      JSON.stringify({
+        ok: false,
+        error: "PERPLEXITY_INVALID_JSON"
+      }),
       { status: 500 }
     );
 
-  } catch (err) {
+  } catch (error) {
     return new Response(
-      JSON.stringify({ ok: false, error: err.message }),
+      JSON.stringify({ ok: false, error: error.message }),
       { status: 500 }
     );
   }
