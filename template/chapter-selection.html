@@ -18,11 +18,16 @@
   </script>
 
   <style>
-    .topic-btn{width:100%;padding:1rem;margin-bottom:.75rem;border-radius:.75rem;background:#fff;
-      border:1px solid #d1d5db;cursor:pointer;text-align:left;box-shadow:0 2px 6px rgba(2,6,23,.05);transition:.2s;}
+    .topic-btn{
+      width:100%;padding:1rem;margin-bottom:.75rem;border-radius:.75rem;background:#fff;
+      border:1px solid #d1d5db;cursor:pointer;text-align:left;box-shadow:0 2px 6px rgba(2,6,23,.05);transition:.2s;
+    }
     .topic-btn:hover{background:#f5f7fa}
     .topic-btn.selected{border-color:#1a3e6a;background:#eff6ff}
-    .difficulty-btn{padding:.6rem 1.25rem;border-radius:.75rem;font-weight:600;cursor:pointer;transition:.2s;}
+
+    .difficulty-btn{
+      padding:.6rem 1.25rem;border-radius:.75rem;font-weight:600;cursor:pointer;transition:.2s;
+    }
     .difficulty-btn.selected{box-shadow:0 6px 18px rgba(26,62,106,.14);}
   </style>
 </head>
@@ -45,8 +50,8 @@
   <div id="difficulty-container" class="hidden mb-10 text-center">
     <h3 class="text-2xl font-bold text-cbse-blue mb-4">Select Difficulty</h3>
     <div class="flex flex-wrap justify-center gap-4">
-      <button data-diff="Simple"   class="difficulty-btn bg-green-600 text-white">Simple</button>
-      <button data-diff="Medium"   class="difficulty-btn bg-yellow-500 text-white">Medium</button>
+      <button data-diff="Simple" class="difficulty-btn bg-green-600 text-white">Simple</button>
+      <button data-diff="Medium" class="difficulty-btn bg-yellow-500 text-white">Medium</button>
       <button data-diff="Advanced" class="difficulty-btn bg-red-600 text-white">Advanced</button>
     </div>
   </div>
@@ -69,35 +74,21 @@
 import curriculum from "./js/curriculum.js";
 import { transliterate as tr } from "https://cdn.jsdelivr.net/npm/transliteration/+esm";
 
-// -------------------------
-// PARAMETERS
-// -------------------------
-const CLASS_ID = "{{CLASS}}"; // replaced by automation
+const CLASS_ID = "{{CLASS}}";  
 const subject  = new URLSearchParams(location.search).get("subject") || "";
 
 const content     = document.getElementById("content-container");
 const diffBox     = document.getElementById("difficulty-container");
 const startBtn    = document.getElementById("start-quiz");
 const errorMsg    = document.getElementById("error-msg");
-const subjectDesc = document.getElementById("subject-desc");
 
 let selectedBook = null;
 let selectedChapter = null;
 let selectedDifficulty = null;
 
-// -------------------------
-// TEXT DESCRIPTIONS (optional)
-// -------------------------
-subjectDesc.textContent = ({
-  Physics: "Explore mechanics, waves & thermodynamics.",
-  Chemistry: "Atoms, reactions, bonding & periodicity.",
-  Biology: "Cells, plants, human body & ecosystems.",
-  Mathematics: "Numbers, algebra, geometry & graphs."
-}[subject]) || "";
-
-// -------------------------
-// RENDER BOOKS (subdivisions)
-// -------------------------
+/* --------------------------
+   BOOK LISTING
+--------------------------- */
 function renderBooks(){
   const data = curriculum[subject];
 
@@ -116,11 +107,12 @@ function renderBooks(){
   });
 }
 
-// -------------------------
-// RENDER CHAPTERS
-// -------------------------
+/* --------------------------
+   CHAPTER LISTING
+--------------------------- */
 function renderChapters(book){
   selectedBook = book;
+
   const chapters = curriculum[subject][book];
 
   document.getElementById("page-title").textContent = `${book} — Chapters`;
@@ -128,6 +120,7 @@ function renderChapters(book){
 
   chapters.forEach(ch=>{
     const t = ch.chapter_title || ch.title || ch;
+
     const btn = document.createElement("button");
     btn.className = "topic-btn";
     btn.textContent = t;
@@ -142,29 +135,33 @@ function renderChapters(book){
   content.appendChild(back);
 }
 
-// -------------------------
-function selectChapter(title, el){
+/* --------------------------
+   SELECT CHAPTER
+--------------------------- */
+function selectChapter(title, button){
   document.querySelectorAll(".topic-btn").forEach(b=>b.classList.remove("selected"));
-  el.classList.add("selected");
+  button.classList.add("selected");
+
   selectedChapter = title;
   diffBox.classList.remove("hidden");
 }
 
-// -------------------------
-// DIFFICULTY HANDLER
-// -------------------------
+/* --------------------------
+   DIFFICULTY
+--------------------------- */
 document.querySelectorAll(".difficulty-btn").forEach(btn=>{
   btn.onclick = e =>{
-    document.querySelectorAll(".difficulty-btn").forEach(b=>b.classList.remove("selected"));
+    document.querySelectorAll(".difficulty-btn").forEach(x=>x.classList.remove("selected"));
     e.target.classList.add("selected");
+
     selectedDifficulty = e.target.dataset.diff;
     startBtn.disabled = false;
   };
 });
 
-// -------------------------
-// MATCH BACKEND: TABLE NAME BUILDER
-// -------------------------
+/* --------------------------
+   TABLE NAME BUILDER (MATCHES BACKEND)
+--------------------------- */
 function buildTableName(chapter){
   let chapterSlug = tr(chapter || "")
     .toLowerCase()
@@ -173,13 +170,12 @@ function buildTableName(chapter){
     .trim();
 
   const skip = ["as","of","the","a","an","in","on","for","to","ki","ke","ka"];
-  const words = chapterSlug.split(" ").filter(Boolean);
+  const words = chapterSlug.split(" ");
   const filtered = words.filter(w => !skip.includes(w));
 
   const first = filtered[0] || words[0] || "ch";
   const last  = filtered[filtered.length-1] || words[words.length-1] || "x";
 
-  // subject slug (first word only)
   let subjectSlug = tr(subject)
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g," ")
@@ -190,9 +186,9 @@ function buildTableName(chapter){
   return `${subjectSlug}_${first}_${last}_${CLASS_ID}_quiz`;
 }
 
-// -------------------------
-// START QUIZ — now sends full metadata
-// -------------------------
+/* --------------------------
+   START QUIZ — FULL META PASSED
+--------------------------- */
 startBtn.onclick = ()=>{
 
   if(!selectedBook || !selectedChapter || !selectedDifficulty){
@@ -203,9 +199,6 @@ startBtn.onclick = ()=>{
 
   const table = buildTableName(selectedChapter);
 
-  // -----------------------
-  // SEND FULL META FOR BACKEND
-  // -----------------------
   const params = new URLSearchParams({
     class: CLASS_ID,
     subject,
@@ -215,11 +208,10 @@ startBtn.onclick = ()=>{
     table
   });
 
-  // redirect to quiz engine
   location.href = `quiz-engine.html?${params.toString()}`;
 };
 
-// initial load
+// Start
 renderBooks();
 </script>
 
