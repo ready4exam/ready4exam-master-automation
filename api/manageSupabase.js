@@ -215,8 +215,8 @@ function applyTableIdToCurriculum(curriculum, meta, tableName) {
 // High-level curriculum updater
 // =====================================================================
 async function updateCurriculumForChapter(meta, tableName) {
-  const owner = process.env.GIT_OWNER;
-  const token = process.env.GIT_TOKEN;
+  const owner = process.env.GITHUB_OWNER;
+  const token = process.env.GITHUB_TOKEN;
   const className = meta.class_name || "11";
 
   if (!owner || !token) {
