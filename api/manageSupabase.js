@@ -69,7 +69,6 @@ function buildTableName(meta) {
 // =====================================================================
 async function fetchGithubFile({ owner, repo, path, token }) {
   const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
-
   const resp = await fetch(url, {
     headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json" }
   });
@@ -83,7 +82,6 @@ async function fetchGithubFile({ owner, repo, path, token }) {
 
 async function updateGithubFile({ owner, repo, path, token, content, sha, message }) {
   const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
-
   const resp = await fetch(url, {
     method: "PUT",
     headers: {
@@ -108,11 +106,12 @@ async function updateGithubFile({ owner, repo, path, token, content, sha, messag
 
 function parseCurriculumJsToObject(text) {
   try {
-    let clean = text.replace(/export\s+default\s+/, "")
-                    .replace(/export\s+const\s+curriculum\s*=\s*/, "")
-                    .trim();
+    let clean = text
+      .replace(/export\s+default\s+curriculum\s*;?/g, "")
+      .replace(/export\s+const\s+curriculum\s*=\s*/, "")
+      .trim();
 
-    clean = clean.replace(/;$/, "");
+    if (clean.endsWith(";")) clean = clean.slice(0, -1);
 
     return eval(`(${clean})`);
   } catch (e) {
@@ -129,9 +128,9 @@ function serializeCurriculumObjectToJs(obj) {
 // APPLY table_id TO curriculum.js
 // =====================================================================
 function applyTableIdToCurriculum(curriculum, meta, tableName) {
-  const subjectKey = meta.subject;
+  const subjectKey   = meta.subject;
   const chapterTitle = meta.chapter;
-  const subdivision = meta.book || null;
+  const subdivision  = meta.book || null;
 
   if (!curriculum || !subjectKey || !curriculum[subjectKey]) {
     console.warn("⚠ Subject not found:", subjectKey);
@@ -139,46 +138,39 @@ function applyTableIdToCurriculum(curriculum, meta, tableName) {
   }
 
   let updated = false;
-
   const subjectNode = curriculum[subjectKey];
-
   const match = ch => norm(ch?.chapter_title) === norm(chapterTitle);
 
-  // CASE 1: Flat chapters
+  // CASE 1: Flat
   if (Array.isArray(subjectNode)) {
-    for (const ch of subjectNode) {
+    subjectNode.forEach(ch => {
       if (match(ch)) {
         ch.table_id = tableName;
         updated = true;
       }
-    }
+    });
     return updated;
   }
 
-  // CASE 2: Subdivisions
+  // CASE 2: Nested
   const groups = subdivision ? [subdivision] : Object.keys(subjectNode);
 
-  for (const g of groups) {
-    const arr = subjectNode[g];
-    if (!Array.isArray(arr)) continue;
-
-    for (const ch of arr) {
+  groups.forEach(group => {
+    const arr = subjectNode[group];
+    if (!Array.isArray(arr)) return;
+    arr.forEach(ch => {
       if (match(ch)) {
         ch.table_id = tableName;
         updated = true;
       }
-    }
-  }
-
-  if (!updated) {
-    console.warn("⚠ No matching chapter found:", chapterTitle);
-  }
+    });
+  });
 
   return updated;
 }
 
 // =====================================================================
-// UPDATE curriculum.js IN correct repo
+// UPDATE curriculum.js IN class repo
 // =====================================================================
 async function updateCurriculumForChapter(meta, tableName) {
   const owner = process.env.GITHUB_OWNER;
@@ -203,14 +195,14 @@ async function updateCurriculumForChapter(meta, tableName) {
   const changed = applyTableIdToCurriculum(obj, meta, tableName);
   if (!changed) return;
 
-  const updatedText = serializeCurriculumObjectToJs(obj);
+  const newText = serializeCurriculumObjectToJs(obj);
 
   await updateGithubFile({
     owner,
     repo,
     path,
     token,
-    content: updatedText,
+    content: newText,
     sha: file.sha,
     message: `chore: update table_id for ${meta.chapter} → ${tableName}`
   });
@@ -220,38 +212,41 @@ async function updateCurriculumForChapter(meta, tableName) {
 // MAIN HANDLER
 // =====================================================================
 export default async function handler(req, res) {
-
   const origin = req.headers.origin || "*";
   Object.entries(getCorsHeaders(origin)).forEach(([k, v]) => res.setHeader(k, v));
   res.setHeader("Access-Control-Allow-Origin", "https://ready4exam.github.io");
 
   if (req.method === "OPTIONS") return res.status(200).end();
-  if (req.method !== "POST") return res.status(405).json({ ok: false, error: "Only POST allowed" });
+  if (req.method !== "POST") return res.status(405).json({ ok:false, error:"Only POST allowed" });
 
   try {
     const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
     const { meta, csv } = body || {};
 
     if (!meta || !csv || !Array.isArray(csv)) {
-      return res.status(400).json({ ok: false, error: "Invalid payload." });
+      return res.status(400).json({ ok:false, error:"Invalid payload" });
     }
 
-    const supabase = createClient(
-      process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_KEY
-    );
+    // USE ONLY THESE VARIABLES (your request)
+    const supabaseUrl = process.env.SUPABASE_URL_11;
+    const supabaseKey = process.env.SUPABASE_SERVICE_KEY_11;
 
-    // Build correct table_id
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error("SUPABASE_URL_11 or SUPABASE_SERVICE_KEY_11 missing");
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Build table
     const table = buildTableName(meta);
 
     // Ensure table exists
-    const exists = await supabase.rpc("ensure_table_exists", { table_name: table });
-    if (exists.error) throw exists.error;
+    await supabase.rpc("ensure_table_exists", { table_name: table });
 
-    // Reset questions
+    // Reset
     await supabase.from(table).delete().neq("id", 0);
 
-    // Insert new rows
+    // Insert rows
     const rows = csv.map(r => ({
       difficulty: normalizeDifficulty(r.difficulty),
       question_type: normalizeQType(r.question_type),
@@ -264,12 +259,11 @@ export default async function handler(req, res) {
       correct_answer_key: (r.correct_answer_key || "").trim().toUpperCase()
     }));
 
-    const inserted = await supabase.from(table).insert(rows);
-    if (inserted.error) throw inserted.error;
+    await supabase.from(table).insert(rows);
 
-    // ===========================================================
-    // OPTION 2 — ALWAYS UPDATE SAME USAGE_LOGS ROW
-    // ===========================================================
+    // ================================================
+    // OPTION 2 — ALWAYS UPDATE SAME usage_logs ROW
+    // ================================================
     const lookup = await supabase
       .from("usage_logs")
       .select("*")
@@ -277,7 +271,6 @@ export default async function handler(req, res) {
       .maybeSingle();
 
     if (lookup?.data) {
-      // UPDATE ONLY (never overwrite missing meta)
       await supabase
         .from("usage_logs")
         .update({
@@ -292,26 +285,23 @@ export default async function handler(req, res) {
         })
         .eq("table_name", table);
     } else {
-      // INSERT ONCE
-      await supabase
-        .from("usage_logs")
-        .insert({
-          table_name: table,
-          class_name: meta.class_name || "",
-          subject: meta.subject || "",
-          book: meta.book || "",
-          chapter: meta.chapter || "",
-          inserted_count: rows.length,
-          refresh_count: 0,
-          created_at: new Date(),
-          updated_at: new Date()
-        });
+      await supabase.from("usage_logs").insert({
+        table_name: table,
+        class_name: meta.class_name,
+        subject: meta.subject,
+        book: meta.book || "",
+        chapter: meta.chapter || "",
+        inserted_count: rows.length,
+        refresh_count: 0,
+        created_at: new Date(),
+        updated_at: new Date()
+      });
     }
 
-    // Update curriculum.js in repo
+    // Update curriculum.js
     await updateCurriculumForChapter(meta, table);
 
-    return res.status(200).json({
+    res.status(200).json({
       ok: true,
       table_name: table,
       inserted: rows.length,
@@ -320,6 +310,6 @@ export default async function handler(req, res) {
 
   } catch (err) {
     console.error("❌ manageSupabase ERROR:", err);
-    return res.status(500).json({ ok: false, error: err.message });
+    res.status(500).json({ ok:false, error: err.message });
   }
 }
