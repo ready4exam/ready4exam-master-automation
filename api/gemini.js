@@ -1,30 +1,15 @@
 // ============================================================================
-//  /api/gemini.js — FINAL PRODUCTION VERSION (CORS + 2.5-FLASH + JSON SAFE)
+// /api/gemini.js — FINAL PRODUCTION VERSION (NodeJS + Ultra JSON Extractor)
 // ============================================================================
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 export const config = { runtime: "nodejs" };
 
-// API Keys
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 // ============================================================================
-//  CORS HEADERS
-// ============================================================================
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "https://ready4exam.github.io",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type",
-  "Access-Control-Max-Age": "86400"
-};
-
-function sendCORS(res) {
-  Object.entries(CORS_HEADERS).forEach(([k, v]) => res.setHeader(k, v));
-}
-
-// ============================================================================
-//  JSON Extractor (very safe, handles markdown, text garbage, etc.)
+//  STRONG JSON EXTRACTOR (Bulletproof)
 // ============================================================================
 function extractJSON(raw) {
   if (!raw) return { ok: false, error: "EMPTY_OUTPUT" };
@@ -34,106 +19,106 @@ function extractJSON(raw) {
   // Remove markdown fences
   text = text.replace(/```json/gi, "").replace(/```/g, "");
 
-  // Cut everything before first {
-  const first = text.indexOf("{");
-  if (first > 0) text = text.slice(first);
+  // Extract only the JSON array
+  const first = text.indexOf("[");
+  const last = text.lastIndexOf("]");
 
-  // Brace balancing
-  const open = (text.match(/{/g) || []).length;
-  const close = (text.match(/}/g) || []).length;
-  if (open > close) text += "}".repeat(open - close);
+  if (first !== -1 && last !== -1) {
+    text = text.slice(first, last + 1);
+  }
+
+  // Remove trailing commas
+  text = text.replace(/,\s*]/g, "]").replace(/,\s*}/g, "}");
+
+  // Fix fancy quotes
+  text = text.replace(/‘|’/g, "'").replace(/“|”/g, '"');
 
   try {
     const parsed = JSON.parse(text);
-
     if (Array.isArray(parsed)) return { ok: true, questions: parsed };
-
     if (Array.isArray(parsed.questions)) return { ok: true, questions: parsed.questions };
-
     return { ok: false, error: "INVALID_JSON_SHAPE", raw: text };
-
   } catch (e) {
     return { ok: false, error: "INVALID_JSON_PARSE", raw: text };
   }
 }
 
 // ============================================================================
-//  GEMINI CALL (using correct model: gemini-2.5-flash)
+//  GEMINI CALL
 // ============================================================================
 async function callGemini(prompt) {
   const client = new GoogleGenerativeAI(GEMINI_API_KEY);
+  const model = client.getGenerativeModel({ model: "gemini-2.5-flash" });
 
-  // IMPORTANT — YOUR FREE TIER SUPPORTS ONLY THIS MODEL
-  const model = client.getGenerativeModel({
-    model: "gemini-2.5-flash"
-  });
-
-  const result = await model.generateContent(prompt);
-  return result.response.text();
+  const out = await model.generateContent(prompt);
+  return out.response.text();
 }
 
 // ============================================================================
-//  (OPTIONAL) Perplexity Backup — Disabled But Kept
-// ============================================================================
-// async function callPerplexity(prompt) {
-//   return "";  // disabled for now
-// }
-
-// ============================================================================
-//  MAIN HANDLER
+//  MAIN HANDLER — WITH CORS
 // ============================================================================
 export default async function handler(req, res) {
-  sendCORS(res);
+  // ---------------- CORS HEADERS ----------------
+  res.setHeader("Access-Control-Allow-Origin", "https://ready4exam.github.io");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Access-Control-Allow-Credentials", "true");
 
-  // Handle OPTIONS
-  if (req.method === "OPTIONS") return res.status(200).end();
+  if (req.method === "OPTIONS") {
+    return res.status(200).end();
+  }
 
-  // Allow ONLY POST
   if (req.method !== "POST") {
-    return res.status(405).json({ ok: false, error: "Only POST allowed" });
+    return res.status(405).json({ ok: false, error: "ONLY_POST_ALLOWED" });
   }
 
   try {
+    // Parse body
     const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
     const meta = body?.meta;
 
     if (!meta) {
-      return res.status(400).json({ ok: false, error: "NO_META" });
+      return res.status(400).json({ ok: false, error: "NO_META_PROVIDED" });
     }
 
     // ========================================================================
-    // BUILD PROMPT
+    //  STRONG PROMPT — Forces JSON-ONLY output (Fixes invalid JSON issues)
     // ========================================================================
     const prompt = `
-Generate 60 high-quality exam questions for:
+YOU MUST OUTPUT ONLY A VALID JSON ARRAY. 
+NO explanations, NO markdown, NO headings, NO extra text.
+
+Generate EXACTLY 60 questions for:
 
 Class: ${meta.class_name}
 Subject: ${meta.subject}
 Chapter: ${meta.chapter}
 
-Return ONLY pure JSON array (no explanation, no markdown):
+Return ONLY the array below:
 
 [
   {
-    "difficulty": "Simple|Medium|Advanced",
-    "question_type": "MCQ|AR|Case-Based",
-    "question_text": "...",
-    "scenario_reason_text": "...",
-    "option_a": "...",
-    "option_b": "...",
-    "option_c": "...",
-    "option_d": "...",
-    "correct_answer_key": "A|B|C|D"
+    "difficulty": "Simple",
+    "question_type": "MCQ",
+    "question_text": "....",
+    "scenario_reason_text": "....",
+    "option_a": "....",
+    "option_b": "....",
+    "option_c": "....",
+    "option_d": "....",
+    "correct_answer_key": "A"
   }
 ]
-`;
+
+If you output ANYTHING outside the array → you FAIL.
+    `;
 
     const start = Date.now();
 
     // ========================================================================
-    // 1️⃣ GEMINI — 3 Attempts
+    //  GEMINI ATTEMPTS (3 tries)
     // ========================================================================
-    for (let attempt = 1; attempt <= 3; attempt++) {
+    for (let i = 1; i <= 3; i++) {
       try {
         const raw = await callGemini(prompt);
         const parsed = extractJSON(raw);
@@ -142,37 +127,28 @@ Return ONLY pure JSON array (no explanation, no markdown):
           return res.status(200).json({
             ok: true,
             engine: "gemini",
-            attempts: attempt,
+            attempts: i,
+            geminiAttempts: i,
             questions: parsed.questions,
             count: parsed.questions.length,
             durationMs: Date.now() - start
           });
         }
-
-      } catch (err) {
-        console.error("Gemini attempt failed:", err);
-
-        // Specific: quota exceeded → stop retrying
-        if (String(err).includes("quota")) break;
+      } catch (e) {
+        console.error("Gemini attempt failed:", e);
       }
     }
 
-    // ========================================================================
-    // 2️⃣ PERPLEXITY DISABLED (for safety)
-    // ========================================================================
-    // const backup = await callPerplexity(prompt);
-    // return res.status(500).json({ ok: false, error: "PERPLEXITY_DISABLED" });
-
-    // ========================================================================
-    // FAILURE
-    // ========================================================================
     return res.status(500).json({
       ok: false,
       error: "GEMINI_INVALID_JSON"
     });
 
   } catch (err) {
-    console.error("❌ GEMINI ROUTE ERROR:", err);
-    return res.status(500).json({ ok: false, error: err.message });
+    console.error("❌ GEMINI FATAL ERROR:", err);
+    return res.status(500).json({
+      ok: false,
+      error: err.message
+    });
   }
 }
