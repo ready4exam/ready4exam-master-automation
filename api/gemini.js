@@ -1,5 +1,5 @@
 // ============================================================================
-// /api/gemini.js — Node Runtime + CORS + Hardened JSON Extractor
+// /api/gemini.js — FINAL VERSION (gemini-2.5-flash + CORS + JSON Extraction)
 // ============================================================================
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
@@ -8,137 +8,202 @@ export const config = { runtime: "nodejs" };
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
-// ============================================================================
-// CORS HELPER
-// ============================================================================
-function applyCors(req, res) {
-  const origin = req.headers.origin || "*";
-
+// -------------------------------------------------------
+// CORS HEADERS
+// -------------------------------------------------------
+function setCORS(res) {
   res.setHeader("Access-Control-Allow-Origin", "https://ready4exam.github.io");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   res.setHeader("Access-Control-Allow-Credentials", "true");
-  res.setHeader("Access-Control-Max-Age", "86400");
-
-  if (req.method === "OPTIONS") {
-    res.status(200).end();
-    return true;
-  }
-  return false;
 }
 
-// ============================================================================
-// Hardened JSON Extractor
-// ============================================================================
-function safeExtractJSON(raw) {
+// -------------------------------------------------------
+// JSON Extractor (Stable)
+// -------------------------------------------------------
+function extractJSON(raw) {
   if (!raw) return { ok: false, error: "EMPTY_OUTPUT" };
 
-  let text = String(raw).trim();
+  let text = raw.trim();
 
-  // Strip HTML output (MOST IMPORTANT)
-  text = text.replace(/<[^>]+>/g, "");
-
-  // Remove Markdown fencing
+  // Remove markdown
   text = text.replace(/```json/gi, "").replace(/```/g, "");
 
-  // Ensure JSON starts at [
-  const idx = text.indexOf("[");
-  if (idx >= 0) text = text.slice(idx);
+  const first = text.indexOf("{");
+  if (first > 0) text = text.slice(first);
 
-  // Fix missing closing brackets
-  const opens = (text.match(/\[/g) || []).length;
-  const closes = (text.match(/\]/g) || []).length;
-  if (opens > closes) text += "]".repeat(opens - closes);
+  const opens = (text.match(/{/g) || []).length;
+  const closes = (text.match(/}/g) || []).length;
+
+  if (opens > closes) {
+    text += "}".repeat(opens - closes);
+  }
 
   try {
-    const arr = JSON.parse(text);
-    if (Array.isArray(arr)) return { ok: true, questions: arr };
-    return { ok: false, error: "NOT_ARRAY", raw: text };
-  } catch (e) {
-    return { ok: false, error: "INVALID_JSON", raw: text };
+    const parsed = JSON.parse(text);
+
+    if (Array.isArray(parsed)) return { ok: true, questions: parsed };
+    if (Array.isArray(parsed.questions)) return { ok: true, questions: parsed.questions };
+
+    return { ok: false, error: "INVALID_JSON_SHAPE" };
+  } catch (err) {
+    return { ok: false, error: "INVALID_JSON_PARSE" };
   }
 }
 
-// ============================================================================
-// Gemini JSON Call (FORCED JSON MIME TYPE)
-// ============================================================================
-async function callGeminiJSON(prompt) {
+// -------------------------------------------------------
+// Gemini API Caller (gemini-2.5-flash)
+// -------------------------------------------------------
+async function callGemini(prompt) {
   const client = new GoogleGenerativeAI(GEMINI_API_KEY);
 
   const model = client.getGenerativeModel({
-    model: "gemini-1.5-flash"
+    model: "gemini-2.5-flash"   // ★ IMPORTANT CORRECT MODEL
   });
 
-  const result = await model.generateContent({
-    contents: [{ role: "user", parts: [{ text: prompt }] }],
-    generationConfig: {
-      responseMimeType: "application/json"
-    }
-  });
-
+  const result = await model.generateContent(prompt);
   return result.response.text();
 }
 
-// ============================================================================
-// MAIN HANDLER
-// ============================================================================
-export default async function handler(req, res) {
-  // Enable CORS
-  if (applyCors(req, res)) return;
+// -------------------------------------------------------
+// Optional Perplexity fallback (COMMENTED OUT)
+// -------------------------------------------------------
+/*
+async function callPerplexity(prompt) {
+  const url = "https://api.perplexity.ai/chat/completions";
 
   try {
-    const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
-    const meta = body?.meta;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.PERPLEXITY_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: "sonar-pro",
+        max_tokens: 4000,
+        messages: [{ role: "user", content: prompt }]
+      })
+    });
 
+    const json = await res.json();
+    return json?.choices?.[0]?.message?.content || "";
+  } catch (err) {
+    console.error("❌ Perplexity error:", err);
+    return "";
+  }
+}
+*/
+
+// -------------------------------------------------------
+// MAIN HANDLER
+// -------------------------------------------------------
+export default async function handler(req, res) {
+  setCORS(res);
+
+  if (req.method === "OPTIONS") return res.status(200).end();
+
+  if (req.method !== "POST") {
+    return res.status(405).json({ ok: false, error: "ONLY_POST_ALLOWED" });
+  }
+
+  try {
+    const body =
+      typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+
+    const meta = body?.meta;
     if (!meta) {
       return res.status(400).json({ ok: false, error: "NO_META" });
     }
 
+    // ---------------------------------------------------
+    // Prompt
+    // ---------------------------------------------------
     const prompt = `
-      Return ONLY a JSON array of exactly 60 MCQ/AR/Case questions.
-      NO text before JSON. NO markdown. NO explanation.
+Generate 60 high-quality structured MCQs for:
 
-      Each object must follow:
+Class: ${meta.class_name}
+Subject: ${meta.subject}
+Group/Book: ${meta.group || meta.book || ""}
+Chapter: ${meta.chapter}
 
-      {
-        "difficulty": "Simple|Medium|Advanced",
-        "question_type": "MCQ|AR|Case-Based",
-        "question_text": "...",
-        "scenario_reason_text": "",
-        "option_a": "...",
-        "option_b": "...",
-        "option_c": "...",
-        "option_d": "...",
-        "correct_answer_key": "A|B|C|D"
+RETURN ONLY JSON ARRAY. NO TEXT. NO EXPLANATION.
+
+FORMAT:
+[
+  {
+    "difficulty": "Simple|Medium|Advanced",
+    "question_type": "MCQ|AR|Case-Based",
+    "question_text": "...",
+    "scenario_reason_text": "...",
+    "option_a": "...",
+    "option_b": "...",
+    "option_c": "...",
+    "option_d": "...",
+    "correct_answer_key": "A|B|C|D"
+  }
+]
+`;
+
+    const start = Date.now();
+
+    // ---------------------------------------------------
+    // 1️⃣ Gemini (3 attempts)
+    // ---------------------------------------------------
+    for (let i = 1; i <= 3; i++) {
+      try {
+        const raw = await callGemini(prompt);
+        const parsed = extractJSON(raw);
+
+        if (parsed.ok) {
+          return res.status(200).json({
+            ok: true,
+            engine: "gemini",
+            attempts: i,
+            questions: parsed.questions,
+            count: parsed.questions.length,
+            durationMs: Date.now() - start
+          });
+        }
+      } catch (err) {
+        console.log("Gemini attempt failed:", err);
       }
-    `;
-
-    // Call Gemini
-    const raw = await callGeminiJSON(prompt);
-
-    // Parse
-    const parsed = safeExtractJSON(raw);
-
-    if (!parsed.ok) {
-      return res.status(500).json({
-        ok: false,
-        error: "GEMINI_INVALID_JSON",
-        details: parsed.error
-      });
     }
 
-    return res.status(200).json({
-      ok: true,
-      engine: "gemini",
-      questions: parsed.questions,
-      count: parsed.questions.length
+    // ---------------------------------------------------
+    // 2️⃣ OPTIONAL Perplexity (DISABLED)
+    // ---------------------------------------------------
+    /*
+    for (let i = 1; i <= 2; i++) {
+      const raw = await callPerplexity(prompt);
+      const parsed = extractJSON(raw);
+
+      if (parsed.ok) {
+        return res.status(200).json({
+          ok: true,
+          engine: "perplexity",
+          attempts: i,
+          questions: parsed.questions,
+          count: parsed.questions.length,
+          durationMs: Date.now() - start
+        });
+      }
+    }
+    */
+
+    // ---------------------------------------------------
+    // 3️⃣ FAILURE
+    // ---------------------------------------------------
+    return res.status(500).json({
+      ok: false,
+      error: "GEMINI_INVALID_JSON"
     });
 
   } catch (err) {
     console.error("❌ GEMINI ERROR:", err);
     return res.status(500).json({
       ok: false,
-      error: err.message || "SERVER_ERROR"
+      error: err.message
     });
   }
 }
