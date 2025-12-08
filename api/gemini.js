@@ -1,131 +1,157 @@
 // ============================================================================
-// /api/gemini.js — FINAL PRODUCTION VERSION (Node + CORS + Gemini 2.5 Flash)
+// /api/gemini.js — FINAL STABLE VERSION (JSON-Guaranteed + CORS + No Perplexity)
 // ============================================================================
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 export const config = { runtime: "nodejs" };
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-// const PERPLEXITY_API_KEY = process.env.PERPLEXITY_API_KEY;   // (kept but disabled)
-
-// ============================================================================
-// CORS HEADERS
-// ============================================================================
+// CORS ENABLED
 function setCORS(res) {
   res.setHeader("Access-Control-Allow-Origin", "https://ready4exam.github.io");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-  res.setHeader("Access-Control-Allow-Credentials", "true");
+  res.setHeader("Access-Control-Max-Age", "86400");
 }
 
-// ============================================================================
-// ULTRA-ROBUST JSON EXTRACTOR — FIXES GEMINI_INVALID_JSON
-// ============================================================================
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+
+// -----------------------------------------------------------------------------
+// Strong JSON cleaner
+// -----------------------------------------------------------------------------
+function cleanModelOutput(raw) {
+  if (!raw) return "";
+
+  let t = raw.trim();
+
+  // Remove markdown fences
+  t = t.replace(/```json/gi, "").replace(/```/g, "");
+
+  // Remove text before first [
+  const first = t.indexOf("[");
+  if (first > 0) t = t.slice(first);
+
+  // Remove text after last ]
+  const last = t.lastIndexOf("]");
+  if (last > 0) t = t.slice(0, last + 1);
+
+  return t;
+}
+
+// -----------------------------------------------------------------------------
+// Safe JSON extractor
+// -----------------------------------------------------------------------------
 function extractJSON(raw) {
-  if (!raw) return { ok: false, error: "EMPTY_OUTPUT" };
+  const cleaned = cleanModelOutput(raw);
 
-  let txt = raw.trim();
-
-  // Remove markdown code fences
-  txt = txt.replace(/```json/gi, "").replace(/```/g, "");
-
-  // ---- 1️⃣ Try extracting JSON array directly ----
-  const arrayMatch = txt.match(/\[\s*{[\s\S]*}\s*\]/);
-  if (arrayMatch) {
-    try {
-      const parsed = JSON.parse(arrayMatch[0]);
-      return { ok: true, questions: parsed };
-    } catch (e) {
-      // continue repairing if fails
-    }
-  }
-
-  // ---- 2️⃣ Extract JSON object and convert to array if needed ----
-  const objectMatch = txt.match(/{[\s\S]*}/);
-  if (objectMatch) {
-    try {
-      const obj = JSON.parse(objectMatch[0]);
-      if (Array.isArray(obj)) return { ok: true, questions: obj };
-      if (Array.isArray(obj.questions)) return { ok: true, questions: obj.questions };
-    } catch (e) {
-      // continue repairing
-    }
-  }
-
-  // ---- 3️⃣ Remove trailing commas which break JSON ----
-  txt = txt.replace(/,\s*}/g, "}").replace(/,\s*]/g, "]");
-
-  // ---- 4️⃣ Last attempt to parse everything ----
   try {
-    const parsed = JSON.parse(txt);
-    if (Array.isArray(parsed)) return { ok: true, questions: parsed };
-    if (Array.isArray(parsed.questions)) return { ok: true, questions: parsed.questions };
+    const arr = JSON.parse(cleaned);
+    if (Array.isArray(arr)) return { ok: true, questions: arr };
   } catch (err) {
-    return { ok: false, error: "INVALID_JSON_PARSE" };
+    return { ok: false, error: "JSON_PARSE_FAIL", raw: cleaned };
   }
 
-  return { ok: false, error: "INVALID_JSON" };
+  return { ok: false, error: "INVALID_JSON_FORMAT", raw: cleaned };
 }
 
-// ============================================================================
-// GEMINI CALL — UPDATED TO gemini-2.5-flash
-// ============================================================================
-async function callGemini(prompt) {
+// -----------------------------------------------------------------------------
+// Gemini call
+// -----------------------------------------------------------------------------
+async function askGemini(prompt) {
   const client = new GoogleGenerativeAI(GEMINI_API_KEY);
 
-  const model = client.getGenerativeModel({
-    model: "gemini-2.5-flash"
-  });
+  // Correct model names for your key
+  const model = client.getGenerativeModel({ model: "gemini-2.0-flash" });
 
   const result = await model.generateContent(prompt);
   return result.response.text();
 }
 
-// ============================================================================
-// (DISABLED) PERPLEXITY FALLBACK — PRESERVED BUT NOT USED
-// ============================================================================
-
-// async function callPerplexity(prompt) {
-//   const url = "https://api.perplexity.ai/chat/completions";
-
-//   try {
-//     const res = await fetch(url, {
-//       method: "POST",
-//       headers: {
-//         Authorization: `Bearer ${PERPLEXITY_API_KEY}`,
-//         "Content-Type": "application/json"
-//       },
-//       body: JSON.stringify({
-//         model: "sonar-pro",
-//         max_tokens: 4000,
-//         messages: [{ role: "user", content: prompt }]
-//       })
-//     });
-
-//     const text = await res.text();
-//     return text;
-//   } catch (err) {
-//     return null;
-//   }
-// }
-
-// ============================================================================
+// -----------------------------------------------------------------------------
 // MAIN HANDLER
-// ============================================================================
+// -----------------------------------------------------------------------------
 export default async function handler(req, res) {
   setCORS(res);
 
   if (req.method === "OPTIONS") return res.status(200).end();
   if (req.method !== "POST")
-    return res.status(405).json({ ok: false, error: "ONLY_POST_ALLOWED" });
+    return res.status(405).json({ ok: false, error: "Only POST allowed" });
 
   try {
-    const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
-    const meta = body?.meta;
+    const body =
+      typeof req.body === "string" ? JSON.parse(req.body) : req.body;
 
-    if (!meta) {
-      return res.status(400).json({ ok: false, error: "NO_META_PROVIDED" });
+    const { meta } = body || {};
+    if (!meta) return res.status(400).json({ ok: false, error: "NO_META" });
+
+    const prompt = `
+Generate EXACTLY 60 exam questions in STRICT JSON format.
+
+CLASS: ${meta.class_name}
+SUBJECT: ${meta.subject}
+CHAPTER: ${meta.chapter}
+
+Return **ONLY A JSON ARRAY**:
+[
+  {
+    "difficulty": "Simple | Medium | Advanced",
+    "question_type": "MCQ | AR | Case-Based",
+    "question_text": "...",
+    "scenario_reason_text": "...",
+    "option_a": "...",
+    "option_b": "...",
+    "option_c": "...",
+    "option_d": "...",
+    "correct_answer_key": "A | B | C | D"
+  }
+]
+
+RULES:
+- NO explanation
+- NO description
+- NO markdown
+- NO text outside JSON
+- Output must start with '[' and end with ']'
+`;
+
+    const raw = await askGemini(prompt);
+
+    // FIRST EXTRACTION
+    let parsed = extractJSON(raw);
+    if (parsed.ok)
+      return res.status(200).json({
+        ok: true,
+        engine: "gemini",
+        questions: parsed.questions,
+        count: parsed.questions.length
+      });
+
+    // SECOND ATTEMPT → repair JSON automatically
+    const attemptFix = cleanModelOutput(raw);
+    try {
+      const fixed = JSON.parse(attemptFix);
+      return res.status(200).json({
+        ok: true,
+        engine: "gemini",
+        repaired: true,
+        questions: fixed,
+        count: fixed.length
+      });
+    } catch (err) {
+      return res.status(500).json({
+        ok: false,
+        error: "GEMINI_INVALID_JSON",
+        raw: attemptFix
+      });
     }
+  } catch (err) {
+    console.error("❌ GEMINI FATAL ERROR:", err);
+    return res.status(500).json({ ok: false, error: err.message });
+  }
+}
 
-    // ==============================================
+// -----------------------------------------------------------------------------
+// Perplexity (Disabled but kept for reference)
+// -----------------------------------------------------------------------------
+// async function callPerplexity(prompt) { ... }
+// -----------------------------------------------------------------------------
