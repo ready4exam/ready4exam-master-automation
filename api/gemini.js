@@ -1,5 +1,5 @@
 // ============================================================================
-// /api/gemini.js — FINAL PRODUCTION VERSION (Balanced Difficulty + Ultra JSON Extractor)
+// /api/gemini.js — FINAL PRODUCTION VERSION (Unbreakable JSON Mode)
 // ============================================================================
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
@@ -9,8 +9,9 @@ export const config = { runtime: "nodejs" };
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 // ============================================================================
-//  STRONG JSON EXTRACTOR (Bulletproof)
+//  STRONG JSON EXTRACTOR (Bulletproof + Sanitizers)
 // ============================================================================
+
 function extractJSON(raw) {
   if (!raw) return { ok: false, error: "EMPTY_OUTPUT" };
 
@@ -19,7 +20,13 @@ function extractJSON(raw) {
   // Remove markdown fences
   text = text.replace(/```json/gi, "").replace(/```/g, "");
 
-  // Extract only array [ ... ]
+  // Remove invisible control chars (0–31)
+  text = text.replace(/[\u0000-\u001F]+/g, " ");
+
+  // Collapse multiline into single-line
+  text = text.replace(/\n+/g, " ");
+
+  // Extract only content inside first [...] array
   const first = text.indexOf("[");
   const last = text.lastIndexOf("]");
 
@@ -40,7 +47,7 @@ function extractJSON(raw) {
     if (Array.isArray(parsed.questions)) return { ok: true, questions: parsed.questions };
 
     return { ok: false, error: "INVALID_JSON_SHAPE", raw: text };
-  } catch (e) {
+  } catch (err) {
     return { ok: false, error: "INVALID_JSON_PARSE", raw: text };
   }
 }
@@ -78,49 +85,56 @@ export default async function handler(req, res) {
       return res.status(400).json({ ok: false, error: "NO_META_PROVIDED" });
     }
 
-    // ============================================================================
-    //  ⭐ FINAL PRODUCTION PROMPT — Balanced Difficulty, JSON-only
-    // ============================================================================
+    // ========================================================================
+    // ⭐ UNBREAKABLE JSON-ONLY PROMPT
+    // ========================================================================
     const prompt = `
-YOU MUST OUTPUT ONLY A VALID JSON ARRAY.
-NO explanations, NO markdown, NO headings, NO commentary.
+You MUST output ONLY a valid JSON array.
+NO text before it.
+NO text after it.
+NO markdown.
+NO headings.
+NO explanations.
+NO commentary.
 
+=== STRICT FORMAT (EVERY OBJECT MUST MATCH EXACTLY) ===
+[
+  {
+    "difficulty": "Simple",
+    "question_type": "MCQ",
+    "question_text": "",
+    "scenario_reason_text": "",
+    "option_a": "",
+    "option_b": "",
+    "option_c": "",
+    "option_d": "",
+    "correct_answer_key": "A"
+  }
+]
+
+=== CONTENT REQUIREMENTS ===
 Generate EXACTLY 60 NCERT-grade questions for:
-
 Class: ${meta.class_name}
 Subject: ${meta.subject}
 Chapter: ${meta.chapter}
 
-== JSON FORMAT (EVERY OBJECT MUST MATCH) ==
-{
-  "difficulty": "Simple" | "Medium" | "Advanced",
-  "question_type": "MCQ" | "AR" | "Case-Based",
-  "question_text": "...",
-  "scenario_reason_text": "...",
-  "option_a": "...",
-  "option_b": "...",
-  "option_c": "...",
-  "option_d": "...",
-  "correct_answer_key": "A" | "B" | "C" | "D"
-}
-
-== REQUIRED DISTRIBUTION ==
+=== DISTRIBUTION ===
 - 20 Simple
 - 20 Medium
 - 20 Advanced
 - At least 10 must be AR or Case-Based
 
-== RULES ==
-- MCQ MUST have scenario_reason_text = ""
-- AR & Case-Based MUST have meaningful scenario_reason_text
-- correct_answer_key MUST be uppercase A/B/C/D
+=== RULES ===
+- MCQ → scenario_reason_text = ""
+- AR & Case-Based → scenario_reason_text must NOT be empty
+- correct_answer_key MUST be "A", "B", "C", or "D"
+- No nested objects
 - No duplicate questions
-- No answers outside A/B/C/D
+- No multiline text inside any field
+- No escape characters
 
-== OUTPUT ONLY ==
-[
-  { ... 60 QUESTIONS ... }
-]
+=== FINAL INSTRUCTION ===
+OUTPUT ONLY THE JSON ARRAY. NOTHING ELSE.
 `;
 
     const start = Date.now();
@@ -148,7 +162,7 @@ Chapter: ${meta.chapter}
       }
     }
 
-    // All attempts failed
+    // All attempts failed → return hard error
     return res.status(500).json({
       ok: false,
       error: "GEMINI_INVALID_JSON"
