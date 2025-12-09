@@ -3,7 +3,8 @@
 // SINGLE / PER-CHAPTER UPLOAD API
 // - Creates/refreshes Supabase table
 // - Inserts MCQ/AR/Case questions
-// - Updates usage_logs (Option 2: ALWAYS UPDATE SAME ROW)
+// - Ensures RLS + SELECT policy for anon/authenticated
+// - Updates usage_logs (ALWAYS update same row by table_name)
 // - Updates curriculum.js in correct class repo
 // ============================================================================
 
@@ -36,6 +37,12 @@ function normalizeQType(t) {
 
 const SKIP_WORDS = ["as","of","the","a","an","in","on","for","to","ki","ke","ka"];
 const norm = s => (s ?? "").toString().trim().toLowerCase();
+
+// Simple in-memory collector for neat log lines
+function pushLog(logs, msg) {
+  logs.push(msg);
+  console.log(msg);
+}
 
 // =====================================================================
 // TABLE NAME BUILDER — MATCHES FRONTEND
@@ -133,7 +140,7 @@ function applyTableIdToCurriculum(curriculum, meta, tableName) {
   const subdivision  = meta.book || null;
 
   if (!curriculum || !subjectKey || !curriculum[subjectKey]) {
-    console.warn("⚠ Subject not found:", subjectKey);
+    console.warn("⚠ Subject not found in curriculum:", subjectKey);
     return false;
   }
 
@@ -141,7 +148,7 @@ function applyTableIdToCurriculum(curriculum, meta, tableName) {
   const subjectNode = curriculum[subjectKey];
   const match = ch => norm(ch?.chapter_title) === norm(chapterTitle);
 
-  // CASE 1: Flat
+  // CASE 1: Flat array of chapters
   if (Array.isArray(subjectNode)) {
     subjectNode.forEach(ch => {
       if (match(ch)) {
@@ -152,7 +159,7 @@ function applyTableIdToCurriculum(curriculum, meta, tableName) {
     return updated;
   }
 
-  // CASE 2: Nested
+  // CASE 2: Nested by book/subdivision
   const groups = subdivision ? [subdivision] : Object.keys(subjectNode);
 
   groups.forEach(group => {
@@ -172,13 +179,14 @@ function applyTableIdToCurriculum(curriculum, meta, tableName) {
 // =====================================================================
 // UPDATE curriculum.js IN class repo
 // =====================================================================
-async function updateCurriculumForChapter(meta, tableName) {
+async function updateCurriculumForChapter(meta, tableName, logs) {
   const owner = process.env.GITHUB_OWNER;
   const token = process.env.GITHUB_TOKEN;
   const className = meta.class_name;
 
   if (!owner || !token) {
     console.warn("⚠ Missing GitHub credentials; skipping curriculum update.");
+    pushLog(logs, "⚠ curriculum.js not updated (missing GitHub credentials)");
     return;
   }
 
@@ -186,14 +194,24 @@ async function updateCurriculumForChapter(meta, tableName) {
   const path = "js/curriculum.js";
 
   const file = await fetchGithubFile({ owner, repo, path, token });
-  if (!file?.content || !file?.sha) return;
+  if (!file?.content || !file?.sha) {
+    console.warn("⚠ Could not fetch curriculum.js from:", repo);
+    pushLog(logs, "⚠ curriculum.js not updated (file not found in repo)");
+    return;
+  }
 
   const original = Buffer.from(file.content, "base64").toString("utf8");
   const obj = parseCurriculumJsToObject(original);
-  if (!obj) return;
+  if (!obj) {
+    pushLog(logs, "⚠ curriculum.js not updated (parse failed)");
+    return;
+  }
 
   const changed = applyTableIdToCurriculum(obj, meta, tableName);
-  if (!changed) return;
+  if (!changed) {
+    pushLog(logs, "⚠ curriculum.js not updated (chapter not found)");
+    return;
+  }
 
   const newText = serializeCurriculumObjectToJs(obj);
 
@@ -206,6 +224,8 @@ async function updateCurriculumForChapter(meta, tableName) {
     sha: file.sha,
     message: `chore: update table_id for ${meta.chapter} → ${tableName}`
   });
+
+  pushLog(logs, `✔ curriculum.js updated for "${meta.chapter}" in ${repo}`);
 }
 
 // =====================================================================
@@ -217,7 +237,11 @@ export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "https://ready4exam.github.io");
 
   if (req.method === "OPTIONS") return res.status(200).end();
-  if (req.method !== "POST") return res.status(405).json({ ok:false, error:"Only POST allowed" });
+  if (req.method !== "POST") {
+    return res.status(405).json({ ok:false, error:"Only POST allowed" });
+  }
+
+  const logs = [];
 
   try {
     const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
@@ -226,6 +250,10 @@ export default async function handler(req, res) {
     if (!meta || !csv || !Array.isArray(csv)) {
       return res.status(400).json({ ok:false, error:"Invalid payload" });
     }
+
+    const { class_name, subject, chapter } = meta;
+
+    pushLog(logs, `📌 Starting automation for Class ${class_name} → ${subject} → ${chapter}`);
 
     // Use ONLY these env vars (your requirement)
     const supabaseUrl = process.env.SUPABASE_URL_11;
@@ -238,11 +266,58 @@ export default async function handler(req, res) {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     const table = buildTableName(meta);
+    pushLog(logs, `📌 Target table: ${table}`);
 
-    await supabase.rpc("ensure_table_exists", { table_name: table });
+    // 1) Ensure table exists (via RPC)
+    const ensure = await supabase.rpc("ensure_table_exists", { table_name: table });
+    if (ensure.error) {
+      console.error("❌ ensure_table_exists error:", ensure.error);
+      throw ensure.error;
+    }
+    pushLog(logs, `✔ Table created/ensured: ${table}`);
 
-    await supabase.from(table).delete().neq("id", 0);
+    // 2) Enforce RLS + SELECT Policy (safe to re-run)
+    const rls = await supabase.rpc("exec_sql", {
+      sql: `
+        ALTER TABLE public.${table} ENABLE ROW LEVEL SECURITY;
 
+        DO $$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1 
+            FROM pg_policies 
+            WHERE policyname = '${table}_select_policy'
+          ) THEN
+            EXECUTE '
+              CREATE POLICY ${table}_select_policy
+              ON public.${table}
+              FOR SELECT
+              TO anon, authenticated
+              USING (true);
+            ';
+          END IF;
+        END $$;
+
+        GRANT USAGE ON SCHEMA public TO anon, authenticated;
+        GRANT SELECT ON public.${table} TO anon, authenticated;
+      `
+    });
+
+    if (rls.error) {
+      console.error("❌ RLS exec_sql error:", rls.error);
+      throw rls.error;
+    }
+    pushLog(logs, "✔ RLS enabled + SELECT granted (anon + authenticated)");
+
+    // 3) Clear existing rows
+    const cleared = await supabase.from(table).delete().neq("id", 0);
+    if (cleared.error) {
+      console.error("❌ Delete existing rows error:", cleared.error);
+      throw cleared.error;
+    }
+    pushLog(logs, "✔ Existing rows cleared");
+
+    // 4) Insert new rows
     const rows = csv.map(r => ({
       difficulty: normalizeDifficulty(r.difficulty),
       question_type: normalizeQType(r.question_type),
@@ -255,9 +330,23 @@ export default async function handler(req, res) {
       correct_answer_key: (r.correct_answer_key || "").trim().toUpperCase()
     }));
 
-    await supabase.from(table).insert(rows);
+    const inserted = await supabase.from(table).insert(rows);
+    if (inserted.error) {
+      console.error("❌ Insert rows error:", inserted.error);
+      throw inserted.error;
+    }
 
-    // usage_logs: ALWAYS update same row
+    // Counts by difficulty (for neat logs)
+    const simpleCount   = rows.filter(r => r.difficulty === "Simple").length;
+    const mediumCount   = rows.filter(r => r.difficulty === "Medium").length;
+    const advancedCount = rows.filter(r => r.difficulty === "Advanced").length;
+
+    pushLog(
+      logs,
+      `✔ Inserted ${rows.length} questions (${simpleCount} Simple, ${mediumCount} Medium, ${advancedCount} Advanced)`
+    );
+
+    // 5) usage_logs: ALWAYS update same row by table_name
     const lookup = await supabase
       .from("usage_logs")
       .select("*")
@@ -265,10 +354,11 @@ export default async function handler(req, res) {
       .maybeSingle();
 
     if (lookup?.data) {
+      const refreshCount = (lookup.data.refresh_count || 0) + 1;
       await supabase
         .from("usage_logs")
         .update({
-          refresh_count: (lookup.data.refresh_count || 0) + 1,
+          refresh_count: refreshCount,
           inserted_count: rows.length,
           updated_at: new Date(),
           class_name: meta.class_name || lookup.data.class_name,
@@ -277,6 +367,8 @@ export default async function handler(req, res) {
           chapter: meta.chapter ?? lookup.data.chapter
         })
         .eq("table_name", table);
+
+      pushLog(logs, `✔ usage_logs updated (refresh #${refreshCount})`);
     } else {
       await supabase.from("usage_logs").insert({
         table_name: table,
@@ -289,19 +381,31 @@ export default async function handler(req, res) {
         created_at: new Date(),
         updated_at: new Date()
       });
+
+      pushLog(logs, "✔ usage_logs row created");
     }
 
-    await updateCurriculumForChapter(meta, table);
+    // 6) Update curriculum.js in the correct class repo
+    await updateCurriculumForChapter(meta, table, logs);
+
+    pushLog(logs, "📌 Upload completed successfully — chapter is live in Quiz Engine.");
 
     res.status(200).json({
       ok: true,
       table_name: table,
       inserted: rows.length,
-      message: "Upload complete."
+      message: "Upload complete.",
+      logs
     });
 
   } catch (err) {
     console.error("❌ manageSupabase ERROR:", err);
-    res.status(500).json({ ok:false, error: err.message });
+    pushLog(logs, `❌ ERROR: ${err.message}`);
+
+    res.status(500).json({
+      ok: false,
+      error: err.message,
+      logs
+    });
   }
 }
