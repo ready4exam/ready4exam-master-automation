@@ -153,6 +153,28 @@ export function renderQuestion(q, idxOneBased, selected, submitted) {
   initializeElements();
   if (!els.list) return;
 
+  // ---------------------------
+  // Universal normalizer (safe)
+  // maps different field names from DB/backend to UI fields
+  // ---------------------------
+  const mapped = {
+    id: q.id,
+    question_type: (q.question_type || q.type || "").toLowerCase(),
+    text: q.text || q.question_text || q.prompt || "",
+    scenario_reason: q.scenario_reason || q.scenario_reason_text || q.context || q.passage || "",
+    explanation: q.explanation || q.explanation_text || q.reason || "",
+    correct_answer: q.correct_answer || q.correct_answer_key || q.answer || "",
+    options: {
+      A: (q.options && (q.options.A || q.options.a)) || q.option_a || q.a || q.opt_a || "",
+      B: (q.options && (q.options.B || q.options.b)) || q.option_b || q.b || q.opt_b || "",
+      C: (q.options && (q.options.C || q.options.c)) || q.option_c || q.c || q.opt_c || "",
+      D: (q.options && (q.options.D || q.options.d)) || q.option_d || q.d || q.opt_d || ""
+    }
+  };
+
+  // use mapped object for downstream logic
+  q = mapped;
+
   const type = (q.question_type || "").toLowerCase();
 
   /* ================== ASSERTION-REASON ================== */
