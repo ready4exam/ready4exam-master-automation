@@ -1,121 +1,187 @@
 // firebase-expiry.js
-// Global 15-day trial + Class-wise paid access
-// Works with your Firebase + Supabase frontend architecture
+// ------------------------------------------------------
+// GLOBAL ACCESS CONTROL for Ready4Exam
+// - 15 day trial for students
+// - paidClasses unlock classes 6–12
+// - streams unlock science / commerce / arts
+// - schools bypass trial but follow streams
+// ------------------------------------------------------
 
-import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
-import { getAuth } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js";
-import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+import {
+  getFirestore, doc, getDoc, setDoc, updateDoc
+} from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+import {
+  getAuth
+} from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
-/* Your Firebase Config */
-const firebaseConfig = {
-  apiKey:"AIzaSyAXdKiYRxBKAj280YcNuNwlKKDp85xpOWQ",
-  authDomain:"quiz-signon.firebaseapp.com",
-  projectId:"quiz-signon",
-  storageBucket:"quiz-signon.appspot.com",
-  messagingSenderId:"863414222321",
-  appId:"1:863414222321:web:819f5564825308bcd9d850"
-};
+// ------------------------------------------------------
+// FIREBASE CONFIG — AUTO AVAILABLE VIA window.__firebase_config
+// ------------------------------------------------------
+const app = initializeApp(window.__firebase_config);
+const db = getFirestore(app);
+const auth = getAuth(app);
 
-const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
-export const db   = getFirestore(app);
-
-/* ---------- Helpers ---------- */
-
-export function isSignupExpired(signupIso, days = 15) {
+// ------------------------------------------------------
+// UTIL: Check if trial expired
+// ------------------------------------------------------
+export function isSignupExpired(signupIso, daysAllowed = 15) {
   if (!signupIso) return true;
-  const start = new Date(signupIso).getTime();
-  if (!start) return true;
-
-  const expiry = start + days * 24 * 60 * 60 * 1000;
+  const signed = new Date(signupIso);
+  if (Number.isNaN(signed.getTime())) return true;
+  const expiry = signed.getTime() + daysAllowed * 24 * 60 * 60 * 1000;
   return Date.now() >= expiry;
 }
 
-export async function fetchUserAccess(uid) {
-  if (!uid) return null;
+// ------------------------------------------------------
+// AUTO-CREATE USER DOC (SAFE, NON-DISRUPTIVE)
+// ------------------------------------------------------
+export async function ensureUserDocExists() {
+  const user = auth.currentUser;
+  if (!user) return;
 
-  try {
-    const dref = doc(db, "users", uid);
-    const snap = await getDoc(dref);
+  const ref = doc(db, "users", user.uid);
+  const snap = await getDoc(ref);
 
-    if (!snap.exists()) return null;
+  // already exists → ensure mandatory fields exist
+  if (snap.exists()) {
+    const data = snap.data();
+    const patch = {};
 
-    return snap.data(); // { signupDate, paidClasses }
-  } catch (err) {
-    console.error("fetchUserAccess error", err);
-    return null;
+    if (!data.signupDate) patch.signupDate = new Date().toISOString();
+
+    if (!data.paidClasses) {
+      patch.paidClasses = {
+        "6": false, "7": false, "8": false,
+        "9": false, "10": false, "11": false, "12": false
+      };
+    }
+
+    if (!data.streams) {
+      patch.streams = {
+        science: false,
+        commerce: false,
+        arts: false
+      };
+    }
+
+    if (!data.role) patch.role = "student";
+
+    if (Object.keys(patch).length > 0) {
+      await updateDoc(ref, patch);
+    }
+    return;
   }
+
+  // create new doc
+  await setDoc(ref, {
+    signupDate: new Date().toISOString(),
+    role: "student",               // default until admin changes
+    paidClasses: {
+      "6": false, "7": false, "8": false,
+      "9": false, "10": false, "11": false, "12": false
+    },
+    streams: {
+      science: false,
+      commerce: false,
+      arts: false
+    }
+  });
 }
 
-/* ---------- Popup UI ---------- */
-
-export function showExpiredPopup() {
+// ------------------------------------------------------
+// POPUP SHOWN WHEN ACCESS IS BLOCKED
+// ------------------------------------------------------
+export function showExpiredPopup(message = "Your access to this class/stream is restricted.") {
   if (document.getElementById("r4e-expired-modal")) return;
 
-  const div = document.createElement("div");
-  div.id = "r4e-expired-modal";
-  div.style = `
-    position:fixed; inset:0; background:rgba(0,0,0,.5);
-    display:flex; align-items:center; justify-content:center; z-index:99999;
-  `;
+  const wrap = document.createElement("div");
+  wrap.id = "r4e-expired-modal";
+  wrap.style =
+    "position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.55);z-index:99999;";
 
-  div.innerHTML = `
-    <div style="background:white; padding:24px; border-radius:10px; max-width:420px;">
-      <h2 style="font-size:20px; font-weight:bold;">Your 15-day trial has expired</h2>
-      <p style="margin-top:8px;">Please make a payment to continue.</p>
-      <div style="margin-top:16px; text-align:right;">
-        <button id="pay-btn" style="padding:8px 14px; background:#2563eb; color:white; border-radius:6px;">
-          Make Payment
-        </button>
-      </div>
+  wrap.innerHTML = `
+    <div style="background:white;padding:28px;border-radius:12px;max-width:420px;text-align:center;">
+      <h2 style="font-size:20px;font-weight:bold;margin-bottom:10px;">Access Restricted</h2>
+      <p style="font-size:15px;color:#444;">${message}</p>
+      <button id="r4e-expired-close"
+        style="margin-top:18px;background:#1a3e6a;color:white;padding:10px 18px;border-radius:8px;">
+        Close
+      </button>
     </div>
   `;
+  document.body.appendChild(wrap);
 
-  document.body.appendChild(div);
-
-  document.getElementById("pay-btn").onclick = () => {
-    window.location.href = "/payment.html";
-  };
+  document.getElementById("r4e-expired-close").onclick = () => wrap.remove();
 }
 
-/* ---------- Main Access Check ---------- */
-/*
-   Global Trial + Class Paid Unlock:
-   allow if:
-       paidClasses[classId] == true
-       OR global trial NOT expired
-*/
-
-export async function checkClassAccess(classId) {
+// ------------------------------------------------------
+// MASTER CHECK — class + stream + trial + role
+// ------------------------------------------------------
+export async function checkClassAccess(classId, stream) {
   const user = auth.currentUser;
   if (!user) return { allowed: false, reason: "not-signed-in" };
 
-  const data = await fetchUserAccess(user.uid);
-  if (!data) return { allowed: false, reason: "no-user-doc" };
+  const ref = doc(db, "users", user.uid);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return { allowed: false, reason: "user-doc-missing" };
 
-  const { signupDate, paidClasses = {} } = data;
+  const data = snap.data();
 
-  // 1. Class Paid?
-  if (paidClasses[classId] === true) {
-    return { allowed: true };
+  // SCHOOL ROLE BYPASS TRIAL (only restricted by streams)
+  if (data.role === "school") {
+    if (data.streams?.[stream] === true) {
+      return { allowed: true };
+    } else {
+      return { allowed: false, reason: `This school does not have access to ${stream} stream.` };
+    }
   }
 
-  // 2. Trial Active?
-  if (!isSignupExpired(signupDate)) {
-    return { allowed: true };
+  // STUDENT FLOW ---------------------------------------
+
+  // 1. TRIAL EXPIRED?
+  if (isSignupExpired(data.signupDate)) {
+    // Allow ONLY paidClasses
+    if (data.paidClasses?.[classId] === true) {
+      // Still check stream
+      if (data.streams?.[stream] === true) {
+        return { allowed: true };
+      } else {
+        return { allowed: false, reason: `Stream (${stream}) not purchased.` };
+      }
+    }
+    return { allowed: false, reason: "Trial expired. Please purchase access." };
   }
 
-  // 3. Block
-  return { allowed: false, reason: "trial-expired" };
+  // 2. STREAM NOT PURCHASED?
+  if (data.streams?.[stream] !== true) {
+    return { allowed: false, reason: `Stream (${stream}) not purchased.` };
+  }
+
+  // 3. CLASS NOT PURCHASED (during trial this is allowed)
+  // After trial ends, paidClasses decides; during trial, free for 15 days.
+  return { allowed: true };
 }
 
-/* ---------- Start Quiz Wrapper ---------- */
-export async function checkAndStartQuiz(classId, callback) {
-  const result = await checkClassAccess(classId);
+// ------------------------------------------------------
+// Combined handler for chapter-selection.html
+// ------------------------------------------------------
+export async function checkAndStartQuiz(startQuizCallback, classId, stream) {
+  const user = auth.currentUser;
+  if (!user) {
+    alert("Please sign in.");
+    return;
+  }
+
+  const result = await checkClassAccess(classId, stream);
 
   if (result.allowed) {
-    callback();  // go to quiz
-  } else {
-    showExpiredPopup();
+    startQuizCallback();
+    return;
   }
+
+  showExpiredPopup(result.reason || "Access blocked.");
 }
+
+// ------------------------------------------------------
+export { auth, db };
