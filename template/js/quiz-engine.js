@@ -1,20 +1,25 @@
 // js/quiz-engine.js
 // -----------------------------------------------------------------------------
-// UNIVERSAL QUIZ ENGINE (Class 5–12) with GLOBAL TRIAL + CLASS-WISE ACCESS
-// CLASS_ID is injected automatically by automation
+// UNIVERSAL QUIZ ENGINE (Class 5–12)
+// - CLASS_ID auto replaced by automation: {{CLASS}}
+// - Uses difficulty exactly: "Simple" | "Medium" | "Advanced"
 // -----------------------------------------------------------------------------
 
 import { initializeServices, getAuthUser } from "./config.js";
 import { fetchQuestions, saveResult } from "./api.js";
 import * as UI from "./ui-renderer.js";
 import {
-  checkClassAccess,
-  showExpiredPopup
-} from "./firebase-expiry.js";
+  checkAccess, initializeAuthListener,
+  signInWithGoogle, signOut
+} from "./auth-paywall.js";
 import curriculumData from "./curriculum.js";
+import { ensureUserDocExists } from "./firebase-expiry.js";   // ✅ ADDED
 
+// 🔥 Injected at automation time — DO NOT HARD CODE
 const CLASS_ID = "{{CLASS}}";
 
+// ===========================================================
+// STATE
 // ===========================================================
 let quizState = {
   classId: CLASS_ID,
@@ -28,6 +33,8 @@ let quizState = {
   score: 0,
 };
 
+// ===========================================================
+// SMART CHAPTER LOOKUP (fallback)
 // ===========================================================
 function findCurriculumMatch(topicSlug) {
   const clean = s =>
@@ -50,11 +57,14 @@ function findCurriculumMatch(topicSlug) {
 }
 
 // ===========================================================
+// URL + HEADER FORMAT
+// ===========================================================
 function parseUrlParameters() {
   const params = new URLSearchParams(location.search);
 
   const urlClass    = params.get("class")   || CLASS_ID;
   const urlSubject  = params.get("subject") || "";
+  const urlBook     = params.get("book")    || null;
   const urlChapter  = params.get("chapter") || "";
   const urlTable    = params.get("table")   || params.get("topic") || "";
   let   urlDiff     = params.get("difficulty") || "Simple";
@@ -62,25 +72,33 @@ function parseUrlParameters() {
   const allowed = ["Simple","Medium","Advanced"];
   if (!allowed.includes(urlDiff)) urlDiff = "Simple";
 
-  quizState.classId    = urlClass;
-  quizState.subject    = urlSubject;
-  quizState.topicSlug  = urlTable;
+  quizState.classId   = urlClass;
+  quizState.subject   = urlSubject;
+  quizState.topicSlug = urlTable;
   quizState.difficulty = urlDiff;
 
   if (!quizState.topicSlug) {
-    throw new Error("Topic not provided");
+    throw new Error("Topic/table not provided in URL");
   }
 
   if (urlSubject && urlChapter) {
-    UI.updateHeader(
-      `Class ${quizState.classId}: ${urlSubject} - ${urlChapter} Worksheet`,
-      quizState.difficulty
-    );
+    const chapter = urlChapter.trim();
+    const subject = urlSubject.trim();
+
+    const headerTitle =
+      `Class ${quizState.classId}: ${subject} - ${chapter} Worksheet`;
+
+    UI.updateHeader(headerTitle, quizState.difficulty);
     return;
   }
 
   const match = findCurriculumMatch(quizState.topicSlug);
+
   if (!match) {
+    console.warn(`⚠ Fallback used for topic: ${quizState.topicSlug}`);
+
+    quizState.subject = "General";
+
     const pretty = quizState.topicSlug
       .replace(/_/g, " ")
       .replace(/quiz/ig, "")
@@ -88,22 +106,22 @@ function parseUrlParameters() {
       .trim()
       .replace(/\b\w/g, c => c.toUpperCase());
 
-    UI.updateHeader(
-      `Class ${quizState.classId}: ${pretty} Worksheet`,
-      quizState.difficulty
-    );
+    const headerTitle =
+      `Class ${quizState.classId}: ${pretty} Worksheet`;
+    UI.updateHeader(headerTitle, quizState.difficulty);
     return;
   }
 
   quizState.subject = match.subject;
   const chapter = match.title.replace(/quiz/ig, "").trim();
 
-  UI.updateHeader(
-    `Class ${quizState.classId}: ${quizState.subject} - ${chapter} Worksheet`,
-    quizState.difficulty
-  );
+  const headerTitle =
+    `Class ${quizState.classId}: ${quizState.subject} - ${chapter} Worksheet`;
+  UI.updateHeader(headerTitle, quizState.difficulty);
 }
 
+// ===========================================================
+// RENDERING + SUBMIT + STORAGE + EVENTS
 // ===========================================================
 function renderQuestion() {
   const i = quizState.currentQuestionIndex;
@@ -150,7 +168,11 @@ async function handleSubmit() {
   };
 
   if (user) {
-    try { await saveResult(result); } catch {}
+    try {
+      await saveResult(result);
+    } catch (e) {
+      console.warn(e);
+    }
   }
 
   quizState.currentQuestionIndex = 0;
@@ -173,30 +195,17 @@ async function loadQuiz() {
     renderQuestion();
     UI.attachAnswerListeners?.(handleAnswerSelection);
     UI.showView?.("quiz-content");
-
   } catch (e) {
     UI.showStatus(`Error: ${e.message}`, "text-red-600");
   }
 }
 
-async function init() {
-  UI.initializeElements();
-  parseUrlParameters();
+async function onAuthChange(user) {
+  const ok = user && await checkAccess(quizState.topicSlug);
+  ok ? loadQuiz() : UI.showView("paywall-screen");
+}
 
-  await initializeServices();
-
-  // 🔥 CLASS ACCESS CHECK HERE
-  const access = await checkClassAccess(CLASS_ID);
-
-  if (!access.allowed) {
-    UI.showView("paywall-screen");
-    showExpiredPopup();
-    return;
-  }
-
-  // If allowed → Load quiz
-  loadQuiz();
-
+function attachDomEvents() {
   document.addEventListener("click", e => {
     const b = e.target.closest("button,a");
     if (!b) return;
@@ -204,7 +213,27 @@ async function init() {
     if (b.id === "prev-btn")   return handleNavigation(-1);
     if (b.id === "next-btn")   return handleNavigation(1);
     if (b.id === "submit-btn") return handleSubmit();
+
+    if (["login-btn","google-signin-btn","paywall-login-btn"].includes(b.id))
+      return signInWithGoogle();
+
+    if (b.id === "logout-nav-btn") return signOut();
+
+    if (b.id === "back-to-chapters-btn")
+      location.href = "chapter-selection.html";
   });
+}
+
+async function init() {
+  UI.initializeElements();
+  parseUrlParameters();
+  await initializeServices();
+  await initializeAuthListener(onAuthChange);
+
+  await ensureUserDocExists();    // ✅ ADDED — SAFE
+
+  attachDomEvents();
+  UI.hideStatus();
 }
 
 document.addEventListener("DOMContentLoaded", init);
