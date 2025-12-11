@@ -76,6 +76,7 @@
 <script type="module">
 import curriculum from "./js/curriculum.js";
 import { transliterate as tr } from "https://cdn.jsdelivr.net/npm/transliteration/+esm";
+import { ensureUserDocExists } from "./js/firebase-expiry.js";
 import { checkAndStartQuiz } from "./js/firebase-expiry.js";
 
 const CLASS_ID = "{{CLASS}}";
