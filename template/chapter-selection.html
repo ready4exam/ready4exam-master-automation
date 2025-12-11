@@ -50,7 +50,6 @@
   <div id="difficulty-container" class="hidden mb-10 text-center">
     <h3 class="text-2xl font-bold text-cbse-blue mb-4">Select Difficulty</h3>
     <div class="flex flex-wrap justify-center gap-4">
-      <!-- 🔥 data-diff now matches Supabase values exactly -->
       <button data-diff="Simple"   class="difficulty-btn bg-green-600 text-white">Simple</button>
       <button data-diff="Medium"   class="difficulty-btn bg-yellow-500 text-white">Medium</button>
       <button data-diff="Advanced" class="difficulty-btn bg-red-600 text-white">Advanced</button>
@@ -71,9 +70,13 @@
   <small>© 2025 Ready4Exam Academic Portal</small>
 </footer>
 
+<!-- Trial Expiry Logic -->
+<script type="module" src="./js/firebase-expiry.js"></script>
+
 <script type="module">
 import curriculum from "./js/curriculum.js";
 import { transliterate as tr } from "https://cdn.jsdelivr.net/npm/transliteration/+esm";
+import { checkAndStartQuiz } from "./js/firebase-expiry.js";
 
 const CLASS_ID = "{{CLASS}}";
 const subject  = new URLSearchParams(location.search).get("subject") || "";
@@ -88,6 +91,7 @@ let selectedBook = null;
 let selectedChapter = null;
 let selectedDifficulty = null;
 
+/* -------------------------- */
 subjectDesc.textContent = ({
   Physics: "Explore mechanics, waves & thermodynamics.",
   Chemistry: "Atoms, reactions, bonding & periodicity.",
@@ -95,20 +99,15 @@ subjectDesc.textContent = ({
   Mathematics: "Numbers, algebra, geometry & graphs."
 }[subject]) || "";
 
-/* --------------------------
-   BOOK LISTING
---------------------------- */
+/* -------------------------- */
 function renderBooks(){
   const data = curriculum[subject];
-
   document.getElementById("page-title").textContent = `Select Book for ${subject}`;
   content.innerHTML = "";
-
   if (!data) {
     content.innerHTML = "<p class='text-center text-gray-600'>No books found.</p>";
     return;
   }
-
   Object.keys(data).forEach(book=>{
     const btn = document.createElement("button");
     btn.className = "topic-btn";
@@ -118,16 +117,12 @@ function renderBooks(){
   });
 }
 
-/* --------------------------
-   CHAPTER LISTING
---------------------------- */
+/* -------------------------- */
 function renderChapters(book){
   selectedBook = book;
   const chapters = curriculum[subject][book];
-
   document.getElementById("page-title").textContent = `${book} — Chapters`;
   content.innerHTML = "";
-
   chapters.forEach(ch=>{
     const t = ch.chapter_title || ch.title || ch;
     const btn = document.createElement("button");
@@ -136,7 +131,6 @@ function renderChapters(book){
     btn.onclick = e => selectChapter(t, e.currentTarget);
     content.appendChild(btn);
   });
-
   const back = document.createElement("button");
   back.className = "text-cbse-blue underline font-semibold mt-4";
   back.textContent = "← Back";
@@ -144,61 +138,47 @@ function renderChapters(book){
   content.appendChild(back);
 }
 
-/* --------------------------
-   SELECT CHAPTER
---------------------------- */
+/* -------------------------- */
 function selectChapter(title, button){
   document.querySelectorAll(".topic-btn").forEach(b=>b.classList.remove("selected"));
   button.classList.add("selected");
-
   selectedChapter = title;
   diffBox.classList.remove("hidden");
 }
 
-/* --------------------------
-   DIFFICULTY
---------------------------- */
+/* -------------------------- */
 document.querySelectorAll(".difficulty-btn").forEach(btn=>{
   btn.onclick = e =>{
     document.querySelectorAll(".difficulty-btn").forEach(x=>x.classList.remove("selected"));
     e.target.classList.add("selected");
-
-    selectedDifficulty = e.target.dataset.diff; // "Simple" | "Medium" | "Advanced"
+    selectedDifficulty = e.target.dataset.diff;
     startBtn.disabled = false;
   };
 });
 
-/* --------------------------
-   TABLE NAME BUILDER (MATCHES BACKEND)
---------------------------- */
+/* -------------------------- */
 function buildTableName(chapter){
   let chapterSlug = tr(chapter || "")
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g," ")
     .replace(/\s+/g," ")
     .trim();
-
   const skip = ["as","of","the","a","an","in","on","for","to","ki","ke","ka"];
   const words = chapterSlug.split(" ");
   const filtered = words.filter(w => !skip.includes(w));
-
   const first = filtered[0] || words[0] || "ch";
   const last  = filtered[filtered.length-1] || words[words.length-1] || "x";
-
   let subjectSlug = tr(subject)
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g," ")
     .replace(/\s+/g," ")
     .trim()
     .split(" ")[0] || "subject";
-
   return `${subjectSlug}_${first}_${last}_${CLASS_ID}_quiz`;
 }
 
-/* --------------------------
-   START QUIZ — FULL META
---------------------------- */
-startBtn.onclick = ()=>{
+/* -------------------------- */
+startBtn.onclick = () => {
 
   if(!selectedBook || !selectedChapter || !selectedDifficulty){
     errorMsg.textContent = "Please select Book, Chapter & Difficulty.";
@@ -213,11 +193,15 @@ startBtn.onclick = ()=>{
     subject,
     book: selectedBook,
     chapter: selectedChapter,
-    difficulty: selectedDifficulty,  // "Simple" | "Medium" | "Advanced"
+    difficulty: selectedDifficulty,
     table
   });
 
-  location.href = `quiz-engine.html?${params.toString()}`;
+  // 🔥 CLASS-WISE + GLOBAL TRIAL CHECK
+  checkAndStartQuiz(CLASS_ID, () => {
+    location.href = `quiz-engine.html?${params.toString()}`;
+  });
+
 };
 
 renderBooks();
