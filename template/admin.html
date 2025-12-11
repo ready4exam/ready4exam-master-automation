@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Ready4Exam Admin Panel</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: { extend: { colors: { primary: "#1a3e6a" } } }
+  }
+</script>
+</head>
+
+<body class="bg-gray-100 min-h-screen p-8">
+  <div class="max-w-3xl mx-auto bg-white p-8 rounded-xl shadow-lg">
+    <h1 class="text-3xl font-bold text-primary mb-6 text-center">Ready4Exam Admin Panel</h1>
+
+    <!-- SEARCH -->
+    <div class="mb-6">
+      <label class="font-semibold">Search User by Email</label>
+      <div class="flex gap-3 mt-2">
+        <input id="email-input" class="px-4 py-2 border rounded w-full" placeholder="Enter email">
+        <button id="search-btn" class="bg-primary text-white px-4 py-2 rounded">Search</button>
+      </div>
+    </div>
+
+    <!-- USER INFO -->
+    <div id="user-info" class="hidden border rounded p-6 bg-gray-50 mb-6">
+      <h2 class="text-xl font-bold mb-4">User Details</h2>
+
+      <p><b>Email:</b> <span id="ui-email"></span></p>
+      <p><b>UID:</b> <span id="ui-uid"></span></p>
+
+      <div class="mt-4">
+        <label class="font-semibold">Role:</label>
+        <select id="role-select" class="ml-2 border rounded px-2 py-1">
+          <option value="student">Student</option>
+          <option value="school">School</option>
+        </select>
+      </div>
+
+      <div class="mt-4">
+        <h3 class="font-semibold mb-2">Classes (6–12)</h3>
+        <div id="class-checkboxes" class="grid grid-cols-4 gap-3"></div>
+      </div>
+
+      <div class="mt-4">
+        <h3 class="font-semibold mb-2">Streams</h3>
+        <label class="mr-4"><input type="checkbox" id="stream-science"> Science</label>
+        <label class="mr-4"><input type="checkbox" id="stream-commerce"> Commerce</label>
+        <label class="mr-4"><input type="checkbox" id="stream-arts"> Arts</label>
+      </div>
+
+      <button id="update-btn" class="mt-6 bg-green-600 text-white px-6 py-2 rounded">Update User</button>
+    </div>
+
+    <!-- STATUS -->
+    <div id="status" class="text-center mt-4"></div>
+
+  </div>
+
+<script type="module" src="./admin.js"></script>
+</body>
+</html>
