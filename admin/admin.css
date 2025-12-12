@@ -1,0 +1,37 @@
+/* admin.css - small utility styles for admin panel */
+
+/* modal backdrop & centering */
+.modal-backdrop {
+  display: none; /* hidden by default; admin.js toggles display to 'flex' when showing */
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.6);
+  z-index: 60;
+  padding: 20px;
+}
+
+/* ensure modal inner box scrolls on small screens */
+.modal-backdrop > div {
+  max-height: 90vh;
+  overflow: auto;
+}
+
+/* show the modal when not hidden */
+.modal-backdrop[style*="display: flex"] {
+  display: flex;
+}
+
+/* minor table tweaks */
+.table-wrap table th, .table-wrap table td {
+  white-space: nowrap;
+}
+
+/* toast */
+#toast.hidden { display: none; }
+#toast { display: block; opacity: 0.95; }
+
+/* small responsive tweak */
+@media (max-width: 640px) {
+  .table-wrap { max-height: 50vh; }
+  #adminDashboard { padding: 10px; }
+}
