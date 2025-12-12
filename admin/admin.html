@@ -1,85 +1,169 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Ready4Exam Admin Panel</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+<meta charset="UTF-8" />
+<title>Ready4Exam — Admin Panel</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
 
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          fontFamily: { sans: ["Inter", "sans-serif"] },
-        }
-      }
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        background: #f5f7fb;
+        margin: 0;
+        padding: 0;
     }
-  </script>
+
+    .topbar {
+        background: #1d4ed8;
+        color: white;
+        padding: 15px 25px;
+        font-size: 22px;
+        font-weight: bold;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .logoutBtn {
+        background: #ef4444;
+        padding: 8px 18px;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        display: none;
+        font-size: 14px;
+    }
+
+    .container {
+        max-width: 900px;
+        margin: 40px auto;
+        background: white;
+        padding: 30px;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px #00000020;
+    }
+
+    h2 {
+        text-align: center;
+        color: #1d4ed8;
+    }
+
+    .btn {
+        display: block;
+        margin: 15px auto;
+        padding: 12px 20px;
+        font-size: 16px;
+        background: #1d4ed8;
+        color: white;
+        border-radius: 8px;
+        cursor: pointer;
+        border: none;
+    }
+
+    .error {
+        text-align: center;
+        color: #e11d48;
+        margin-top: 10px;
+        font-weight: bold;
+    }
+
+    .grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 14px;
+        margin-top: 20px;
+    }
+
+    .sectionTitle {
+        font-size: 18px;
+        font-weight: bold;
+        margin-top: 20px;
+        margin-bottom: 10px;
+        color: #1f2937;
+    }
+
+    .inputBox {
+        width: 100%;
+        padding: 10px;
+        margin-top: 8px;
+        font-size: 16px;
+        border-radius: 6px;
+        border: 1px solid #cbd5e1;
+    }
+
+    #adminDashboard {
+        display: none;
+    }
+
+    .saveBtn {
+        background: #059669;
+        padding: 15px;
+        font-size: 18px;
+        color: white;
+        border: none;
+        border-radius: 10px;
+        width: 100%;
+        cursor: pointer;
+        margin-top: 30px;
+    }
+</style>
 </head>
 
-<body class="bg-gray-100 min-h-screen p-6 font-sans">
+<body>
 
-  <div class="max-w-5xl mx-auto">
+<div class="topbar">
+    <div>Ready4Exam — Admin Panel</div>
+    <button id="logoutBtn" class="logoutBtn">Logout</button>
+</div>
 
-    <!-- HEADER -->
-    <div class="bg-white p-5 rounded-lg shadow flex justify-between items-center mb-6">
-      <h1 class="text-2xl font-bold text-blue-700">Ready4Exam — Admin Panel</h1>
-      <button id="logoutBtn" class="px-4 py-2 bg-red-500 text-white rounded">Logout</button>
+<!-- LOGIN SCREEN -->
+<div id="loginScreen" class="container">
+    <h2>Admin Login</h2>
+
+    <button id="googleLoginBtn" class="btn">Sign in with Google</button>
+
+    <div id="loginError" class="error"></div>
+</div>
+
+
+<!-- ADMIN DASHBOARD -->
+<div id="adminDashboard" class="container">
+
+    <h2>Manage User Access</h2>
+
+    <div class="sectionTitle">Search User by Email</div>
+    <input id="emailInput" type="email" placeholder="example@gmail.com" class="inputBox">
+
+    <button id="loadUserBtn" class="btn">Load User</button>
+
+    <label class="sectionTitle">User UID</label>
+    <input id="uidBox" class="inputBox" readonly>
+
+    <!-- Classes -->
+    <div class="sectionTitle">Paid Classes</div>
+    <div class="grid">
+        <label><input type="checkbox" id="class6"> Class 6</label>
+        <label><input type="checkbox" id="class7"> Class 7</label>
+        <label><input type="checkbox" id="class8"> Class 8</label>
+        <label><input type="checkbox" id="class9"> Class 9</label>
+        <label><input type="checkbox" id="class10"> Class 10</label>
+        <label><input type="checkbox" id="class11"> Class 11</label>
+        <label><input type="checkbox" id="class12"> Class 12</label>
     </div>
 
-    <!-- LOGIN SCREEN -->
-    <div id="loginScreen" class="text-center mt-20">
-      <h2 class="text-xl font-semibold mb-4">Admin Login</h2>
-      <button id="googleLoginBtn"
-        class="px-5 py-3 bg-blue-600 text-white rounded shadow hover:bg-blue-700">
-        Sign in with Google
-      </button>
-      <p id="loginError" class="mt-3 text-red-600 hidden"></p>
+    <!-- Streams -->
+    <div class="sectionTitle">Streams (Class 11–12)</div>
+    <div class="grid">
+        <label><input type="checkbox" id="arts"> Arts</label>
+        <label><input type="checkbox" id="commerce"> Commerce</label>
+        <label><input type="checkbox" id="science"> Science</label>
     </div>
 
-    <!-- ADMIN DASHBOARD -->
-    <div id="adminDashboard" class="hidden">
+    <button id="saveBtn" class="saveBtn">Save Changes</button>
 
-      <div class="bg-white p-5 rounded-lg shadow mb-6">
-        <h2 class="text-xl font-semibold mb-3 text-gray-700">Registered Users</h2>
-        <p class="text-sm mb-4 text-gray-600">Click a user to edit their access.</p>
-        <div id="userList" class="space-y-2"></div>
-      </div>
+</div>
 
-      <!-- USER EDIT PANEL -->
-      <div id="editPanel" class="hidden bg-white p-6 rounded-lg shadow">
-        <h3 class="text-lg font-bold text-blue-700 mb-4">Edit User</h3>
-
-        <p class="mb-2"><strong>Email:</strong> <span id="ep_email"></span></p>
-        <p class="mb-4"><strong>Signup Date:</strong> <span id="ep_signup"></span></p>
-
-        <hr class="my-4">
-
-        <h4 class="font-semibold mb-2">Paid Classes</h4>
-        <div id="paidClassesBox" class="flex flex-wrap gap-3 mb-4"></div>
-
-        <h4 class="font-semibold mb-2">Streams (Class 11–12)</h4>
-        <div class="flex gap-4 mb-4">
-          <label><input type="checkbox" id="stream_science"> Science</label>
-          <label><input type="checkbox" id="stream_commerce"> Commerce</label>
-          <label><input type="checkbox" id="stream_arts"> Arts</label>
-        </div>
-
-        <h4 class="font-semibold mb-2">Role</h4>
-        <select id="roleSelect" class="border p-2 rounded">
-          <option value="student">student</option>
-          <option value="school_admin">school_admin</option>
-        </select>
-
-        <div class="mt-6 flex gap-4">
-          <button id="saveBtn" class="px-4 py-2 bg-green-600 text-white rounded">Save</button>
-          <button id="cancelBtn" class="px-4 py-2 bg-gray-400 text-white rounded">Cancel</button>
-        </div>
-      </div>
-
-    </div>
-
-  </div>
-
-  <script type="module" src="./admin.js"></script>
+<script type="module" src="./admin.js"></script>
 </body>
 </html>
