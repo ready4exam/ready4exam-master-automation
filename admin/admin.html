@@ -1,93 +1,100 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Ready4Exam — Admin Panel</title>
-  <style>
-    body { 
-      font-family: Arial, sans-serif;
-      background: #f5f5f5;
-      margin: 0;
-      padding: 0;
-    }
+    <meta charset="UTF-8" />
+    <title>Ready4Exam — Admin Panel</title>
 
-    header {
-      background: #007bff;
-      color: white;
-      padding: 15px;
-      font-size: 22px;
-    }
+    <style>
+        body { font-family: Arial; background: #f0f2f5; margin: 0; }
 
-    #logoutBtn {
-      float: right;
-      background: red;
-      color: white;
-      padding: 8px 15px;
-      border-radius: 6px;
-      cursor: pointer;
-      border: none;
-      font-size: 16px;
-      display: none;
-    }
+        #topBar {
+            background: #007bff;
+            padding: 14px 22px;
+            font-size: 22px;
+            color: white;
+            display: flex;
+            justify-content: space-between;
+        }
 
-    #loginScreen, #adminDashboard {
-      margin: 40px auto;
-      width: 60%;
-      background: white;
-      padding: 30px;
-      border-radius: 10px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
-    }
+        #logoutBtn {
+            padding: 8px 14px;
+            background: red;
+            border: none;
+            color: white;
+            border-radius: 6px;
+            cursor: pointer;
+            display: none;
+        }
 
-    .userCard {
-      padding: 15px;
-      margin-bottom: 20px;
-      background: #fafafa;
-      border-radius: 8px;
-      border: 1px solid #ddd;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
+        #loginScreen, #adminDashboard {
+            width: 100%;
+            display: none;
+            padding-top: 60px;
+            text-align: center;
+        }
 
-    .toggleBtn {
-      background: #007bff;
-      color: white;
-      padding: 10px;
-      border-radius: 6px;
-      border: none;
-      cursor: pointer;
-    }
+        #googleLoginBtn {
+            padding: 12px 20px;
+            background: #4285F4;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
 
-    #loginError {
-      color: red;
-      margin-top: 10px;
-    }
-  </style>
+        #userList {
+            margin: 30px auto;
+            width: 70%;
+        }
+
+        .userCard {
+            background: white;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            box-shadow: 0 0 6px rgba(0,0,0,0.1);
+        }
+
+        .toggleBtn {
+            padding: 8px 14px;
+            background: #28a745;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        #loginError {
+            color: red;
+            margin-top: 10px;
+        }
+    </style>
 </head>
 
 <body>
 
-<header>
-  Ready4Exam — Admin Panel
-  <button id="logoutBtn">Logout</button>
-</header>
+<div id="topBar">
+    Ready4Exam — Admin Panel
+    <button id="logoutBtn">Logout</button>
+</div>
 
 <!-- LOGIN SCREEN -->
 <div id="loginScreen">
-  <h2>Admin Login</h2>
-  <button id="googleLoginBtn" style="padding:12px 20px;font-size:16px;">Sign in with Google</button>
-  <div id="loginError"></div>
+    <h2>Admin Login</h2>
+    <button id="googleLoginBtn">Sign in with Google</button>
+    <div id="loginError"></div>
 </div>
 
 <!-- ADMIN DASHBOARD -->
-<div id="adminDashboard" style="display:none;">
-  <h2>Admin Dashboard</h2>
-  <h3>Users</h3>
-  <div id="userList"></div>
+<div id="adminDashboard">
+    <h2>Admin Dashboard</h2>
+    <h3>Users</h3>
+    <div id="userList"></div>
 </div>
 
 <script type="module" src="admin.js"></script>
-
 </body>
 </html>
