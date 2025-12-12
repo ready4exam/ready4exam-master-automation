@@ -1,12 +1,8 @@
 // ------------------------------------------------------------
-// Ready4Exam — FINAL ADMIN PANEL SCRIPT
+// Ready4Exam — FINAL ADMIN PANEL SCRIPT (MATCHED WITH RULES)
 // ------------------------------------------------------------
 
-// ------------------------------------------------------------
-// Firebase Initialization (YOUR REAL CONFIG)
-// ------------------------------------------------------------
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
-
 import {
   getAuth,
   GoogleAuthProvider,
@@ -14,7 +10,6 @@ import {
   signOut,
   onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
-
 import {
   getFirestore,
   collection,
@@ -23,6 +18,9 @@ import {
   updateDoc
 } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
 
+// ------------------------------------------------------------
+// FIREBASE CONFIG (FINAL)
+// ------------------------------------------------------------
 const firebaseConfig = {
   apiKey: "AIzaSyAXdKiYRxBKAj280YcNuNwlKKDp85xpOWQ",
   authDomain: "quiz-signon.firebaseapp.com",
@@ -37,7 +35,7 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 
 // ------------------------------------------------------------
-// ONLY THESE EMAILS CAN ACCESS ADMIN PANEL
+// ADMIN EMAILS (SYNCED WITH FIRESTORE RULES)
 // ------------------------------------------------------------
 const ADMIN_EMAILS = [
   "keshav.karn@gmail.com",
@@ -46,8 +44,7 @@ const ADMIN_EMAILS = [
 
 function isAdmin(user) {
   if (!user) return false;
-  const email = user.email.toLowerCase().trim();
-  return ADMIN_EMAILS.map(e => e.toLowerCase().trim()).includes(email);
+  return ADMIN_EMAILS.includes(user.email.toLowerCase());
 }
 
 // ------------------------------------------------------------
@@ -61,21 +58,21 @@ const logoutBtn = document.getElementById("logoutBtn");
 const userList = document.getElementById("userList");
 
 // ------------------------------------------------------------
-// Google Login
+// LOGIN WITH POPUP
 // ------------------------------------------------------------
 const provider = new GoogleAuthProvider();
 
 googleLoginBtn.onclick = async () => {
   try {
     await signInWithPopup(auth, provider);
-  } catch (err) {
-    console.error("Login failed:", err);
+  } catch (e) {
+    console.error("Login failed:", e);
     loginError.textContent = "Login failed.";
   }
 };
 
 // ------------------------------------------------------------
-// Logout
+// LOGOUT
 // ------------------------------------------------------------
 logoutBtn.onclick = () => signOut(auth);
 
@@ -84,15 +81,12 @@ logoutBtn.onclick = () => signOut(auth);
 // ------------------------------------------------------------
 onAuthStateChanged(auth, async (user) => {
   if (!user) {
-    // Not logged in
     loginScreen.style.display = "block";
     adminDashboard.style.display = "none";
     logoutBtn.style.display = "none";
-    loginError.textContent = "";
     return;
   }
 
-  // Admin validation
   if (!isAdmin(user)) {
     loginError.textContent = "You are not an admin.";
     loginScreen.style.display = "block";
@@ -101,7 +95,6 @@ onAuthStateChanged(auth, async (user) => {
     return;
   }
 
-  // Admin authenticated
   loginScreen.style.display = "none";
   adminDashboard.style.display = "block";
   logoutBtn.style.display = "block";
@@ -110,46 +103,45 @@ onAuthStateChanged(auth, async (user) => {
 });
 
 // ------------------------------------------------------------
-// LOAD USERS FROM FIRESTORE
+// LOAD USERS
 // ------------------------------------------------------------
 async function loadUsers() {
-  const snap = await getDocs(collection(db, "users"));
   userList.innerHTML = "";
+  const snap = await getDocs(collection(db, "users"));
 
   snap.forEach((docSnap) => {
     const data = docSnap.data();
     const uid = docSnap.id;
 
-    const div = document.createElement("div");
-    div.className = "userCard";
+    const card = document.createElement("div");
+    card.className = "userCard";
 
-    div.innerHTML = `
+    card.innerHTML = `
       <div>
         <strong>${data.email || "(no email)"}</strong><br>
         Paid Classes: ${JSON.stringify(data.paidClasses)}<br>
         Streams: ${JSON.stringify(data.streams)}
       </div>
-      <button class="toggleBtn">Toggle Paid (Class 12)</button>
+      <button class="toggleBtn">Toggle Class 12</button>
     `;
 
-    div.querySelector(".toggleBtn").onclick = () =>
+    card.querySelector(".toggleBtn").onclick = () =>
       togglePaid(uid, data);
 
-    userList.appendChild(div);
+    userList.appendChild(card);
   });
 }
 
 // ------------------------------------------------------------
-// TOGGLE PAID CLASS ACCESS (EXAMPLE: CLASS 12)
+// TOGGLE PAID CLASS (Example Class: 12)
 // ------------------------------------------------------------
 async function togglePaid(uid, data) {
-  const newState = !data.paidClasses?.["12"];
+  const updatedValue = !data.paidClasses["12"];
 
-  const ref = doc(db, "users", uid);
-  await updateDoc(ref, {
+  await updateDoc(doc(db, "users", uid), {
     paidClasses: {
       ...data.paidClasses,
-      12: newState
+      12: updatedValue
     }
   });
 
