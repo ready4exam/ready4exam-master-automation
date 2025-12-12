@@ -1,26 +1,12 @@
-// ------------------------------------------------------------
-// Ready4Exam — FINAL ADMIN PANEL SCRIPT (MATCHED WITH RULES)
-// ------------------------------------------------------------
-
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
 import {
-  getAuth,
-  GoogleAuthProvider,
-  signInWithPopup,
-  signOut,
-  onAuthStateChanged
+  getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
 import {
-  getFirestore,
-  collection,
-  getDocs,
-  doc,
-  updateDoc
+  getFirestore, collection, getDocs, doc, updateDoc
 } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
 
-// ------------------------------------------------------------
-// FIREBASE CONFIG (FINAL)
-// ------------------------------------------------------------
+
 const firebaseConfig = {
   apiKey: "AIzaSyAXdKiYRxBKAj280YcNuNwlKKDp85xpOWQ",
   authDomain: "quiz-signon.firebaseapp.com",
@@ -34,9 +20,10 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// ------------------------------------------------------------
-// ADMIN EMAILS (SYNCED WITH FIRESTORE RULES)
-// ------------------------------------------------------------
+
+// -----------------------------------------
+// ADMIN EMAILS
+// -----------------------------------------
 const ADMIN_EMAILS = [
   "keshav.karn@gmail.com",
   "ready4urexam@gmail.com"
@@ -44,12 +31,14 @@ const ADMIN_EMAILS = [
 
 function isAdmin(user) {
   if (!user) return false;
-  return ADMIN_EMAILS.includes(user.email.toLowerCase());
+  const email = user.email.toLowerCase().trim();
+  return ADMIN_EMAILS.includes(email);
 }
 
-// ------------------------------------------------------------
+
+// -----------------------------------------
 // UI ELEMENTS
-// ------------------------------------------------------------
+// -----------------------------------------
 const loginScreen = document.getElementById("loginScreen");
 const adminDashboard = document.getElementById("adminDashboard");
 const loginError = document.getElementById("loginError");
@@ -57,28 +46,31 @@ const googleLoginBtn = document.getElementById("googleLoginBtn");
 const logoutBtn = document.getElementById("logoutBtn");
 const userList = document.getElementById("userList");
 
-// ------------------------------------------------------------
-// LOGIN WITH POPUP
-// ------------------------------------------------------------
+
+// -----------------------------------------
+// LOGIN
+// -----------------------------------------
 const provider = new GoogleAuthProvider();
 
 googleLoginBtn.onclick = async () => {
   try {
     await signInWithPopup(auth, provider);
-  } catch (e) {
-    console.error("Login failed:", e);
+  } catch (err) {
+    console.error("Popup login failed:", err);
     loginError.textContent = "Login failed.";
   }
 };
 
-// ------------------------------------------------------------
+
+// -----------------------------------------
 // LOGOUT
-// ------------------------------------------------------------
+// -----------------------------------------
 logoutBtn.onclick = () => signOut(auth);
 
-// ------------------------------------------------------------
-// AUTH STATE LISTENER
-// ------------------------------------------------------------
+
+// -----------------------------------------
+// AUTH STATE
+// -----------------------------------------
 onAuthStateChanged(auth, async (user) => {
   if (!user) {
     loginScreen.style.display = "block";
@@ -102,12 +94,13 @@ onAuthStateChanged(auth, async (user) => {
   loadUsers();
 });
 
-// ------------------------------------------------------------
+
+// -----------------------------------------
 // LOAD USERS
-// ------------------------------------------------------------
+// -----------------------------------------
 async function loadUsers() {
-  userList.innerHTML = "";
   const snap = await getDocs(collection(db, "users"));
+  userList.innerHTML = "";
 
   snap.forEach((docSnap) => {
     const data = docSnap.data();
@@ -122,7 +115,7 @@ async function loadUsers() {
         Paid Classes: ${JSON.stringify(data.paidClasses)}<br>
         Streams: ${JSON.stringify(data.streams)}
       </div>
-      <button class="toggleBtn">Toggle Class 12</button>
+      <button class="toggleBtn">Toggle Paid (Class 12)</button>
     `;
 
     card.querySelector(".toggleBtn").onclick = () =>
@@ -132,16 +125,17 @@ async function loadUsers() {
   });
 }
 
-// ------------------------------------------------------------
-// TOGGLE PAID CLASS (Example Class: 12)
-// ------------------------------------------------------------
+
+// -----------------------------------------
+// TOGGLE PAID CLASS
+// -----------------------------------------
 async function togglePaid(uid, data) {
-  const updatedValue = !data.paidClasses["12"];
+  const newValue = !data.paidClasses?.["12"];
 
   await updateDoc(doc(db, "users", uid), {
     paidClasses: {
       ...data.paidClasses,
-      12: updatedValue
+      12: newValue
     }
   });
 
