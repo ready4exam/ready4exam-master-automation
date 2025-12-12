@@ -73,7 +73,12 @@
 <script type="module">
 import curriculum from "./js/curriculum.js";
 import { transliterate as tr } from "https://cdn.jsdelivr.net/npm/transliteration/+esm";
-import { ensureUserDocExists } from "./js/firebase-expiry.js";   // ✅ ADDED
+
+import { 
+  ensureUserDocExists, 
+  checkClassAccess, 
+  showExpiredPopup 
+} from "./js/firebase-expiry.js";
 
 const CLASS_ID = "{{CLASS}}";
 const subject  = new URLSearchParams(location.search).get("subject") || "";
@@ -196,11 +201,11 @@ function buildTableName(chapter){
 }
 
 /* --------------------------
-   START QUIZ — WITH AUTO DOC CREATION
+   START QUIZ — WITH ACCESS CHECK
 --------------------------- */
-startBtn.onclick = async ()=>{
+startBtn.onclick = async () => {
 
-  await ensureUserDocExists();        // ✅ ADDED — SAFE & REQUIRED
+  await ensureUserDocExists();
 
   if(!selectedBook || !selectedChapter || !selectedDifficulty){
     errorMsg.textContent = "Please select Book, Chapter & Difficulty.";
@@ -208,6 +213,21 @@ startBtn.onclick = async ()=>{
     return;
   }
 
+  // ⭐ For Class 11 / 12 — stream required
+  let stream = null;
+  if (CLASS_ID === "11" || CLASS_ID === "12") {
+    stream = new URLSearchParams(location.search).get("stream") || "science";
+  }
+
+  // ⭐ Unified access logic (same as quiz-engine)
+  const access = await checkClassAccess(CLASS_ID, stream);
+
+  if (!access.allowed) {
+    showExpiredPopup(access.reason);
+    return;
+  }
+
+  // ⭐ Continue to quiz (unchanged)
   const table = buildTableName(selectedChapter);
 
   const params = new URLSearchParams({
@@ -216,7 +236,8 @@ startBtn.onclick = async ()=>{
     book: selectedBook,
     chapter: selectedChapter,
     difficulty: selectedDifficulty,
-    table
+    table,
+    ...(stream ? { stream } : {})
   });
 
   location.href = `quiz-engine.html?${params.toString()}`;
