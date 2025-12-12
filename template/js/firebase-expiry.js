@@ -7,48 +7,54 @@
 // - schools bypass trial but follow streams
 // ------------------------------------------------------
 
-import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
 import {
-  getFirestore, doc, getDoc, setDoc, updateDoc
-} from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-import {
-  getAuth
-} from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+  initializeServices,
+  getInitializedClients
+} from "./config.js";
 
-// ------------------------------------------------------
-// FIREBASE CONFIG — AUTO AVAILABLE VIA window.__firebase_config
-// ------------------------------------------------------
-const app = initializeApp(window.__firebase_config);
-const db = getFirestore(app);
-const auth = getAuth(app);
+import {
+  doc, getDoc, setDoc, updateDoc, serverTimestamp
+} from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 // ------------------------------------------------------
 // UTIL: Check if trial expired
 // ------------------------------------------------------
-export function isSignupExpired(signupIso, daysAllowed = 15) {
-  if (!signupIso) return true;
-  const signed = new Date(signupIso);
+export function isSignupExpired(signupDate, daysAllowed = 15) {
+  if (!signupDate) return true;
+
+  let signed;
+  if (signupDate?.toMillis) {
+    signed = new Date(signupDate.toMillis());
+  } else {
+    signed = new Date(signupDate);
+  }
+
   if (Number.isNaN(signed.getTime())) return true;
+
   const expiry = signed.getTime() + daysAllowed * 24 * 60 * 60 * 1000;
   return Date.now() >= expiry;
 }
 
 // ------------------------------------------------------
-// AUTO-CREATE USER DOC (SAFE, NON-DISRUPTIVE)
+// AUTO-CREATE USER DOC
 // ------------------------------------------------------
 export async function ensureUserDocExists() {
+  await initializeServices();
+  const { auth, db } = getInitializedClients();
+
   const user = auth.currentUser;
   if (!user) return;
 
   const ref = doc(db, "users", user.uid);
   const snap = await getDoc(ref);
 
-  // already exists → ensure mandatory fields exist
+  // Exists → patch missing fields
   if (snap.exists()) {
     const data = snap.data();
     const patch = {};
 
-    if (!data.signupDate) patch.signupDate = new Date().toISOString();
+    if (!data.signupDate) patch.signupDate = serverTimestamp();
+    if (!data.role) patch.role = "student";
 
     if (!data.paidClasses) {
       patch.paidClasses = {
@@ -65,18 +71,17 @@ export async function ensureUserDocExists() {
       };
     }
 
-    if (!data.role) patch.role = "student";
-
-    if (Object.keys(patch).length > 0) {
+    if (Object.keys(patch).length) {
       await updateDoc(ref, patch);
     }
-    return;
+
+    return { ...data, ...patch };
   }
 
-  // create new doc
-  await setDoc(ref, {
-    signupDate: new Date().toISOString(),
-    role: "student",               // default until admin changes
+  // Create new doc
+  const newDoc = {
+    signupDate: serverTimestamp(),
+    role: "student",
     paidClasses: {
       "6": false, "7": false, "8": false,
       "9": false, "10": false, "11": false, "12": false
@@ -86,13 +91,16 @@ export async function ensureUserDocExists() {
       commerce: false,
       arts: false
     }
-  });
+  };
+
+  await setDoc(ref, newDoc);
+  return newDoc;
 }
 
 // ------------------------------------------------------
-// POPUP SHOWN WHEN ACCESS IS BLOCKED
+// POPUP for blocked access
 // ------------------------------------------------------
-export function showExpiredPopup(message = "Your access to this class/stream is restricted.") {
+export function showExpiredPopup(message = "Your access is restricted.") {
   if (document.getElementById("r4e-expired-modal")) return;
 
   const wrap = document.createElement("div");
@@ -116,9 +124,12 @@ export function showExpiredPopup(message = "Your access to this class/stream is 
 }
 
 // ------------------------------------------------------
-// MASTER CHECK — class + stream + trial + role
+// MASTER CHECK (class + stream + trial + role)
 // ------------------------------------------------------
 export async function checkClassAccess(classId, stream) {
+  await initializeServices();
+  const { auth, db } = getInitializedClients();
+
   const user = auth.currentUser;
   if (!user) return { allowed: false, reason: "not-signed-in" };
 
@@ -128,60 +139,41 @@ export async function checkClassAccess(classId, stream) {
 
   const data = snap.data();
 
-  // SCHOOL ROLE BYPASS TRIAL (only restricted by streams)
+  // SCHOOL ROLE (bypasses trial)
   if (data.role === "school") {
-    if (data.streams?.[stream] === true) {
-      return { allowed: true };
-    } else {
-      return { allowed: false, reason: `This school does not have access to ${stream} stream.` };
-    }
+    if (data.streams?.[stream]) return { allowed: true };
+    return { allowed: false, reason: `School does not have access to ${stream}` };
   }
 
-  // STUDENT FLOW ---------------------------------------
+  // STUDENT FLOW
+  const expired = isSignupExpired(data.signupDate);
 
-  // 1. TRIAL EXPIRED?
-  if (isSignupExpired(data.signupDate)) {
-    // Allow ONLY paidClasses
-    if (data.paidClasses?.[classId] === true) {
-      // Still check stream
-      if (data.streams?.[stream] === true) {
-        return { allowed: true };
-      } else {
-        return { allowed: false, reason: `Stream (${stream}) not purchased.` };
-      }
+  if (expired) {
+    if (data.paidClasses?.[classId]) {
+      if (data.streams?.[stream]) return { allowed: true };
+      return { allowed: false, reason: `Stream (${stream}) not purchased.` };
     }
     return { allowed: false, reason: "Trial expired. Please purchase access." };
   }
 
-  // 2. STREAM NOT PURCHASED?
-  if (data.streams?.[stream] !== true) {
+  // Trial active → only stream matters
+  if (!data.streams?.[stream]) {
     return { allowed: false, reason: `Stream (${stream}) not purchased.` };
   }
 
-  // 3. CLASS NOT PURCHASED (during trial this is allowed)
-  // After trial ends, paidClasses decides; during trial, free for 15 days.
   return { allowed: true };
 }
 
 // ------------------------------------------------------
-// Combined handler for chapter-selection.html
+// chapter-selection entry point
 // ------------------------------------------------------
 export async function checkAndStartQuiz(startQuizCallback, classId, stream) {
-  const user = auth.currentUser;
-  if (!user) {
-    alert("Please sign in.");
-    return;
-  }
-
   const result = await checkClassAccess(classId, stream);
-
-  if (result.allowed) {
-    startQuizCallback();
-    return;
-  }
-
+  if (result.allowed) return startQuizCallback();
   showExpiredPopup(result.reason || "Access blocked.");
 }
 
 // ------------------------------------------------------
-export { auth, db };
+// Export working clients
+// ------------------------------------------------------
+export const { auth, db } = getInitializedClients();
