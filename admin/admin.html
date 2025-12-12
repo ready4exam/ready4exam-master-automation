@@ -1,100 +1,152 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8" />
-    <title>Ready4Exam — Admin Panel</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Ready4Exam — Admin</title>
 
-    <style>
-        body { font-family: Arial; background: #f0f2f5; margin: 0; }
-
-        #topBar {
-            background: #007bff;
-            padding: 14px 22px;
-            font-size: 22px;
-            color: white;
-            display: flex;
-            justify-content: space-between;
+  <!-- Tailwind CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: { primary: '#0ea5e9', accent: '#06b6d4' },
+          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] }
         }
+      }
+    }
+  </script>
 
-        #logoutBtn {
-            padding: 8px 14px;
-            background: red;
-            border: none;
-            color: white;
-            border-radius: 6px;
-            cursor: pointer;
-            display: none;
-        }
-
-        #loginScreen, #adminDashboard {
-            width: 100%;
-            display: none;
-            padding-top: 60px;
-            text-align: center;
-        }
-
-        #googleLoginBtn {
-            padding: 12px 20px;
-            background: #4285F4;
-            color: white;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            margin-top: 20px;
-        }
-
-        #userList {
-            margin: 30px auto;
-            width: 70%;
-        }
-
-        .userCard {
-            background: white;
-            padding: 15px;
-            margin-bottom: 15px;
-            border-radius: 8px;
-            display: flex;
-            justify-content: space-between;
-            box-shadow: 0 0 6px rgba(0,0,0,0.1);
-        }
-
-        .toggleBtn {
-            padding: 8px 14px;
-            background: #28a745;
-            color: white;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-        }
-
-        #loginError {
-            color: red;
-            margin-top: 10px;
-        }
-    </style>
+  <style>
+    /* small extras */
+    .fade { transition: opacity .15s ease; }
+    .modal-backdrop { background: rgba(15,23,42,0.6); }
+    /* responsive table scroll */
+    .table-wrap { max-height: 60vh; overflow: auto; }
+  </style>
 </head>
+<body class="bg-slate-50 text-slate-800 font-sans">
 
-<body>
+  <!-- Topbar -->
+  <header class="bg-primary text-white p-4 shadow">
+    <div class="max-w-7xl mx-auto flex items-center justify-between">
+      <div class="text-xl font-semibold">Ready4Exam — Admin Dashboard</div>
+      <div class="flex items-center gap-3">
+        <div id="adminEmail" class="text-sm opacity-90"></div>
+        <button id="logoutBtn" class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded">Logout</button>
+      </div>
+    </div>
+  </header>
 
-<div id="topBar">
-    Ready4Exam — Admin Panel
-    <button id="logoutBtn">Logout</button>
-</div>
+  <!-- Main -->
+  <main class="max-w-7xl mx-auto px-4 py-8">
 
-<!-- LOGIN SCREEN -->
-<div id="loginScreen">
-    <h2>Admin Login</h2>
-    <button id="googleLoginBtn">Sign in with Google</button>
-    <div id="loginError"></div>
-</div>
+    <!-- Login card shown when not signed in -->
+    <div id="loginCard" class="max-w-2xl mx-auto bg-white rounded-lg p-8 shadow text-center">
+      <h2 class="text-2xl font-bold mb-4">Admin Login</h2>
+      <p class="mb-6 text-slate-600">Sign in with a Google admin account to manage users.</p>
+      <button id="loginBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg">Sign in with Google</button>
+      <div id="loginError" class="text-sm text-red-600 mt-3"></div>
+    </div>
 
-<!-- ADMIN DASHBOARD -->
-<div id="adminDashboard">
-    <h2>Admin Dashboard</h2>
-    <h3>Users</h3>
-    <div id="userList"></div>
-</div>
+    <!-- Dashboard (hidden until admin) -->
+    <section id="dashboard" class="hidden">
 
-<script type="module" src="admin.js"></script>
+      <!-- Controls -->
+      <div class="bg-white rounded-lg p-4 shadow mb-6 flex flex-col md:flex-row gap-4 md:items-center md:justify-between">
+        <div class="flex gap-3 items-center">
+          <input id="searchInput" placeholder="Search email or uid..." class="px-3 py-2 rounded border w-72" />
+          <select id="filterClass" class="px-3 py-2 rounded border">
+            <option value="">All classes</option>
+            <option value="paid">Paid (any)</option>
+            <option value="unpaid">Unpaid (all)</option>
+          </select>
+
+          <select id="filterStream" class="px-3 py-2 rounded border">
+            <option value="">All streams</option>
+            <option value="science">Science</option>
+            <option value="commerce">Commerce</option>
+            <option value="arts">Arts</option>
+          </select>
+
+          <button id="applyFilters" class="bg-slate-800 text-white px-3 py-2 rounded">Apply</button>
+          <button id="clearFilters" class="px-3 py-2 border rounded">Clear</button>
+        </div>
+
+        <div class="flex gap-2 items-center">
+          <div class="text-sm text-slate-600">Page size</div>
+          <select id="pageSize" class="px-2 py-1 border rounded">
+            <option>25</option><option selected>50</option><option>100</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Users table -->
+      <div class="bg-white rounded-lg shadow p-4">
+        <div class="table-wrap">
+          <table class="min-w-full text-sm">
+            <thead class="bg-slate-50 sticky top-0">
+              <tr>
+                <th class="text-left px-4 py-3">Email</th>
+                <th class="text-left px-4 py-3">UID</th>
+                <th class="text-left px-4 py-3">Signup</th>
+                <th class="text-left px-4 py-3">Paid Classes</th>
+                <th class="text-left px-4 py-3">Streams</th>
+                <th class="px-4 py-3">Action</th>
+              </tr>
+            </thead>
+            <tbody id="usersTbody" class="divide-y"></tbody>
+          </table>
+        </div>
+
+        <!-- Pagination -->
+        <div class="mt-4 flex items-center justify-between">
+          <div>
+            <button id="prevBtn" class="px-3 py-2 bg-white border rounded">Prev</button>
+            <button id="nextBtn" class="px-3 py-2 bg-white border rounded">Next</button>
+          </div>
+          <div id="pageInfo" class="text-sm text-slate-600"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- EDIT MODAL -->
+  <div id="modal" class="fixed inset-0 hidden items-center justify-center modal-backdrop">
+    <div class="bg-white rounded-lg w-full max-w-2xl p-6 shadow-lg transform transition">
+      <h3 id="modalTitle" class="text-xl font-bold mb-4">Edit User</h3>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm text-slate-700 mb-1">Email / UID</label>
+          <div id="modalEmail" class="text-slate-900 mb-2"></div>
+          <label class="block text-sm text-slate-700 mb-1">Signup Date</label>
+          <div id="modalSignup" class="text-slate-700 mb-2"></div>
+        </div>
+
+        <div>
+          <label class="block text-sm text-slate-700 mb-1">Paid Classes</label>
+          <div id="paidClassesContainer" class="flex flex-wrap gap-2"></div>
+        </div>
+      </div>
+
+      <div id="streamsRow" class="mt-4">
+        <label class="block text-sm text-slate-700 mb-1">Streams (11/12 only)</label>
+        <div id="streamsContainer" class="flex gap-3"></div>
+      </div>
+
+      <div class="mt-6 flex justify-end gap-3">
+        <button id="modalCancel" class="px-4 py-2 border rounded">Cancel</button>
+        <button id="modalSave" class="px-4 py-2 bg-green-600 text-white rounded">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast" class="fixed bottom-6 right-6 hidden bg-slate-900 text-white px-4 py-2 rounded shadow"></div>
+
+  <!-- Admin JS -->
+  <script type="module" src="admin.js"></script>
 </body>
 </html>
