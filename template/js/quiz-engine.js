@@ -15,6 +15,12 @@ import {
 import curriculumData from "./curriculum.js";
 import { ensureUserDocExists } from "./firebase-expiry.js";   // ✅ ADDED
 
+// 🔥 NEW (REQUIRED for trial logic)
+import {
+  doc,
+  getDoc
+} from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
 // 🔥 Injected at automation time — DO NOT HARD CODE
 const CLASS_ID = "{{CLASS}}";
 
@@ -182,6 +188,39 @@ async function handleSubmit() {
   UI.updateNavigation?.(0, quizState.questions.length, true);
 }
 
+// ===========================================================
+// 🔥 ADDED — 15-DAY RULE LOGIC
+// ===========================================================
+async function checkUserQuizAccess() {
+  const { auth, firestore } = await initializeServices();
+  const user = auth.currentUser;
+  if (!user) return false;
+
+  const emailLower = (user.email || "").toLowerCase();
+  const ADMIN_EMAILS = ["keshav.karn@gmail.com", "ready4urexam@gmail.com"];
+
+  if (ADMIN_EMAILS.includes(emailLower)) return true;
+
+  const ref = doc(firestore, `users/${user.uid}`);
+  const snap = await getDoc(ref);
+
+  if (!snap.exists()) return true;
+
+  const data = snap.data() || {};
+
+  if (Array.isArray(data.paidClasses) && data.paidClasses.length > 0) {
+    return true;
+  }
+
+  const signup = data.signupDate?.toMillis?.() || 0;
+  const daysPassed = (Date.now() - signup) / (1000 * 60 * 60 * 24);
+
+  return daysPassed <= 15;
+}
+
+// ===========================================================
+// LOAD QUIZ (after access check)
+// ===========================================================
 async function loadQuiz() {
   try {
     UI.showStatus("Fetching questions...");
@@ -200,11 +239,22 @@ async function loadQuiz() {
   }
 }
 
+// ===========================================================
+// AUTH CHANGE HANDLER (patched safely)
+// ===========================================================
 async function onAuthChange(user) {
-  const ok = user && await checkAccess(quizState.topicSlug);
-  ok ? loadQuiz() : UI.showView("paywall-screen");
+  const ok = user && await checkUserQuizAccess();
+
+  if (!ok) {
+    alert("Your 15-day free trial has expired. Please purchase access to continue.");
+    UI.showView("paywall-screen");
+    return;
+  }
+
+  loadQuiz();
 }
 
+// ===========================================================
 function attachDomEvents() {
   document.addEventListener("click", e => {
     const b = e.target.closest("button,a");
@@ -230,7 +280,7 @@ async function init() {
   await initializeServices();
   await initializeAuthListener(onAuthChange);
 
-  await ensureUserDocExists();    // ✅ ADDED — SAFE
+  await ensureUserDocExists();    // SAFE
 
   attachDomEvents();
   UI.hideStatus();
