@@ -40,7 +40,7 @@ const db = getFirestore(app);
 // ------------------------------------------------------------
 // 🔐 Admin emails — ONLY these emails can access dashboard
 // ------------------------------------------------------------
-const ADMIN_EMAILS = ["youremail@gmail.com", "admin@ready4exam.com"];
+const ADMIN_EMAILS = ["ready4urexam@gmail.com", "keshav.karn@gmail.com"];
 
 // ------------------------------------------------------------
 // UI ELEMENTS
