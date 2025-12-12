@@ -1,37 +1,63 @@
-/* admin.css - small utility styles for admin panel */
+/* css/admin.css */
 
-/* modal backdrop & centering */
-.modal-backdrop {
-  display: none; /* hidden by default; admin.js toggles display to 'flex' when showing */
-  align-items: center;
-  justify-content: center;
-  background: rgba(15, 23, 42, 0.6);
-  z-index: 60;
-  padding: 20px;
+/* Tailwind base is used; these are helpers and small overrides */
+
+body { font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; }
+
+.input {
+  width: 100%;
+  padding: .5rem .75rem;
+  border-radius: .5rem;
+  border: 1px solid #e5e7eb;
+  background: white;
+  outline: none;
+  transition: box-shadow .15s ease, border-color .15s ease;
 }
+.input:focus { box-shadow: 0 4px 14px rgba(26,62,106,0.08); border-color: #1a3e6a; }
 
-/* ensure modal inner box scrolls on small screens */
-.modal-backdrop > div {
-  max-height: 90vh;
-  overflow: auto;
+.input-inline { padding: .25rem .5rem; border-radius: .375rem; }
+
+.btn-primary {
+  background: linear-gradient(90deg,#1a3e6a,#173355);
+  color: white;
+  padding: .5rem .9rem;
+  border-radius: .5rem;
+  font-weight: 600;
 }
+.btn-primary:hover { opacity: .95; transform: translateY(-1px); }
 
-/* show the modal when not hidden */
-.modal-backdrop[style*="display: flex"] {
-  display: flex;
+.btn-secondary {
+  background: white;
+  border: 1px solid #e5e7eb;
+  color: #1a3e6a;
+  padding: .45rem .8rem;
+  border-radius: .5rem;
 }
+.btn-secondary:hover { box-shadow: 0 4px 14px rgba(26,62,106,0.06); }
 
-/* minor table tweaks */
-.table-wrap table th, .table-wrap table td {
-  white-space: nowrap;
+.btn-ghost {
+  background: transparent;
+  color: #374151;
+  padding: .45rem .65rem;
+  border-radius: .5rem;
 }
+.btn-ghost:hover { background: #f8fafc; }
 
-/* toast */
-#toast.hidden { display: none; }
-#toast { display: block; opacity: 0.95; }
+/* table small utilities */
+td .email { font-weight: 600; color: #0f172a; }
+td .muted { color: #6b7280; font-size: .9rem; }
 
-/* small responsive tweak */
-@media (max-width: 640px) {
-  .table-wrap { max-height: 50vh; }
-  #adminDashboard { padding: 10px; }
+/* toggle styles */
+.toggle {
+  display:inline-flex;
+  align-items:center;
+  gap:.5rem;
 }
+.switch {
+  width:44px;height:24px;background:#e6e6e6;border-radius:999px;position:relative;cursor:pointer;
+}
+.switch .knob {
+  position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:999px;background:white;box-shadow:0 1px 3px rgba(2,6,23,0.2);transition:all .18s ease;
+}
+.switch.on { background: #16a34a; }
+.switch.on .knob { transform: translateX(20px); }
