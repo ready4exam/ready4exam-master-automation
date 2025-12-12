@@ -12,14 +12,14 @@ import {
   checkAccess, initializeAuthListener,
   signInWithGoogle, signOut
 } from "./auth-paywall.js";
-import curriculumData from "./curriculum.js";
-import { ensureUserDocExists } from "./firebase-expiry.js";   // ✅ ADDED
 
-// 🔥 NEW (REQUIRED for trial logic)
+import curriculumData from "./curriculum.js";
+
 import {
-  doc,
-  getDoc
-} from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+  ensureUserDocExists,
+  checkClassAccess,
+  showExpiredPopup
+} from "./firebase-expiry.js";
 
 // 🔥 Injected at automation time — DO NOT HARD CODE
 const CLASS_ID = "{{CLASS}}";
@@ -70,7 +70,6 @@ function parseUrlParameters() {
 
   const urlClass    = params.get("class")   || CLASS_ID;
   const urlSubject  = params.get("subject") || "";
-  const urlBook     = params.get("book")    || null;
   const urlChapter  = params.get("chapter") || "";
   const urlTable    = params.get("table")   || params.get("topic") || "";
   let   urlDiff     = params.get("difficulty") || "Simple";
@@ -78,9 +77,9 @@ function parseUrlParameters() {
   const allowed = ["Simple","Medium","Advanced"];
   if (!allowed.includes(urlDiff)) urlDiff = "Simple";
 
-  quizState.classId   = urlClass;
-  quizState.subject   = urlSubject;
-  quizState.topicSlug = urlTable;
+  quizState.classId    = urlClass;
+  quizState.subject    = urlSubject;
+  quizState.topicSlug  = urlTable;
   quizState.difficulty = urlDiff;
 
   if (!quizState.topicSlug) {
@@ -89,11 +88,8 @@ function parseUrlParameters() {
 
   if (urlSubject && urlChapter) {
     const chapter = urlChapter.trim();
-    const subject = urlSubject.trim();
-
     const headerTitle =
-      `Class ${quizState.classId}: ${subject} - ${chapter} Worksheet`;
-
+      `Class ${quizState.classId}: ${urlSubject} - ${chapter} Worksheet`;
     UI.updateHeader(headerTitle, quizState.difficulty);
     return;
   }
@@ -174,11 +170,7 @@ async function handleSubmit() {
   };
 
   if (user) {
-    try {
-      await saveResult(result);
-    } catch (e) {
-      console.warn(e);
-    }
+    try { await saveResult(result); } catch (e) {}
   }
 
   quizState.currentQuestionIndex = 0;
@@ -189,37 +181,30 @@ async function handleSubmit() {
 }
 
 // ===========================================================
-// 🔥 ADDED — 15-DAY RULE LOGIC
+// 🔥 UNIFIED ACCESS CHECK (using firebase-expiry.js)
 // ===========================================================
-async function checkUserQuizAccess() {
-  const { auth, firestore } = await initializeServices();
-  const user = auth.currentUser;
+async function verifyQuizAccess(user) {
   if (!user) return false;
 
-  const emailLower = (user.email || "").toLowerCase();
-  const ADMIN_EMAILS = ["keshav.karn@gmail.com", "ready4urexam@gmail.com"];
+  let stream = null;
 
-  if (ADMIN_EMAILS.includes(emailLower)) return true;
-
-  const ref = doc(firestore, `users/${user.uid}`);
-  const snap = await getDoc(ref);
-
-  if (!snap.exists()) return true;
-
-  const data = snap.data() || {};
-
-  if (Array.isArray(data.paidClasses) && data.paidClasses.length > 0) {
-    return true;
+  // ⭐ Class 11 & 12 — stream is required
+  if (quizState.classId === "11" || quizState.classId === "12") {
+    stream = new URLSearchParams(location.search).get("stream") || "science";
   }
 
-  const signup = data.signupDate?.toMillis?.() || 0;
-  const daysPassed = (Date.now() - signup) / (1000 * 60 * 60 * 24);
+  const access = await checkClassAccess(quizState.classId, stream);
 
-  return daysPassed <= 15;
+  if (!access.allowed) {
+    showExpiredPopup(access.reason);
+    return false;
+  }
+
+  return true;
 }
 
 // ===========================================================
-// LOAD QUIZ (after access check)
+// LOAD QUIZ
 // ===========================================================
 async function loadQuiz() {
   try {
@@ -240,13 +225,12 @@ async function loadQuiz() {
 }
 
 // ===========================================================
-// AUTH CHANGE HANDLER (patched safely)
+// AUTH CHANGE HANDLER
 // ===========================================================
 async function onAuthChange(user) {
-  const ok = user && await checkUserQuizAccess();
+  const ok = await verifyQuizAccess(user);
 
   if (!ok) {
-    alert("Your 15-day free trial has expired. Please purchase access to continue.");
     UI.showView("paywall-screen");
     return;
   }
@@ -274,13 +258,14 @@ function attachDomEvents() {
   });
 }
 
+// ===========================================================
 async function init() {
   UI.initializeElements();
   parseUrlParameters();
   await initializeServices();
   await initializeAuthListener(onAuthChange);
 
-  await ensureUserDocExists();    // SAFE
+  await ensureUserDocExists();  // keep user profile normalized
 
   attachDomEvents();
   UI.hideStatus();
