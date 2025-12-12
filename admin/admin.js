@@ -1,134 +1,200 @@
+// -------------------------------------------------------
+// Ready4Exam Admin Panel
+// Secure admin-only management of users
+// -------------------------------------------------------
+
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
 import {
-  getFirestore, doc, getDoc, updateDoc
-} from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-import {
-  getAuth, onAuthStateChanged
+  getAuth,
+  GoogleAuthProvider,
+  signInWithPopup,
+  onAuthStateChanged,
+  signOut
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
-const app = initializeApp(window.__firebase_config);
-const db = getFirestore(app);
+import {
+  getFirestore,
+  collection,
+  getDocs,
+  doc,
+  getDoc,
+  updateDoc
+} from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+// ------------------------------------------------------------
+// 🔥 Firebase config (auto-loaded from /js/config.js style)
+// ------------------------------------------------------------
+const firebaseConfig = {
+  apiKey: "AIzaSyAXdKiYRxBKAj280YcNuNwlKKDp85xpOWQ",
+  authDomain: "quiz-signon.firebaseapp.com",
+  projectId: "quiz-signon",
+  storageBucket: "quiz-signon.appspot.com",
+  messagingSenderId: "863414222321",
+  appId: "1:863414222321:web:819f5564825308bcd9d850",
+};
+
+const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
+const db = getFirestore(app);
 
-// -------------------------------------------------------------------
-// ADMIN EMAIL ALLOWLIST (SAFE & SIMPLE)
-// -------------------------------------------------------------------
-const ADMIN_EMAILS = [
-  "youremail@gmail.com",     // TODO: Replace with your email
-  "admin@ready4exam.com"
-];
+// ------------------------------------------------------------
+// 🔐 Admin emails — ONLY these emails can access dashboard
+// ------------------------------------------------------------
+const ADMIN_EMAILS = ["youremail@gmail.com", "admin@ready4exam.com"];
 
-// -------------------------------------------------------------------
-function qs(id){ return document.getElementById(id); }
+// ------------------------------------------------------------
+// UI ELEMENTS
+// ------------------------------------------------------------
+const loginScreen = document.getElementById("loginScreen");
+const adminDashboard = document.getElementById("adminDashboard");
+const loginError = document.getElementById("loginError");
+const userListBox = document.getElementById("userList");
 
-// Build classes 6–12 checkboxes
-const classContainer = qs("class-checkboxes");
-for (let c = 6; c <= 12; c++) {
-  const box = document.createElement("label");
-  box.innerHTML = `
-    <input type="checkbox" class="clsbox" data-class="${c}"> Class ${c}
-  `;
-  classContainer.appendChild(box);
+const editPanel = document.getElementById("editPanel");
+const ep_email = document.getElementById("ep_email");
+const ep_signup = document.getElementById("ep_signup");
+const paidClassesBox = document.getElementById("paidClassesBox");
+const stream_science = document.getElementById("stream_science");
+const stream_commerce = document.getElementById("stream_commerce");
+const stream_arts = document.getElementById("stream_arts");
+const roleSelect = document.getElementById("roleSelect");
+
+// Buttons
+document.getElementById("googleLoginBtn").onclick = loginAdmin;
+document.getElementById("logoutBtn").onclick = () => signOut(auth);
+document.getElementById("cancelBtn").onclick = () => editPanel.classList.add("hidden");
+document.getElementById("saveBtn").onclick = saveUserChanges;
+
+let selectedUID = null;
+
+// ------------------------------------------------------------
+// LOGIN FLOW
+// ------------------------------------------------------------
+async function loginAdmin() {
+  const provider = new GoogleAuthProvider();
+  provider.setCustomParameters({ prompt: "select_account" });
+
+  try {
+    await signInWithPopup(auth, provider);
+  } catch (e) {
+    loginError.textContent = "Login failed";
+    loginError.classList.remove("hidden");
+  }
 }
 
-let currentUID = null;
-let currentUserDoc = null;
-
-// -------------------------------------------------------------------
-// AUTH PROTECTION
-// -------------------------------------------------------------------
-onAuthStateChanged(auth, user => {
-  if (!user || !ADMIN_EMAILS.includes(user.email)) {
-    alert("Access denied. Admins only.");
-    location.href = "index.html";
+// ------------------------------------------------------------
+// AUTH STATE CHANGE
+// ------------------------------------------------------------
+onAuthStateChanged(auth, (user) => {
+  if (!user) {
+    loginScreen.classList.remove("hidden");
+    adminDashboard.classList.add("hidden");
+    return;
   }
+
+  if (!ADMIN_EMAILS.includes(user.email)) {
+    loginError.textContent = "You are not an admin.";
+    loginError.classList.remove("hidden");
+    signOut(auth);
+    return;
+  }
+
+  loginScreen.classList.add("hidden");
+  adminDashboard.classList.remove("hidden");
+  loadUsers();
 });
 
-// -------------------------------------------------------------------
-// SEARCH USER
-// -------------------------------------------------------------------
-qs("search-btn").onclick = async () => {
-  const email = qs("email-input").value.trim();
-  if (!email) return alert("Enter an email.");
+// ------------------------------------------------------------
+// LOAD USERS
+// ------------------------------------------------------------
+async function loadUsers() {
+  userListBox.innerHTML = "Loading users…";
 
-  qs("status").innerHTML = "Searching...";
+  const usersRef = collection(db, "users");
+  const snap = await getDocs(usersRef);
 
-  // Step 1: find Firebase Auth UID using Firestore index
-  // (We assume you store user emails in quiz_scores or users collection)
-  
-  // Option 1: users collection contains email field
-  // If not, you must add it — recommended.
-  
-  let uid = null;
+  userListBox.innerHTML = "";
 
-  const usersCol = doc(db, "email_to_uid", email); // simple manual index option
-  const snapIndex = await getDoc(usersCol);
-  if (snapIndex.exists()) {
-    uid = snapIndex.data().uid;
-  } else {
-    qs("status").innerHTML = "❌ Email not found.";
-    return;
-  }
+  snap.forEach(docSnap => {
+    const data = docSnap.data();
 
-  // Step 2: load user doc
+    const div = document.createElement("div");
+    div.className = "p-3 bg-gray-200 rounded cursor-pointer hover:bg-gray-300";
+    div.textContent = data.email || docSnap.id;
+    div.onclick = () => openEditor(docSnap.id);
+
+    userListBox.appendChild(div);
+  });
+}
+
+// ------------------------------------------------------------
+// OPEN EDITOR
+// ------------------------------------------------------------
+async function openEditor(uid) {
+  selectedUID = uid;
+
   const ref = doc(db, "users", uid);
   const snap = await getDoc(ref);
+  if (!snap.exists()) return;
 
-  if (!snap.exists()) {
-    qs("status").innerHTML = "❌ User document missing.";
-    return;
+  const d = snap.data();
+
+  ep_email.textContent = d.email || uid;
+  ep_signup.textContent = d.signupDate || "-";
+
+  // Paid classes
+  paidClassesBox.innerHTML = "";
+  for (let cls = 6; cls <= 12; cls++) {
+    let chk = document.createElement("input");
+    chk.type = "checkbox";
+    chk.dataset.cls = cls;
+    chk.checked = d.paidClasses?.[cls] || false;
+
+    let lbl = document.createElement("label");
+    lbl.className = "flex gap-2 items-center bg-gray-100 py-1 px-2 rounded";
+    lbl.appendChild(chk);
+    lbl.appendChild(document.createTextNode("Class " + cls));
+
+    paidClassesBox.appendChild(lbl);
   }
 
-  currentUID = uid;
-  currentUserDoc = snap.data();
+  // Streams
+  stream_science.checked = d.streams?.science || false;
+  stream_commerce.checked = d.streams?.commerce || false;
+  stream_arts.checked = d.streams?.arts || false;
 
-  qs("ui-email").innerText = email;
-  qs("ui-uid").innerText = uid;
-  qs("role-select").value = currentUserDoc.role || "student";
+  // Role
+  roleSelect.value = d.role || "student";
 
-  // classes
-  document.querySelectorAll(".clsbox").forEach(box => {
-    const c = box.dataset.class;
-    box.checked = currentUserDoc.paidClasses?.[c] === true;
+  editPanel.classList.remove("hidden");
+}
+
+// ------------------------------------------------------------
+// SAVE CHANGES
+// ------------------------------------------------------------
+async function saveUserChanges() {
+  if (!selectedUID) return;
+
+  const ref = doc(db, "users", selectedUID);
+
+  const updatedPaid = {};
+  paidClassesBox.querySelectorAll("input").forEach(chk => {
+    updatedPaid[chk.dataset.cls] = chk.checked;
   });
 
-  // streams
-  qs("stream-science").checked  = currentUserDoc.streams?.science === true;
-  qs("stream-commerce").checked = currentUserDoc.streams?.commerce === true;
-  qs("stream-arts").checked     = currentUserDoc.streams?.arts === true;
-
-  qs("user-info").classList.remove("hidden");
-  qs("status").innerHTML = "";
-};
-
-// -------------------------------------------------------------------
-// UPDATE USER
-// -------------------------------------------------------------------
-qs("update-btn").onclick = async () => {
-  if (!currentUID) return;
-
-  const newRole = qs("role-select").value;
-
-  const newClasses = {};
-  document.querySelectorAll(".clsbox").forEach(box => {
-    const c = box.dataset.class;
-    newClasses[c] = box.checked;
-  });
-
-  const newStreams = {
-    science: qs("stream-science").checked,
-    commerce: qs("stream-commerce").checked,
-    arts: qs("stream-arts").checked
+  const updatedStreams = {
+    science: stream_science.checked,
+    commerce: stream_commerce.checked,
+    arts: stream_arts.checked
   };
 
-  const ref = doc(db, "users", currentUID);
-
   await updateDoc(ref, {
-    role: newRole,
-    paidClasses: newClasses,
-    streams: newStreams
+    paidClasses: updatedPaid,
+    streams: updatedStreams,
+    role: roleSelect.value
   });
 
-  qs("status").innerHTML =
-    `<span class="text-green-700 font-semibold">✔ Updated successfully</span>`;
-};
+  alert("Saved!");
+  editPanel.classList.add("hidden");
+  loadUsers();
+}
