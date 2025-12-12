@@ -18,13 +18,8 @@
     }
   </script>
 
-  <style>
-    /* small extras */
-    .fade { transition: opacity .15s ease; }
-    .modal-backdrop { background: rgba(15,23,42,0.6); }
-    /* responsive table scroll */
-    .table-wrap { max-height: 60vh; overflow: auto; }
-  </style>
+  <!-- Local admin CSS -->
+  <link rel="stylesheet" href="admin.css" />
 </head>
 <body class="bg-slate-50 text-slate-800 font-sans">
 
@@ -32,9 +27,9 @@
   <header class="bg-primary text-white p-4 shadow">
     <div class="max-w-7xl mx-auto flex items-center justify-between">
       <div class="text-xl font-semibold">Ready4Exam — Admin Dashboard</div>
-      <div class="flex items-center gap-3">
+      <div class="flex items-center gap-4">
         <div id="adminEmail" class="text-sm opacity-90"></div>
-        <button id="logoutBtn" class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded">Logout</button>
+        <button id="logoutBtn" class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded hidden">Logout</button>
       </div>
     </div>
   </header>
@@ -43,20 +38,20 @@
   <main class="max-w-7xl mx-auto px-4 py-8">
 
     <!-- Login card shown when not signed in -->
-    <div id="loginCard" class="max-w-2xl mx-auto bg-white rounded-lg p-8 shadow text-center">
+    <div id="loginScreen" class="max-w-2xl mx-auto bg-white rounded-lg p-8 shadow text-center">
       <h2 class="text-2xl font-bold mb-4">Admin Login</h2>
       <p class="mb-6 text-slate-600">Sign in with a Google admin account to manage users.</p>
-      <button id="loginBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg">Sign in with Google</button>
+      <button id="googleLoginBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg">Sign in with Google</button>
       <div id="loginError" class="text-sm text-red-600 mt-3"></div>
     </div>
 
     <!-- Dashboard (hidden until admin) -->
-    <section id="dashboard" class="hidden">
+    <section id="adminDashboard" class="hidden">
 
       <!-- Controls -->
       <div class="bg-white rounded-lg p-4 shadow mb-6 flex flex-col md:flex-row gap-4 md:items-center md:justify-between">
         <div class="flex gap-3 items-center">
-          <input id="searchInput" placeholder="Search email or uid..." class="px-3 py-2 rounded border w-72" />
+          <input id="searchBox" placeholder="Search email or uid..." class="px-3 py-2 rounded border w-72" />
           <select id="filterClass" class="px-3 py-2 rounded border">
             <option value="">All classes</option>
             <option value="paid">Paid (any)</option>
@@ -77,14 +72,14 @@
         <div class="flex gap-2 items-center">
           <div class="text-sm text-slate-600">Page size</div>
           <select id="pageSize" class="px-2 py-1 border rounded">
-            <option>25</option><option selected>50</option><option>100</option>
+            <option>25</option><option>50</option><option selected>100</option>
           </select>
         </div>
       </div>
 
       <!-- Users table -->
       <div class="bg-white rounded-lg shadow p-4">
-        <div class="table-wrap">
+        <div class="table-wrap overflow-auto max-h-[60vh]">
           <table class="min-w-full text-sm">
             <thead class="bg-slate-50 sticky top-0">
               <tr>
@@ -96,13 +91,13 @@
                 <th class="px-4 py-3">Action</th>
               </tr>
             </thead>
-            <tbody id="usersTbody" class="divide-y"></tbody>
+            <tbody id="userTableBody" class="divide-y"></tbody>
           </table>
         </div>
 
         <!-- Pagination -->
         <div class="mt-4 flex items-center justify-between">
-          <div>
+          <div class="flex gap-2">
             <button id="prevBtn" class="px-3 py-2 bg-white border rounded">Prev</button>
             <button id="nextBtn" class="px-3 py-2 bg-white border rounded">Next</button>
           </div>
@@ -112,12 +107,15 @@
     </section>
   </main>
 
-  <!-- EDIT MODAL -->
-  <div id="modal" class="fixed inset-0 hidden items-center justify-center modal-backdrop">
-    <div class="bg-white rounded-lg w-full max-w-2xl p-6 shadow-lg transform transition">
-      <h3 id="modalTitle" class="text-xl font-bold mb-4">Edit User</h3>
+  <!-- EDIT MODAL (matches admin.js) -->
+  <div id="editModal" class="fixed inset-0 hidden items-center justify-center modal-backdrop">
+    <div class="bg-white rounded-lg w-full max-w-2xl p-6 shadow-lg">
+      <div class="flex items-center justify-between">
+        <h3 id="modalTitle" class="text-xl font-bold mb-2">Edit User</h3>
+        <button id="closeModal" class="text-slate-500 hover:text-slate-800">Close</button>
+      </div>
 
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
         <div>
           <label class="block text-sm text-slate-700 mb-1">Email / UID</label>
           <div id="modalEmail" class="text-slate-900 mb-2"></div>
@@ -127,18 +125,18 @@
 
         <div>
           <label class="block text-sm text-slate-700 mb-1">Paid Classes</label>
-          <div id="paidClassesContainer" class="flex flex-wrap gap-2"></div>
+          <div id="classCheckboxes" class="flex flex-wrap gap-2"></div>
         </div>
       </div>
 
       <div id="streamsRow" class="mt-4">
         <label class="block text-sm text-slate-700 mb-1">Streams (11/12 only)</label>
-        <div id="streamsContainer" class="flex gap-3"></div>
+        <div id="streamCheckboxes" class="flex gap-3"></div>
       </div>
 
       <div class="mt-6 flex justify-end gap-3">
-        <button id="modalCancel" class="px-4 py-2 border rounded">Cancel</button>
-        <button id="modalSave" class="px-4 py-2 bg-green-600 text-white rounded">Save Changes</button>
+        <button id="closeModalBottom" class="px-4 py-2 border rounded">Cancel</button>
+        <button id="saveUserChanges" class="px-4 py-2 bg-green-600 text-white rounded">Save Changes</button>
       </div>
     </div>
   </div>
