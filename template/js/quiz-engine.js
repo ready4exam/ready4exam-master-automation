@@ -30,6 +30,7 @@ const CLASS_ID = "{{CLASS}}";
 let quizState = {
   classId: CLASS_ID,
   subject: "",
+  chapterTitle: "",
   topicSlug: "",
   difficulty: "",
   questions: [],
@@ -79,6 +80,7 @@ function parseUrlParameters() {
 
   quizState.classId    = urlClass;
   quizState.subject    = urlSubject;
+  quizState.chapterTitle = urlChapter;
   quizState.topicSlug  = urlTable;
   quizState.difficulty = urlDiff;
 
@@ -193,7 +195,7 @@ async function verifyQuizAccess(user) {
     stream = new URLSearchParams(location.search).get("stream") || "science";
   }
 
-  const access = await checkClassAccess(quizState.classId, stream);
+  const access = await checkClassAccess(quizState.classId, stream, quizState.chapterTitle);
 
   if (!access.allowed) {
     showExpiredPopup(access.reason);

@@ -19,7 +19,13 @@ import {
 // ------------------------------------------------------
 // UTIL: Check if trial expired
 // ------------------------------------------------------
-export function isSignupExpired(signupDate, daysAllowed = 15) {
+export function isSignupExpired(userData, daysAllowed = 15) {
+  if (userData.accessExpiryDate) {
+    const expiryDate = new Date(userData.accessExpiryDate);
+    return Date.now() >= expiryDate.getTime();
+  }
+
+  const signupDate = userData.signupDate;
   if (!signupDate) return true;
 
   let signed;
@@ -126,7 +132,7 @@ export function showExpiredPopup(message = "Your access is restricted.") {
 // ------------------------------------------------------
 // MASTER CHECK (class + stream + trial + role)
 // ------------------------------------------------------
-export async function checkClassAccess(classId, stream) {
+export async function checkClassAccess(classId, stream, chapterTitle) {
   await initializeServices();
   const { auth, db } = getInitializedClients();
 
@@ -152,7 +158,7 @@ export async function checkClassAccess(classId, stream) {
   }
 
   // STUDENT FLOW
-  const expired = isSignupExpired(data.signupDate);
+  const expired = isSignupExpired(data);
 
   if (expired) {
     if (data.paidClasses?.[classId]) {
@@ -167,14 +173,21 @@ export async function checkClassAccess(classId, stream) {
     return { allowed: false, reason: `Stream (${stream}) not purchased.` };
   }
 
+  // If the user has a chapters map, check if the chapter is in the map
+  if (data.chapters && Object.keys(data.chapters).length > 0) {
+    if (!data.chapters[chapterTitle]) {
+      return { allowed: false, reason: `You do not have access to this chapter.` };
+    }
+  }
+
   return { allowed: true };
 }
 
 // ------------------------------------------------------
 // chapter-selection entry point
 // ------------------------------------------------------
-export async function checkAndStartQuiz(startQuizCallback, classId, stream) {
-  const result = await checkClassAccess(classId, stream);
+export async function checkAndStartQuiz(startQuizCallback, classId, stream, chapterTitle) {
+  const result = await checkClassAccess(classId, stream, chapterTitle);
   if (result.allowed) return startQuizCallback();
   showExpiredPopup(result.reason || "Access blocked.");
 }

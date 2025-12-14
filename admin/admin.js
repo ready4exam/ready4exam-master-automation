@@ -115,6 +115,18 @@ function renderUserRow(uid, data) {
   tr.appendChild(el("td", { class: "px-4 py-3" }, data.role || "student"));
   tr.appendChild(el("td", { class: "px-4 py-3" }, fmtDate(data.signupDate)));
 
+  // Expiry Date
+  const expiryTd = el("td", { class: "px-4 py-3" });
+  const expiryInput = el("input", { type: "date", class: "border rounded px-2 py-1" });
+  if (data.accessExpiryDate) {
+    expiryInput.value = new Date(data.accessExpiryDate).toISOString().split('T')[0];
+  }
+  expiryInput.onchange = async (e) => {
+    await updateAccessExpiry(uid, e.target.value);
+  };
+  expiryTd.appendChild(expiryInput);
+  tr.appendChild(expiryTd);
+
   // PAID CLASSES
   const classesTd = el("td", { class: "px-4 py-3" });
   ["6","7","8","9","10","11","12"].forEach(c => {
@@ -151,6 +163,15 @@ function renderUserRow(uid, data) {
     streamsTd.appendChild(wrap);
   });
   tr.appendChild(streamsTd);
+
+  // Chapter Access
+  const chapterTd = el("td", { class: "px-4 py-3" });
+  const manageChaptersBtn = el("button", { class: "btn-secondary" }, "Manage Chapters");
+  manageChaptersBtn.onclick = () => {
+    openChapterModal(uid, data);
+  };
+  chapterTd.appendChild(manageChaptersBtn);
+  tr.appendChild(chapterTd);
 
   // Actions
   const actionsTd = el("td", { class: "px-4 py-3" });
@@ -210,6 +231,87 @@ async function updateUserRole(uid, role) {
     alert("Failed to update role: " + e.message);
   }
 }
+
+async function fetchAllCurriculumData() {
+  const curriculum = {};
+  for (let i = 6; i <= 12; i++) {
+    try {
+      const module = await import(`../static_curriculum/class${i}/curriculum.js`);
+      curriculum[i] = module.curriculum;
+    } catch (e) {
+      console.error(`Failed to load curriculum for class ${i}:`, e);
+    }
+  }
+  return curriculum;
+}
+
+async function updateAccessExpiry(uid, dateString) {
+  try {
+    const userRef = doc(db, "users", uid);
+    const accessExpiryDate = dateString ? new Date(dateString).toISOString() : null;
+    await updateDoc(userRef, { accessExpiryDate });
+    await refreshCurrentPage(true);
+  } catch (e) {
+    alert("Failed to update access expiry: " + e.message);
+  }
+}
+
+async function updateChapterAccess(uid, chapter, checked) {
+  try {
+    const userRef = doc(db, "users", uid);
+    await updateDoc(userRef, { [`chapters.${chapter}`]: checked });
+    // No need to refresh the whole page, just update the local state
+  } catch (e) {
+    alert("Failed to update chapter access: " + e.message);
+  }
+}
+
+function openChapterModal(uid, userData) {
+  const modal = document.getElementById("chapter-modal");
+  const modalBody = document.getElementById("chapter-modal-body");
+  modalBody.innerHTML = "";
+
+  for (const classId in userData.paidClasses) {
+    if (userData.paidClasses[classId]) {
+      const classCurriculum = allCurriculumData[classId];
+      if (classCurriculum) {
+        const classContainer = el("div", { class: "mb-4" });
+        const classTitle = el("h4", { class: "text-lg font-bold" }, `Class ${classId}`);
+        classContainer.appendChild(classTitle);
+
+        for (const subject in classCurriculum) {
+          const subjectContainer = el("div", { class: "mb-2" });
+          const subjectTitle = el("h5", { class: "text-md font-semibold" }, subject);
+          subjectContainer.appendChild(subjectTitle);
+
+          for (const section in classCurriculum[subject]) {
+            classCurriculum[subject][section].forEach(chapter => {
+              const chapterContainer = el("div", { class: "flex items-center" });
+              const checkbox = el("input", { type: "checkbox", id: chapter.chapter_title });
+              checkbox.checked = userData.chapters && userData.chapters[chapter.chapter_title];
+              checkbox.onchange = (e) => {
+                updateChapterAccess(uid, chapter.chapter_title, e.target.checked);
+              };
+              const label = el("label", { for: chapter.chapter_title, class: "ml-2" }, chapter.chapter_title);
+              chapterContainer.appendChild(checkbox);
+              chapterContainer.appendChild(label);
+              subjectContainer.appendChild(chapterContainer);
+            });
+          }
+          classContainer.appendChild(subjectContainer);
+        }
+        modalBody.appendChild(classContainer);
+      }
+    }
+  }
+
+  modal.classList.remove("hidden");
+}
+
+document.getElementById("close-modal-btn").onclick = () => {
+  document.getElementById("chapter-modal").classList.add("hidden");
+  refreshCurrentPage(true);
+};
 
 // ----------------------
 // Pagination + Query execution
@@ -299,12 +401,15 @@ function clearFiltersHandler() {
 // ----------------------
 // Boot
 // ----------------------
+let allCurriculumData = {};
+
 async function boot() {
   await initializeServices();
   
   // NOTE: The lines that previously assigned 'db' and 'auth' from 'getInitializedClients()'
   // are now redundant because 'db' and 'auth' were imported directly.
   
+  allCurriculumData = await fetchAllCurriculumData();
   await ensureUserDocExists();
 
   const user = auth.currentUser; // 'auth' is available from the import
