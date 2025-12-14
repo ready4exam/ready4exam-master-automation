@@ -50,6 +50,7 @@
   <div id="difficulty-container" class="hidden mb-10 text-center">
     <h3 class="text-2xl font-bold text-cbse-blue mb-4">Select Difficulty</h3>
     <div class="flex flex-wrap justify-center gap-4">
+      <!-- 🔥 data-diff now matches Supabase values exactly -->
       <button data-diff="Simple"   class="difficulty-btn bg-green-600 text-white">Simple</button>
       <button data-diff="Medium"   class="difficulty-btn bg-yellow-500 text-white">Medium</button>
       <button data-diff="Advanced" class="difficulty-btn bg-red-600 text-white">Advanced</button>
@@ -73,12 +74,6 @@
 <script type="module">
 import curriculum from "./js/curriculum.js";
 import { transliterate as tr } from "https://cdn.jsdelivr.net/npm/transliteration/+esm";
-
-import { 
-  ensureUserDocExists, 
-  checkClassAccess, 
-  showExpiredPopup 
-} from "./js/firebase-expiry.js";
 
 const CLASS_ID = "{{CLASS}}";
 const subject  = new URLSearchParams(location.search).get("subject") || "";
@@ -168,13 +163,13 @@ document.querySelectorAll(".difficulty-btn").forEach(btn=>{
     document.querySelectorAll(".difficulty-btn").forEach(x=>x.classList.remove("selected"));
     e.target.classList.add("selected");
 
-    selectedDifficulty = e.target.dataset.diff;
+    selectedDifficulty = e.target.dataset.diff; // "Simple" | "Medium" | "Advanced"
     startBtn.disabled = false;
   };
 });
 
 /* --------------------------
-   TABLE NAME BUILDER
+   TABLE NAME BUILDER (MATCHES BACKEND)
 --------------------------- */
 function buildTableName(chapter){
   let chapterSlug = tr(chapter || "")
@@ -201,11 +196,9 @@ function buildTableName(chapter){
 }
 
 /* --------------------------
-   START QUIZ — WITH ACCESS CHECK
+   START QUIZ — FULL META
 --------------------------- */
-startBtn.onclick = async () => {
-
-  await ensureUserDocExists();
+startBtn.onclick = ()=>{
 
   if(!selectedBook || !selectedChapter || !selectedDifficulty){
     errorMsg.textContent = "Please select Book, Chapter & Difficulty.";
@@ -213,21 +206,6 @@ startBtn.onclick = async () => {
     return;
   }
 
-  // ⭐ For Class 11 / 12 — stream required
-  let stream = null;
-  if (CLASS_ID === "11" || CLASS_ID === "12") {
-    stream = new URLSearchParams(location.search).get("stream") || "science";
-  }
-
-  // ⭐ Unified access logic (same as quiz-engine)
-  const access = await checkClassAccess(CLASS_ID, stream, selectedChapter);
-
-  if (!access.allowed) {
-    showExpiredPopup(access.reason);
-    return;
-  }
-
-  // ⭐ Continue to quiz (unchanged)
   const table = buildTableName(selectedChapter);
 
   const params = new URLSearchParams({
@@ -235,9 +213,8 @@ startBtn.onclick = async () => {
     subject,
     book: selectedBook,
     chapter: selectedChapter,
-    difficulty: selectedDifficulty,
-    table,
-    ...(stream ? { stream } : {})
+    difficulty: selectedDifficulty,  // "Simple" | "Medium" | "Advanced"
+    table
   });
 
   location.href = `quiz-engine.html?${params.toString()}`;
