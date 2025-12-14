@@ -139,6 +139,12 @@ export async function checkClassAccess(classId, stream) {
 
   const data = snap.data();
 
+  // ⭐ NEW CODE: ADMIN ROLE BYPASS - GRANTS UNRESTRICTED ACCESS ⭐
+  if (data.role === "admin") {
+    return { allowed: true };
+  }
+  // ⭐ END NEW CODE ⭐
+
   // SCHOOL ROLE (bypasses trial)
   if (data.role === "school") {
     if (data.streams?.[stream]) return { allowed: true };
