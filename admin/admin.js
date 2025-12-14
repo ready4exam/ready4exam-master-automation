@@ -3,7 +3,8 @@
 // Uses shared modules inside /template/js/
 // Admin folder does NOT get copied into class repos.
 
-// ⭐ FIX: Changed faulty import of 'getInitializedClients' to correctly import 'db' and 'auth' ⭐
+// FIX: Changed faulty import to correctly import 'db' and 'auth'.
+// NOTE: These imported identifiers are now the active 'db' and 'auth' variables.
 import { initializeServices, db, auth } from "../template/js/config.js";
 
 import {
@@ -33,7 +34,8 @@ const selectors = {
   currentAdminEmail: document.getElementById("current-admin-email")
 };
 
-let db, auth; // These are declared here, but the objects are assigned in boot()
+// ⭐ FIX APPLIED HERE: Removed 'let db, auth;' declaration. ⭐
+// The variables are now defined by the import statement above.
 let pageSize = Number(selectors.pageSize.value) || 20;
 let lastVisible = null;
 let cursorStack = []; 
@@ -67,6 +69,7 @@ function isAdminEmail(email) {
 // Build Firestore query
 // ----------------------
 function buildQuery(params = {}) {
+  // NOTE: This function now uses the 'db' constant imported at the top.
   const usersCol = collection(db, "users");
   let q = query(usersCol, orderBy("email"), limit(pageSize));
 
@@ -137,7 +140,7 @@ function renderUserRow(uid, data) {
     const wrap = el("div", { class: "inline-block mr-3 mb-2" });
 
     const sw = el("div", { class: `switch ${on ? 'on' : ''}` });
-    const knob = el("div", { class: "knob" });
+    const knob = el("div", { "class": "knob" }); // Changed class: "knob" to "class": "knob" to avoid template literal issue
     sw.appendChild(knob);
 
     sw.onclick = async ev => {
@@ -301,10 +304,12 @@ function clearFiltersHandler() {
 async function boot() {
   await initializeServices();
   
-  // NOTE: 'clients' object is no longer used since we imported 'db' and 'auth' directly.
+  // NOTE: The previous code block was intended to be removed/commented out:
   // const clients = getInitializedClients(); 
   // db = clients.db;
   // auth = clients.auth;
+  
+  // The variables 'db' and 'auth' are now available from the import.
 
   await ensureUserDocExists();
 
@@ -319,6 +324,7 @@ async function boot() {
 
   let allowed = isAdminEmail(user.email);
   if (!allowed) {
+    // NOTE: 'db' is now available directly for use here
     const snap = await getDoc(doc(db, "users", user.uid));
     if (snap.exists() && snap.data().role === "admin") allowed = true;
   }
