@@ -3,7 +3,8 @@
 // Uses shared modules inside /template/js/
 // Admin folder does NOT get copied into class repos.
 
-import { initializeServices, getInitializedClients } from "../template/js/config.js";
+// ⭐ FIX: Changed faulty import of 'getInitializedClients' to correctly import 'db' and 'auth' ⭐
+import { initializeServices, db, auth } from "../template/js/config.js";
 
 import {
   collection, query, orderBy, limit, startAfter,
@@ -32,7 +33,7 @@ const selectors = {
   currentAdminEmail: document.getElementById("current-admin-email")
 };
 
-let db, auth;
+let db, auth; // These are declared here, but the objects are assigned in boot()
 let pageSize = Number(selectors.pageSize.value) || 20;
 let lastVisible = null;
 let cursorStack = []; 
@@ -259,7 +260,7 @@ async function applyFiltersHandler() {
   const snap = await fetchPage(currentQueryParams);
   await renderPage(snap);
 
-  if (snap.docs.length) cursorStack = [snap.docs[snap.docs.length - 1]];
+  if (snap.docs.length) cursorStack.push(snap.docs[snap.docs.length - 1]);
 }
 
 async function nextPageHandler() {
@@ -299,9 +300,11 @@ function clearFiltersHandler() {
 // ----------------------
 async function boot() {
   await initializeServices();
-  const clients = getInitializedClients();
-  db = clients.db;
-  auth = clients.auth;
+  
+  // NOTE: 'clients' object is no longer used since we imported 'db' and 'auth' directly.
+  // const clients = getInitializedClients(); 
+  // db = clients.db;
+  // auth = clients.auth;
 
   await ensureUserDocExists();
 
