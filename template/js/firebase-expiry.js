@@ -15,6 +15,7 @@ import {
 import {
   doc, getDoc, setDoc, updateDoc, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+import { initializeServices, getInitializedClients } from "./config.js";
 
 // ------------------------------------------------------
 // UTIL: Check if trial expired
@@ -195,4 +196,3 @@ export async function checkAndStartQuiz(startQuizCallback, classId, stream, chap
 // ------------------------------------------------------
 // Export working clients
 // ------------------------------------------------------
-export const { auth, db } = getInitializedClients();

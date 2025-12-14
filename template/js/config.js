@@ -1,154 +1,37 @@
-// firebase-expiry.js
-// ------------------------------------------------------
-// GLOBAL ACCESS CONTROL for Ready4Exam
-// - 15 day trial for students
-// - paidClasses unlock classes 6–12
-// - streams unlock science / commerce / arts
-// - school role bypasses trial but follows streams
-// ------------------------------------------------------
+// js/config.js
+// -----------------------------------------------------------------------------
+// FIREBASE & CLIENT-SIDE CONFIG
+// -----------------------------------------------------------------------------
 
-import {
-  initializeServices,
-  getInitializedClients
-} from "./config.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+import { getAuth } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+import { getFirestore } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-import {
-  doc,
-  getDoc,
-  setDoc,
-  updateDoc,
-  serverTimestamp
-} from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_AUTH_DOMAIN",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_STORAGE_BUCKET",
+  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+  appId: "YOUR_APP_ID"
+};
 
-// ------------------------------------------------------
-// UTIL: 15-day trial check
-// ------------------------------------------------------
-export function isSignupExpired(signupDate, daysAllowed = 15) {
-  if (!signupDate) return true;
+let app, auth, db;
+let isInitialized = false;
 
-  let signed;
+export async function initializeServices() {
+  if (isInitialized) return;
 
-  // Firestore Timestamp?
-  if (signupDate.toMillis) {
-    signed = new Date(signupDate.toMillis());
-  } else {
-    signed = new Date(signupDate);
+  app = initializeApp(firebaseConfig);
+  auth = getAuth(app);
+  db = getFirestore(app);
+
+  isInitialized = true;
+}
+
+export function getInitializedClients() {
+  if (!isInitialized) {
+    throw new Error("Firebase not initialized. Call initializeServices() first.");
   }
-
-  if (Number.isNaN(signed.getTime())) return true;
-
-  const expiry = signed.getTime() + daysAllowed * 24 * 60 * 60 * 1000;
-  return Date.now() >= expiry;
+  return { app, auth, db };
 }
-
-// ------------------------------------------------------
-// AUTO-CREATE USER DOC (SAFE)
-// ------------------------------------------------------
-export async function ensureUserDocExists() {
-  await initializeServices();
-  const { auth, db } = getInitializedClients();
-
-  const user = auth.currentUser;
-  if (!user) return;
-
-  const ref = doc(db, "users", user.uid);
-  const snap = await getDoc(ref);
-
-  if (snap.exists()) {
-    const data = snap.data();
-    const patch = {};
-
-    if (!data.signupDate) patch.signupDate = serverTimestamp();
-    if (!data.role) patch.role = "student";
-
-    if (!data.paidClasses) {
-      patch.paidClasses = {
-        "6": false, "7": false, "8": false,
-        "9": false, "10": false, "11": false, "12": false
-      };
-    }
-
-    if (!data.streams) {
-      patch.streams = {
-        science: false,
-        commerce: false,
-        arts: false
-      };
-    }
-
-    if (Object.keys(patch).length > 0) {
-      await updateDoc(ref, patch);
-    }
-
-    return { ...data, ...patch };
-  }
-
-  // Create new document
-  const newDoc = {
-    signupDate: serverTimestamp(),
-    role: "student",
-    paidClasses: {
-      "6": false, "7": false, "8": false,
-      "9": false, "10": false, "11": false, "12": false
-    },
-    streams: {
-      science: false,
-      commerce: false,
-      arts: false
-    }
-  };
-
-  await setDoc(ref, newDoc);
-  return newDoc;
-}
-
-// ------------------------------------------------------
-// POPUP FOR BLOCKED ACCESS
-// ------------------------------------------------------
-export function showExpiredPopup(message) {
-  if (document.getElementById("r4e-expired-modal")) return;
-
-  const wrap = document.createElement("div");
-  wrap.id = "r4e-expired-modal";
-  wrap.style = `
-    position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
-    background:rgba(0,0,0,0.55);z-index:99999;
-  `;
-
-  wrap.innerHTML = `
-    <div style="background:white;padding:28px;border-radius:12px;max-width:420px;text-align:center;">
-      <h2 style="font-size:20px;font-weight:bold;margin-bottom:10px;">Access Restricted</h2>
-      <p style="font-size:15px;color:#444;">${message}</p>
-      <button id="r4e-expired-close"
-        style="margin-top:18px;background:#1a3e6a;color:white;padding:10px 18px;border-radius:8px;">
-        Close
-      </button>
-    </div>
-  `;
-  document.body.appendChild(wrap);
-
-  document.getElementById("r4e-expired-close").onclick = () => wrap.remove();
-}
-
-// ------------------------------------------------------
-// MASTER ACCESS CHECK — class + stream + trial + role
-// ------------------------------------------------------
-
-// ------------------------------------------------------
-// For chapter-selection.html → runs callback only if allowed
-// ------------------------------------------------------
-
-
-// ------------------------------------------------------
-// export same Firebase clients used everywhere
-// ------------------------------------------------------
-export function getAuth() {
-  return getInitializedClients().auth;
-}
-
-export function getDB() {
-  return getInitializedClients().db;
-}
-
-export const auth = getInitializedClients().auth;
-export const db = getInitializedClients().db;
