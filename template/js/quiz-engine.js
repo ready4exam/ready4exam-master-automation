@@ -12,14 +12,7 @@ import {
   checkAccess, initializeAuthListener,
   signInWithGoogle, signOut
 } from "./auth-paywall.js";
-
 import curriculumData from "./curriculum.js";
-
-import {
-  ensureUserDocExists,
-  checkClassAccess,
-  showExpiredPopup
-} from "./firebase-expiry.js";
 
 // 🔥 Injected at automation time — DO NOT HARD CODE
 const CLASS_ID = "{{CLASS}}";
@@ -30,7 +23,6 @@ const CLASS_ID = "{{CLASS}}";
 let quizState = {
   classId: CLASS_ID,
   subject: "",
-  chapterTitle: "",
   topicSlug: "",
   difficulty: "",
   questions: [],
@@ -71,31 +63,37 @@ function parseUrlParameters() {
 
   const urlClass    = params.get("class")   || CLASS_ID;
   const urlSubject  = params.get("subject") || "";
+  const urlBook     = params.get("book")    || null;   // currently unused but reserved
   const urlChapter  = params.get("chapter") || "";
   const urlTable    = params.get("table")   || params.get("topic") || "";
   let   urlDiff     = params.get("difficulty") || "Simple";
 
+  // Enforce allowed difficulty values
   const allowed = ["Simple","Medium","Advanced"];
   if (!allowed.includes(urlDiff)) urlDiff = "Simple";
 
-  quizState.classId    = urlClass;
-  quizState.subject    = urlSubject;
-  quizState.chapterTitle = urlChapter;
-  quizState.topicSlug  = urlTable;
-  quizState.difficulty = urlDiff;
+  quizState.classId   = urlClass;
+  quizState.subject   = urlSubject;
+  quizState.topicSlug = urlTable;
+  quizState.difficulty = urlDiff; // EXACT casing, matches Supabase
 
   if (!quizState.topicSlug) {
     throw new Error("Topic/table not provided in URL");
   }
 
+  // Primary path: subject + chapter provided
   if (urlSubject && urlChapter) {
     const chapter = urlChapter.trim();
+    const subject = urlSubject.trim();
+
     const headerTitle =
-      `Class ${quizState.classId}: ${urlSubject} - ${chapter} Worksheet`;
+      `Class ${quizState.classId}: ${subject} - ${chapter} Worksheet`;
+
     UI.updateHeader(headerTitle, quizState.difficulty);
     return;
   }
 
+  // Fallback path: infer from curriculum
   const match = findCurriculumMatch(quizState.topicSlug);
 
   if (!match) {
@@ -172,7 +170,11 @@ async function handleSubmit() {
   };
 
   if (user) {
-    try { await saveResult(result); } catch (e) {}
+    try {
+      await saveResult(result);
+    } catch (e) {
+      console.warn(e);
+    }
   }
 
   quizState.currentQuestionIndex = 0;
@@ -182,32 +184,6 @@ async function handleSubmit() {
   UI.updateNavigation?.(0, quizState.questions.length, true);
 }
 
-// ===========================================================
-// 🔥 UNIFIED ACCESS CHECK (using firebase-expiry.js)
-// ===========================================================
-async function verifyQuizAccess(user) {
-  if (!user) return false;
-
-  let stream = null;
-
-  // ⭐ Class 11 & 12 — stream is required
-  if (quizState.classId === "11" || quizState.classId === "12") {
-    stream = new URLSearchParams(location.search).get("stream") || "science";
-  }
-
-  const access = await checkClassAccess(quizState.classId, stream, quizState.chapterTitle);
-
-  if (!access.allowed) {
-    showExpiredPopup(access.reason);
-    return false;
-  }
-
-  return true;
-}
-
-// ===========================================================
-// LOAD QUIZ
-// ===========================================================
 async function loadQuiz() {
   try {
     UI.showStatus("Fetching questions...");
@@ -226,21 +202,11 @@ async function loadQuiz() {
   }
 }
 
-// ===========================================================
-// AUTH CHANGE HANDLER
-// ===========================================================
 async function onAuthChange(user) {
-  const ok = await verifyQuizAccess(user);
-
-  if (!ok) {
-    UI.showView("paywall-screen");
-    return;
-  }
-
-  loadQuiz();
+  const ok = user && await checkAccess(quizState.topicSlug);
+  ok ? loadQuiz() : UI.showView("paywall-screen");
 }
 
-// ===========================================================
 function attachDomEvents() {
   document.addEventListener("click", e => {
     const b = e.target.closest("button,a");
@@ -260,15 +226,11 @@ function attachDomEvents() {
   });
 }
 
-// ===========================================================
 async function init() {
   UI.initializeElements();
   parseUrlParameters();
   await initializeServices();
   await initializeAuthListener(onAuthChange);
-
-  await ensureUserDocExists();  // keep user profile normalized
-
   attachDomEvents();
   UI.hideStatus();
 }
