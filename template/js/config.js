@@ -133,54 +133,11 @@ export function showExpiredPopup(message) {
 // ------------------------------------------------------
 // MASTER ACCESS CHECK — class + stream + trial + role
 // ------------------------------------------------------
-export async function checkClassAccess(classId, stream) {
-  await initializeServices();
-  const { auth, db } = getInitializedClients();
-
-  const user = auth.currentUser;
-  if (!user) return { allowed: false, reason: "Please sign in" };
-
-  const ref = doc(db, "users", user.uid);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) return { allowed: false, reason: "User record missing" };
-
-  const data = snap.data();
-
-  // SCHOOL ROLE
-  if (data.role === "school") {
-    if (data.streams?.[stream] === true) return { allowed: true };
-    return { allowed: false, reason: `School does not own ${stream} stream.` };
-  }
-
-  // STUDENT FLOW
-  const expired = isSignupExpired(data.signupDate);
-
-  if (expired) {
-    if (data.paidClasses?.[classId] === true) {
-      if (data.streams?.[stream]) return { allowed: true };
-      return { allowed: false, reason: `Stream (${stream}) not purchased.` };
-    }
-    return { allowed: false, reason: "Your 15-day free trial has expired." };
-  }
-
-  // Trial active → only stream matters
-  if (!data.streams?.[stream]) {
-    return { allowed: false, reason: `Stream (${stream}) not purchased.` };
-  }
-
-  return { allowed: true };
-}
 
 // ------------------------------------------------------
 // For chapter-selection.html → runs callback only if allowed
 // ------------------------------------------------------
-export async function checkAndStartQuiz(startQuizCallback, classId, stream) {
-  const result = await checkClassAccess(classId, stream);
 
-  if (result.allowed) return startQuizCallback();
-
-  showExpiredPopup(result.reason || "Access blocked.");
-}
 
 // ------------------------------------------------------
 // export same Firebase clients used everywhere

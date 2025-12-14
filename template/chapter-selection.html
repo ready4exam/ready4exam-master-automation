@@ -220,7 +220,7 @@ startBtn.onclick = async () => {
   }
 
   // ⭐ Unified access logic (same as quiz-engine)
-  const access = await checkClassAccess(CLASS_ID, stream);
+  const access = await checkClassAccess(CLASS_ID, stream, selectedChapter);
 
   if (!access.allowed) {
     showExpiredPopup(access.reason);
