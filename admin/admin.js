@@ -3,8 +3,7 @@
 // Uses shared modules inside /template/js/
 // Admin folder does NOT get copied into class repos.
 
-// ⭐ FIX 1: Import db and auth directly (they are exported by config.js/firebase-expiry.js) ⭐
-import { initializeServices, db, auth } from "../template/js/config.js";
+import { initializeServices, getInitializedClients } from "../template/js/config.js";
 
 import {
   collection, query, orderBy, limit, startAfter,
@@ -33,7 +32,7 @@ const selectors = {
   currentAdminEmail: document.getElementById("current-admin-email")
 };
 
-// ⭐ FIX 2: REMOVED THE CONFLICTING LINE: let db, auth; ⭐
+let db, auth;
 let pageSize = Number(selectors.pageSize.value) || 20;
 let lastVisible = null;
 let cursorStack = []; 
@@ -408,6 +407,9 @@ async function boot() {
   
   // NOTE: The lines that previously assigned 'db' and 'auth' from 'getInitializedClients()'
   // are now redundant because 'db' and 'auth' were imported directly.
+  const clients = getInitializedClients();
+  db = clients.db;
+  auth = clients.auth;
   
   allCurriculumData = await fetchAllCurriculumData();
   await ensureUserDocExists();
