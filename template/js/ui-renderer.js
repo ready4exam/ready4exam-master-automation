@@ -224,7 +224,7 @@ export function renderQuestion(q, idxOneBased, selected, submitted) {
       const isCorrect = submitted && q.correct_answer?.toUpperCase() === opt;
       const isWrong = submitted && isSel && !isCorrect;
 
-      let cls = "option-label flex items-start p-3 border-2 rounded-lg cursor-pointer transition";
+      let cls = "option-label flex items-start p-2 border-2 rounded-lg cursor-pointer transition";
       if (isCorrect) cls += " border-green-600 bg-green-50";
       else if (isWrong) cls += " border-red-600 bg-red-50";
       else if (isSel) cls += " border-blue-500 bg-blue-50";
@@ -332,7 +332,7 @@ export function renderQuestion(q, idxOneBased, selected, submitted) {
         </div>
         <div class="space-y-4">
           <p class="text-lg font-bold text-gray-900">Q${idxOneBased}: ${questionText || "Based on the scenario, answer this question."}</p>
-          <div class="space-y-3">${optionsHtml}</div>
+          <div class="space-y-2">${optionsHtml}</div>
           ${submittedExplanationHtml}
         </div>
       </div>`;
@@ -378,7 +378,7 @@ export function renderQuestion(q, idxOneBased, selected, submitted) {
   }).join("");
 
   els.list.innerHTML = `
-    <div class="space-y-6">
+    <div class="space-y-4">
       <p class="text-lg font-bold text-gray-800">Q${idxOneBased}: ${qText}</p>
       ${reasonHtml}
       <div class="space-y-3">${optionsHtml}</div>
