@@ -4,6 +4,7 @@ import { cleanKatexMarkers } from './utils.js';
 let els = {};
 let isInit = false;
 
+
 function normalizeReasonText(txt) {
   if (!txt) return "";
   return txt.replace(/^\s*(Reasoning|Reason|Context)\s*(\(R\))?\s*:\s*/i, "").trim();
