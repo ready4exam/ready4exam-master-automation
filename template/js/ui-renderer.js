@@ -1,16 +1,12 @@
 // js/ui-renderer.js 
 import { cleanKatexMarkers } from './utils.js';
-
 let els = {};
 let isInit = false;
-
 
 function normalizeReasonText(txt) {
   if (!txt) return "";
   return txt.replace(/^\s*(Reasoning|Reason|Context)\s*(\(R\))?\s*:\s*/i, "").trim();
 }
-
-
 /* -----------------------------------
    ELEMENT INITIALIZATION
 ----------------------------------- */
@@ -49,7 +45,6 @@ export function initializeElements() {
 
   isInit = true;
 }
-
 /* -----------------------------------
    STATUS MESSAGE
 ----------------------------------- */
@@ -481,9 +476,6 @@ export function renderAllQuestionsForReview(questions, userAnswers = {}) {
   showView("results-screen");
 }
 /* -----------------------------------
-   RESULT FEEDBACK + UNLOCK UI
------------------------------------ */
-/* -----------------------------------
    RESULT FEEDBACK DECISION ENGINE
 ----------------------------------- */
 export function getResultFeedback({ score, total, difficulty }) {
@@ -556,3 +548,32 @@ export function getResultFeedback({ score, total, difficulty }) {
     },
   };
 }
+/* -----------------------------------
+   RESULT FEEDBACK + UNLOCK UI
+----------------------------------- */
+export function showResultFeedback(feedback) {
+  initializeElements();
+
+  if (!els.reviewScreen) return;
+
+  // Remove old feedback if present
+  let container = document.getElementById("result-feedback-container");
+  if (container) container.remove();
+
+  container = document.createElement("div");
+  container.id = "result-feedback-container";
+  container.className =
+    "w-full max-w-3xl mx-auto mt-6 p-5 rounded-lg border border-gray-200 bg-blue-50 text-center";
+
+  const titleEl = document.createElement("h3");
+  titleEl.className = "text-xl font-bold text-blue-800 mb-2";
+  titleEl.textContent = feedback.title || "";
+
+  const msgEl = document.createElement("p");
+  msgEl.className = "text-gray-800 mb-4";
+  msgEl.textContent = feedback.message || "";
+
+  container.appendChild(titleEl);
+  container.appendChild(msgEl);
+
+  //
