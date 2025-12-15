@@ -9,6 +9,7 @@ function normalizeReasonText(txt) {
   return txt.replace(/^\s*(Reasoning|Reason|Context)\s*(\(R\))?\s*:\s*/i, "").trim();
 }
 
+
 /* -----------------------------------
    ELEMENT INITIALIZATION
 ----------------------------------- */
