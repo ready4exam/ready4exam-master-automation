@@ -434,27 +434,49 @@ export function showResults(score, total) {
 }
 
 export function renderAllQuestionsForReview(questions, userAnswers = {}) {
-  initializeElements();
-  if (!els.reviewContainer) return;
+  initializeElements();
+  if (!els.reviewContainer) return;
 
-  const html = questions.map((q, i) => {
-    const txt = cleanKatexMarkers(q.text || "");
-    const reason = normalizeReasonText(cleanKatexMarkers(q.explanation || ""));
-    const isCase = q.question_type?.toLowerCase() === "case";
-    const label = isCase ? "Context" : "Reasoning (R)";
-    const ua = userAnswers[q.id] || "-";
-    const ca = q.correct_answer || "-";
-    const correct = ua && ua.toUpperCase() === ca.toUpperCase();
+  const html = questions.map((q, i) => {
+    const txt = cleanKatexMarkers(q.text || "");
+    const reason = normalizeReasonText(cleanKatexMarkers(q.explanation || ""));
+    const isCase = q.question_type?.toLowerCase() === "case";
+    const label = isCase ? "Context" : "Reasoning (R)";
 
-    return `
-      <div class="mb-6 p-4 bg-white rounded-lg border border-gray-100 shadow-sm">
-        <p class="font-bold text-lg mb-1">Q${i + 1}: ${txt}</p>
-        ${reason ? `<p class="text-gray-700 mb-2">${label}: ${reason}</p>` : ""}
-        <p>Your Answer: <span class="${correct?"text-green-600":"text-red-600"} font-semibold">${ua}</span></p>
-        <p>Correct Answer: <b class="text-green-700">${ca}</b></p>
-      </div>`;
-  }).join("");
+    const uaOpt = userAnswers[q.id];
+    const caOpt = q.correct_answer;
 
-  els.reviewContainer.innerHTML = html;
-  showView("results-screen");
+    const uaText = uaOpt
+      ? cleanKatexMarkers(q.options?.[uaOpt] || "")
+      : "Not Attempted";
+
+    const caText = caOpt
+      ? cleanKatexMarkers(q.options?.[caOpt] || "")
+      : "-";
+
+    const correct =
+      uaOpt && caOpt &&
+      uaOpt.toUpperCase() === caOpt.toUpperCase();
+
+    return `
+      <div class="mb-6 p-4 bg-white rounded-lg border border-gray-100 shadow-sm">
+        <p class="font-bold text-lg mb-1">Q${i + 1}: ${txt}</p>
+        ${reason ? `<p class="text-gray-700 mb-2">${label}: ${reason}</p>` : ""}
+        <p>
+          Your Answer:
+          <span class="${correct ? "text-green-600" : "text-red-600"} font-semibold">
+            ${uaOpt ? `(${uaOpt}) ${uaText}` : "Not Attempted"}
+          </span>
+        </p>
+        <p>
+          Correct Answer:
+          <span class="text-green-700 font-semibold">
+            (${caOpt}) ${caText}
+          </span>
+        </p>
+      </div>`;
+  }).join("");
+
+  els.reviewContainer.innerHTML = html;
+  showView("results-screen");
 }
