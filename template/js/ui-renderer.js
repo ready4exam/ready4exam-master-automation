@@ -480,3 +480,79 @@ export function renderAllQuestionsForReview(questions, userAnswers = {}) {
   els.reviewContainer.innerHTML = html;
   showView("results-screen");
 }
+/* -----------------------------------
+   RESULT FEEDBACK + UNLOCK UI
+----------------------------------- */
+/* -----------------------------------
+   RESULT FEEDBACK DECISION ENGINE
+----------------------------------- */
+export function getResultFeedback({ score, total, difficulty }) {
+  const percentage = total > 0 ? Math.round((score / total) * 100) : 0;
+
+  let title = "";
+  let message = "";
+  let showRequestMoreBtn = false;
+
+  // ================= SIMPLE =================
+  if (difficulty === "Simple") {
+    if (percentage >= 90) {
+      title = "Excellent Work!";
+      message =
+        "You have mastered the basics. Try Medium difficulty to strengthen your understanding.";
+    } else if (percentage >= 60) {
+      title = "Good Progress!";
+      message =
+        "You are doing well. Practice a bit more to improve your accuracy.";
+    } else {
+      title = "Keep Practicing!";
+      message =
+        "Focus on understanding the concepts and try again.";
+    }
+  }
+
+  // ================= MEDIUM =================
+  else if (difficulty === "Medium") {
+    if (percentage >= 90) {
+      title = "Great Job!";
+      message =
+        "You are handling Medium questions confidently. Try Advanced to challenge yourself.";
+    } else if (percentage >= 60) {
+      title = "Nice Effort!";
+      message =
+        "Review your mistakes and aim for higher accuracy.";
+    } else {
+      title = "Don't Give Up!";
+      message =
+        "Revisit the basics and attempt this level again.";
+    }
+  }
+
+  // ================= ADVANCED =================
+  else if (difficulty === "Advanced") {
+    if (percentage >= 90) {
+      title = "Outstanding Performance!";
+      message =
+        "Scoring above 90% in Advanced shows exceptional understanding. You can now request more challenging questions.";
+      showRequestMoreBtn = true;
+    } else if (percentage >= 60) {
+      title = "Strong Attempt!";
+      message =
+        "You are close to mastery. Review carefully and try again.";
+    } else {
+      title = "Advanced Is Tough!";
+      message =
+        "Advanced questions need precision. Practice more and retry.";
+    }
+  }
+
+  return {
+    title,
+    message,
+    showRequestMoreBtn,
+    percentage,
+    context: {
+      difficulty,
+      percentage,
+    },
+  };
+}
