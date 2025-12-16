@@ -144,252 +144,162 @@ export function showView(viewName) {
 }
 
 /* -----------------------------------
-   QUESTION RENDERER (AR / CASE / MCQ)
+   QUESTION RENDERER (AR / CASE / MCQ)
 ----------------------------------- */
 export function renderQuestion(q, idxOneBased, selected, submitted) {
-  initializeElements();
-  if (!els.list) return;
+  initializeElements();
+  if (!els.list) return;
 
-  // ---------------------------
-  // Universal normalizer (safe)
-  // maps different field names from DB/backend to UI fields
-  // ---------------------------
-  const mapped = {
-    id: q.id,
-    question_type: (q.question_type || q.type || "").toLowerCase(),
-    text: q.text || q.question_text || q.prompt || "",
-    scenario_reason: q.scenario_reason || q.scenario_reason_text || q.context || q.passage || "",
-    explanation: q.explanation || q.explanation_text || q.reason || "",
-    correct_answer: q.correct_answer || q.correct_answer_key || q.answer || "",
-    options: {
-      A: (q.options && (q.options.A || q.options.a)) || q.option_a || q.a || q.opt_a || "",
-      B: (q.options && (q.options.B || q.options.b)) || q.option_b || q.b || q.opt_b || "",
-      C: (q.options && (q.options.C || q.options.c)) || q.option_c || q.c || q.opt_c || "",
-      D: (q.options && (q.options.D || q.options.d)) || q.option_d || q.d || q.opt_d || ""
-    }
-  };
+  const mapped = {
+    id: q.id,
+    question_type: (q.question_type || q.type || "").toLowerCase(),
+    text: q.text || q.question_text || q.prompt || "",
+    scenario_reason: q.scenario_reason || q.scenario_reason_text || q.context || q.passage || "",
+    explanation: q.explanation || q.explanation_text || q.reason || "",
+    correct_answer: q.correct_answer || q.correct_answer_key || q.answer || "",
+    options: {
+      A: (q.options && (q.options.A || q.options.a)) || q.option_a || "",
+      B: (q.options && (q.options.B || q.options.b)) || q.option_b || "",
+      C: (q.options && (q.options.C || q.options.c)) || q.option_c || "",
+      D: (q.options && (q.options.D || q.options.d)) || q.option_d || ""
+    }
+  };
 
-  // use mapped object for downstream logic
-  q = mapped;
+  q = mapped;
+  const type = q.question_type;
 
-  const type = (q.question_type || "").toLowerCase();
+  /* ================== ASSERTION–REASON ================== */
+  if (type === "ar") {
+    const rawQ = cleanKatexMarkers(q.text || "");
+    const rawReasonSource = cleanKatexMarkers(q.scenario_reason || q.explanation || "");
 
-  /* ================== ASSERTION-REASON ================== */
-  if (type === "ar") {
-    const rawQ = cleanKatexMarkers(q.text || "");
-    const rawReasonSource = cleanKatexMarkers(q.scenario_reason || q.explanation || "");
+    let assertion = rawQ;
+    let reason = rawReasonSource || "";
 
-    let assertion = "";
-    let reason = "";
+    const arOptionText = {
+      A: "Both A and R are true and R is the correct explanation of A.",
+      B: "Both A and R are true but R is not the correct explanation of A.",
+      C: "A is true but R is false.",
+      D: "A is false but R is true."
+    };
 
-    const bothMatch = rawQ.match(
-      /Assertion\s*\(A\)\s*[:\-]?\s*(.*?)(?:Reason\s*\(R\)\s*[:\-]?\s*(.*))?$/is
-    );
-    if (bothMatch) {
-      assertion = (bothMatch[1] || "").trim();
-      if (bothMatch[2]) reason = bothMatch[2].trim();
-    }
+    const optionsHtml = ["A","B","C","D"].map(opt => {
+      const isSel = selected === opt;
+      const isCorrect = submitted && q.correct_answer?.toUpperCase() === opt;
+      const isWrong = submitted && isSel && !isCorrect;
 
-    if (!assertion) {
-      const aOnly = rawQ.match(/Assertion\s*\(A\)\s*[:\-]?\s*(.*)$/is);
-      if (aOnly) assertion = aOnly[1].trim();
-    }
+      let cls = "option-label flex items-start p-3 border-2 rounded-lg cursor-pointer transition";
+      if (isCorrect) cls += " border-green-600 bg-green-50";
+      else if (isWrong) cls += " border-red-600 bg-red-50";
+      else if (isSel) cls += " border-blue-500 bg-blue-50";
 
-    if (!assertion) assertion = rawQ.trim();
+      return `
+        <label class="block">
+          <input type="radio" name="q-${q.id}" value="${opt}" class="hidden" ${isSel?"checked":""} ${submitted?"disabled":""}>
+          <div class="${cls}">
+            <span class="font-bold mr-3">${opt})</span>
+            <span class="text-gray-800">${arOptionText[opt]}</span>
+          </div>
+        </label>`;
+    }).join("");
 
-    if (!reason) {
-      const rInline = rawQ.match(/Reason\s*\(R\)\s*[:\-]?\s*(.*)$/is);
-      if (rInline?.[1]) reason = rInline[1].trim();
-    }
+    els.list.innerHTML = `
+      <div class="space-y-5">
+        <p class="text-lg font-bold text-gray-900">
+          Q${idxOneBased}: <span class="font-bold">Assertion (A):</span> ${assertion}
+        </p>
+        <p class="text-md text-gray-900">
+          <span class="font-bold">Reason (R):</span> ${reason}
+        </p>
+        <div class="mt-3 font-semibold text-gray-900">Mark the correct choice:</div>
+        <div class="space-y-3">${optionsHtml}</div>
+      </div>`;
+    return;
+  }
 
-    if (!reason && rawReasonSource) {
-      if (/Reason\s*\(R\)/i.test(rawReasonSource)) {
-        reason = rawReasonSource.replace(/.*Reason\s*\(R\)\s*[:\-]?\s*/i, "").trim();
-      } else {
-        reason = rawReasonSource.trim();
-      }
-    }
+  /* ================== CASE BASED ================== */
+  if (type === "case") {
+    const scenario = cleanKatexMarkers(q.scenario_reason || "");
+    const question = cleanKatexMarkers(q.text || "");
 
-    if (!reason) reason = "";
+    const optionsHtml = ["A","B","C","D"].map(opt => {
+      const txt = cleanKatexMarkers(q.options[opt] || "");
+      const isSel = selected === opt;
+      const isCorrect = submitted && q.correct_answer?.toUpperCase() === opt;
+      const isWrong = submitted && isSel && !isCorrect;
 
-    const arOptionText = {
-      A: "Both A and R are true and R is the correct explanation of A.",
-      B: "Both A and R are true but R is not the correct explanation of A.",
-      C: "A is true but R is false.",
-      D: "A is false but R is true.",
-    };
+      let cls = "option-label flex items-start p-3 border-2 rounded-lg cursor-pointer transition";
+      if (isCorrect) cls += " border-green-600 bg-green-50";
+      else if (isWrong) cls += " border-red-600 bg-red-50";
+      else if (isSel) cls += " border-blue-500 bg-blue-50";
 
-    const optionsHtml = ["A", "B", "C", "D"].map(opt => {
-      const isSel = selected === opt;
-      const isCorrect = submitted && q.correct_answer?.toUpperCase() === opt;
-      const isWrong = submitted && isSel && !isCorrect;
+      return `
+        <label class="block">
+          <input type="radio" name="q-${q.id}" value="${opt}" class="hidden" ${isSel?"checked":""} ${submitted?"disabled":""}>
+          <div class="${cls}">
+            <span class="font-bold mr-3">${opt}.</span>
+            <span class="text-gray-800">${txt}</span>
+          </div>
+        </label>`;
+    }).join("");
 
-      // MODIFIED: Changed p-2 to p-1 for compactness
-      let cls = "option-label flex items-start p-1 border-2 rounded-lg cursor-pointer transition";
-      if (isCorrect) cls += " border-green-600 bg-green-50";
-      else if (isWrong) cls += " border-red-600 bg-red-50";
-      else if (isSel) cls += " border-blue-500 bg-blue-50";
+    const reason = normalizeReasonText(cleanKatexMarkers(q.explanation || ""));
+    const explanationHtml = submitted && reason
+      ? `<div class="mt-3 p-3 bg-gray-50 border border-gray-100 rounded text-gray-700"><b>Explanation:</b> ${reason}</div>`
+      : "";
 
-      return `
-        <label class="block">
-          <input type="radio" name="q-${q.id}" value="${opt}" class="hidden" ${isSel ? "checked" : ""} ${submitted ? "disabled" : ""}>
-          <div class="${cls}">
-            <span class="font-bold mr-3">${opt})</span>
-            <span class="text-gray-800">${arOptionText[opt]}</span>
-          </div>
-        </label>`;
-    }).join("");
+    els.list.innerHTML = `
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+        <div class="p-4 bg-gray-50 rounded-lg border border-gray-200 max-h-64 overflow-y-auto">
+          <h3 class="font-semibold mb-2 text-gray-900">Scenario</h3>
+          <p class="text-gray-800 whitespace-pre-line">${scenario}</p>
+        </div>
+        <div class="space-y-4">
+          <p class="text-lg font-bold text-gray-900">Q${idxOneBased}: ${question}</p>
+          <div class="space-y-3">${optionsHtml}</div>
+          ${explanationHtml}
+        </div>
+      </div>`;
+    return;
+  }
 
-    els.list.innerHTML = `
-      <div class="space-y-4"> // Slightly reduced from space-y-5
-        <p class="text-lg font-bold text-gray-900">
-          Q${idxOneBased}:
-          <span class="font-bold"> Assertion (A):</span> ${assertion}
-        </p>
-        <p class="text-md text-gray-900">
-          <span class="font-bold">Reason (R):</span> ${reason}
-        </p>
-        <div class="mt-2 text-gray-900 font-semibold"> // Reduced mt-3 to mt-2
-          Mark the correct choice as:
-        </div>
-        <div class="space-y-2"> // Reduced space-y-3 to space-y-2
-          ${optionsHtml}
-        </div>
-      </div>`;
+  /* ================== NORMAL MCQ ================== */
+  const qText = cleanKatexMarkers(q.text || "");
+  const reason = normalizeReasonText(cleanKatexMarkers(q.explanation || q.scenario_reason || ""));
+  const reasonHtml = reason && !submitted
+    ? `<p class="text-gray-700 mt-2 mb-3">Reasoning (R): ${reason}</p>` : "";
 
-    if (els.counter)
-      els.counter.textContent = `${idxOneBased} / ${els._total || "--"}`;
-    return;
-  }
+  const submittedExplanationHtml = submitted && reason
+    ? `<div class="mt-3 p-3 bg-gray-50 border border-gray-100 rounded text-gray-700"><b>Reasoning (R):</b> ${reason}</div>` : "";
 
-  /* ================== CASE BASED ================== */
-  if (type === "case") {
-    const rawQ = cleanKatexMarkers(q.text || "");
-    const rawScenario = cleanKatexMarkers(q.scenario_reason || "");
+  const optionsHtml = ["A","B","C","D"].map(opt => {
+    const txt = cleanKatexMarkers(q.options[opt] || "");
+    const isSel = selected === opt;
+    const isCorrect = submitted && q.correct_answer?.toUpperCase() === opt;
+    const isWrong = submitted && isSel && !isCorrect;
 
-    const isQuestionLike = (txt) => {
-      if (!txt) return false;
-      return /[?]/.test(txt) ||
-             /\bBased on\b/i.test(txt) ||
-             /\banswer\b/i.test(txt) ||
-             /\bfollowing\b/i.test(txt) ||
-             /\b1\./.test(txt) ||
-             /\b2\./.test(txt);
-    };
+    let cls = "option-label flex items-start p-3 border-2 rounded-lg cursor-pointer transition";
+    if (isCorrect) cls += " border-green-600 bg-green-50";
+    else if (isWrong) cls += " border-red-600 bg-red-50";
+    else if (isSel) cls += " border-blue-500 bg-blue-50";
 
-    let scenarioText = "";
-    let questionText = "";
+    return `
+      <label class="block">
+        <input type="radio" name="q-${q.id}" value="${opt}" class="hidden" ${isSel?"checked":""} ${submitted?"disabled":""}>
+        <div class="${cls}">
+          <span class="font-bold mr-3">${opt}.</span>
+          <span class="text-gray-800">${txt}</span>
+        </div>
+      </label>`;
+  }).join("");
 
-    if (rawScenario && isQuestionLike(rawScenario)) {
-      scenarioText = rawQ;
-      questionText = rawScenario;
-    } else if (rawScenario) {
-      scenarioText = rawScenario;
-      questionText = rawQ;
-    } else {
-      const splitMatch = rawQ.match(/(Based on.*|Considering.*|Answer the following.*)/is);
-      if (splitMatch && splitMatch.index > 0) {
-        scenarioText = rawQ.slice(0, splitMatch.index).trim();
-        questionText = splitMatch[1].trim();
-      } else {
-        scenarioText = rawQ;
-        questionText = "";
-      }
-    }
-
-    const optionsHtml = ["A", "B", "C", "D"].map(opt => {
-      const txt = cleanKatexMarkers(q.options?.[opt] || "");
-      const isSel = selected === opt;
-      const isCorrect = submitted && q.correct_answer?.toUpperCase() === opt;
-      const isWrong = submitted && isSel && !isCorrect;
-
-      let cls = "option-label flex items-start p-3 border-2 rounded-lg cursor-pointer transition";
-      if (isCorrect) cls += " border-green-600 bg-green-50";
-      else if (isWrong) cls += " border-red-600 bg-red-50";
-      else if (isSel) cls += " border-blue-500 bg-blue-50";
-
-      return `
-        <label class="block">
-          <input type="radio" name="q-${q.id}" value="${opt}" class="hidden" ${isSel ? "checked" : ""} ${submitted ? "disabled" : ""}>
-          <div class="${cls}">
-            <span class="font-bold mr-3">${opt}.</span>
-            <span class="text-gray-800">${txt}</span>
-          </div>
-        </label>`;
-    }).join("");
-
-    let reasonRaw = q.explanation || "";
-    const reason = normalizeReasonText(cleanKatexMarkers(reasonRaw));
-    const submittedExplanationHtml =
-      submitted && reason
-        ? `<div class="mt-2 p-2 bg-gray-50 rounded text-gray-700 border border-gray-100"><b>Explanation:</b> ${reason}</div>` // Reduced mt-3 to mt-2, p-3 to p-2
-        : "";
-
-    els.list.innerHTML = `
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-start"> // Reduced gap-6 to gap-4
-        <div class="p-3 bg-gray-50 rounded-lg border border-gray-200"> // REMOVED max-h-64 overflow-y-auto and reduced p-4 to p-3
-          <h3 class="font-semibold mb-1 text-gray-900">Scenario</h3> // Reduced mb-2 to mb-1
-          <p class="text-gray-800 text-sm md:text-base whitespace-pre-line">${scenarioText}</p>
-        </div>
-        <div class="space-y-3"> // Reduced space-y-4 to space-y-3
-          <p class="text-lg font-bold text-gray-900">Q${idxOneBased}: ${questionText || "Based on the scenario, answer this question."}</p>
-          <div class="space-y-1">${optionsHtml}</div> // Reduced space-y-2 to space-y-1
-          ${submittedExplanationHtml}
-        </div>
-      </div>`;
-
-    if (els.counter)
-      els.counter.textContent = `${idxOneBased} / ${els._total || "--"}`;
-    return;
-  }
-
-  /* ================== NORMAL MCQ ================== */
-  const qText = cleanKatexMarkers(q.text || "");
-  let reasonRaw = q.explanation || q.scenario_reason || "";
-  const reason = normalizeReasonText(cleanKatexMarkers(reasonRaw));
-  const label = type === "case" ? "Context" : "Reasoning (R)";
-
-  const reasonHtml =
-    (type === "ar" || type === "case") && reason && !submitted
-      ? `<p class="text-gray-700 mt-1 mb-2">${label}: ${reason}</p>` : ""; // Reduced mt-2 mb-3
-
-  const submittedExplanationHtml =
-    submitted && (type === "ar" || type === "case") && reason
-      ? `<div class="mt-2 p-2 bg-gray-50 rounded text-gray-700 border border-gray-100"><b>${label}:</b> ${reason}</div>` // Reduced mt-3 p-3
-      : "";
-
-  const optionsHtml = ["A", "B", "C", "D"].map(opt => {
-    const txt = cleanKatexMarkers(q.options?.[opt] || "");
-    const isSel = selected === opt;
-    const isCorrect = submitted && q.correct_answer?.toUpperCase() === opt;
-    const isWrong = submitted && isSel && !isCorrect;
-
-    // MODIFIED: Changed p-3 to p-2 for compactness
-    let cls = "option-label flex items-start p-2 border-2 rounded-lg cursor-pointer transition";
-    if (isCorrect) cls += " border-green-600 bg-green-50";
-    else if (isWrong) cls += " border-red-600 bg-red-50";
-    else if (isSel) cls += " border-blue-500 bg-blue-50";
-
-    return `
-      <label class="block">
-        <input type="radio" name="q-${q.id}" value="${opt}" class="hidden" ${isSel?"checked":""} ${submitted?"disabled":""}>
-        <div class="${cls}">
-          <span class="font-bold mr-3">${opt}.</span>
-          <span class="text-gray-800">${txt}</span>
-        </div>
-      </label>`;
-  }).join("");
-
-  els.list.innerHTML = `
-    <div class="space-y-2"> // Reduced space-y-4 to space-y-2 (major compaction)
-      <p class="text-lg font-bold text-gray-800">Q${idxOneBased}: ${qText}</p>
-      ${reasonHtml}
-      <div class="space-y-2">${optionsHtml}</div> // Reduced space-y-3 to space-y-2
-      ${submittedExplanationHtml}
-    </div>`;
-
-  if (els.counter)
-    els.counter.textContent = `${idxOneBased} / ${els._total || "--"}`;
+  els.list.innerHTML = `
+    <div class="space-y-6">
+      <p class="text-lg font-bold text-gray-800">Q${idxOneBased}: ${qText}</p>
+      ${reasonHtml}
+      <div class="space-y-3">${optionsHtml}</div>
+      ${submittedExplanationHtml}
+    </div>`;
 }
 
 /* -----------------------------------
