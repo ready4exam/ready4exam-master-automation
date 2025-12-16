@@ -224,7 +224,8 @@ export function renderQuestion(q, idxOneBased, selected, submitted) {
       const isCorrect = submitted && q.correct_answer?.toUpperCase() === opt;
       const isWrong = submitted && isSel && !isCorrect;
 
-      let cls = "option-label flex items-start p-2 border-2 rounded-lg cursor-pointer transition";
+      // MODIFIED: Changed p-2 to p-1 for compactness
+      let cls = "option-label flex items-start p-1 border-2 rounded-lg cursor-pointer transition";
       if (isCorrect) cls += " border-green-600 bg-green-50";
       else if (isWrong) cls += " border-red-600 bg-red-50";
       else if (isSel) cls += " border-blue-500 bg-blue-50";
@@ -240,7 +241,7 @@ export function renderQuestion(q, idxOneBased, selected, submitted) {
     }).join("");
 
     els.list.innerHTML = `
-      <div class="space-y-5">
+      <div class="space-y-4"> // Slightly reduced from space-y-5
         <p class="text-lg font-bold text-gray-900">
           Q${idxOneBased}:
           <span class="font-bold"> Assertion (A):</span> ${assertion}
@@ -248,10 +249,10 @@ export function renderQuestion(q, idxOneBased, selected, submitted) {
         <p class="text-md text-gray-900">
           <span class="font-bold">Reason (R):</span> ${reason}
         </p>
-        <div class="mt-3 text-gray-900 font-semibold">
+        <div class="mt-2 text-gray-900 font-semibold"> // Reduced mt-3 to mt-2
           Mark the correct choice as:
         </div>
-        <div class="space-y-3">
+        <div class="space-y-2"> // Reduced space-y-3 to space-y-2
           ${optionsHtml}
         </div>
       </div>`;
@@ -321,18 +322,18 @@ export function renderQuestion(q, idxOneBased, selected, submitted) {
     const reason = normalizeReasonText(cleanKatexMarkers(reasonRaw));
     const submittedExplanationHtml =
       submitted && reason
-        ? `<div class="mt-3 p-3 bg-gray-50 rounded text-gray-700 border border-gray-100"><b>Explanation:</b> ${reason}</div>`
+        ? `<div class="mt-2 p-2 bg-gray-50 rounded text-gray-700 border border-gray-100"><b>Explanation:</b> ${reason}</div>` // Reduced mt-3 to mt-2, p-3 to p-2
         : "";
 
     els.list.innerHTML = `
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
-        <div class="p-4 bg-gray-50 rounded-lg border border-gray-200 max-h-64 overflow-y-auto">
-          <h3 class="font-semibold mb-2 text-gray-900">Scenario</h3>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-start"> // Reduced gap-6 to gap-4
+        <div class="p-3 bg-gray-50 rounded-lg border border-gray-200"> // REMOVED max-h-64 overflow-y-auto and reduced p-4 to p-3
+          <h3 class="font-semibold mb-1 text-gray-900">Scenario</h3> // Reduced mb-2 to mb-1
           <p class="text-gray-800 text-sm md:text-base whitespace-pre-line">${scenarioText}</p>
         </div>
-        <div class="space-y-4">
+        <div class="space-y-3"> // Reduced space-y-4 to space-y-3
           <p class="text-lg font-bold text-gray-900">Q${idxOneBased}: ${questionText || "Based on the scenario, answer this question."}</p>
-          <div class="space-y-2">${optionsHtml}</div>
+          <div class="space-y-1">${optionsHtml}</div> // Reduced space-y-2 to space-y-1
           ${submittedExplanationHtml}
         </div>
       </div>`;
@@ -350,11 +351,12 @@ export function renderQuestion(q, idxOneBased, selected, submitted) {
 
   const reasonHtml =
     (type === "ar" || type === "case") && reason && !submitted
-      ? `<p class="text-gray-700 mt-2 mb-3">${label}: ${reason}</p>` : "";
+      ? `<p class="text-gray-700 mt-1 mb-2">${label}: ${reason}</p>` : ""; // Reduced mt-2 mb-3
 
   const submittedExplanationHtml =
     submitted && (type === "ar" || type === "case") && reason
-      ? `<div class="mt-3 p-3 bg-gray-50 rounded text-gray-700 border border-gray-100"><b>${label}:</b> ${reason}</div>` : "";
+      ? `<div class="mt-2 p-2 bg-gray-50 rounded text-gray-700 border border-gray-100"><b>${label}:</b> ${reason}</div>` // Reduced mt-3 p-3
+      : "";
 
   const optionsHtml = ["A", "B", "C", "D"].map(opt => {
     const txt = cleanKatexMarkers(q.options?.[opt] || "");
@@ -362,7 +364,8 @@ export function renderQuestion(q, idxOneBased, selected, submitted) {
     const isCorrect = submitted && q.correct_answer?.toUpperCase() === opt;
     const isWrong = submitted && isSel && !isCorrect;
 
-    let cls = "option-label flex items-start p-3 border-2 rounded-lg cursor-pointer transition";
+    // MODIFIED: Changed p-3 to p-2 for compactness
+    let cls = "option-label flex items-start p-2 border-2 rounded-lg cursor-pointer transition";
     if (isCorrect) cls += " border-green-600 bg-green-50";
     else if (isWrong) cls += " border-red-600 bg-red-50";
     else if (isSel) cls += " border-blue-500 bg-blue-50";
@@ -378,10 +381,10 @@ export function renderQuestion(q, idxOneBased, selected, submitted) {
   }).join("");
 
   els.list.innerHTML = `
-    <div class="space-y-4">
+    <div class="space-y-2"> // Reduced space-y-4 to space-y-2 (major compaction)
       <p class="text-lg font-bold text-gray-800">Q${idxOneBased}: ${qText}</p>
       ${reasonHtml}
-      <div class="space-y-3">${optionsHtml}</div>
+      <div class="space-y-2">${optionsHtml}</div> // Reduced space-y-3 to space-y-2
       ${submittedExplanationHtml}
     </div>`;
 
@@ -454,16 +457,16 @@ export function renderAllQuestionsForReview(questions, userAnswers = {}) {
       uaOpt.toUpperCase() === caOpt.toUpperCase();
 
     return `
-      <div class="mb-6 p-4 bg-white rounded-lg border border-gray-100 shadow-sm">
-        <p class="font-bold text-lg mb-1">Q${i + 1}: ${txt}</p>
-        ${reason ? `<p class="text-gray-700 mb-2">${label}: ${reason}</p>` : ""}
-        <p>
+      <div class="mb-5 p-3 bg-white rounded-lg border border-gray-100 shadow-sm"> // Reduced mb-6 p-4
+        <p class="font-bold text-base mb-1">Q${i + 1}: ${txt}</p> // Reduced text-lg to text-base
+        ${reason ? `<p class="text-gray-700 mb-1">${label}: ${reason}</p>` : ""} // Reduced mb-2 to mb-1
+        <p class="text-sm"> // Added text-sm
           Your Answer:
           <span class="${correct ? "text-green-600" : "text-red-600"} font-semibold">
             ${uaOpt ? `(${uaOpt}) ${uaText}` : "Not Attempted"}
           </span>
         </p>
-        <p>
+        <p class="text-sm"> // Added text-sm
           Correct Answer:
           <span class="text-green-700 font-semibold">
             (${caOpt}) ${caText}
@@ -485,7 +488,7 @@ export function getResultFeedback({ score, total, difficulty }) {
 
   let title = "";
   let message = "";
-  let showRequestMoreBtn = false; 
+  let showRequestMoreBtn = false; 
 
   // Rule 2: Difficulty-aware threshold evaluation
   // ================= SIMPLE =================
@@ -598,7 +601,7 @@ export function showResultFeedback(feedback, requestMoreHandler) {
 
     container.appendChild(btn);
   }
-  
+  
   // Insert the feedback container above the results section buttons
   const resultsSection = document.getElementById("results-screen");
   if (resultsSection)
