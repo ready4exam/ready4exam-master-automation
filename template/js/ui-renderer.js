@@ -389,134 +389,146 @@ export function renderAllQuestionsForReview(questions, userAnswers = {}) {
   showView("results-screen");
 }
 /* -----------------------------------
-   RESULT FEEDBACK DECISION ENGINE
-   (Implements Rules 1, 2, 3, 4 logic)
+   RESULT FEEDBACK DECISION ENGINE
+   (Implements Rules 1, 2, 3, 4, 5)
 ----------------------------------- */
 export function getResultFeedback({ score, total, difficulty }) {
-  // Rule 1: Score normalization and percentage calculation
-  const percentage = total > 0 ? Math.round((score / total) * 100) : 0;
+  // Normalize difficulty (robust against UI labels)
+  const normalizedDifficulty =
+    (difficulty || "").toLowerCase().includes("advanced") ? "Advanced" :
+    (difficulty || "").toLowerCase().includes("medium")   ? "Medium" :
+    (difficulty || "").toLowerCase().includes("simple")   ? "Simple" :
+    "";
 
-  let title = "";
-  let message = "";
-  let showRequestMoreBtn = false; 
+  // Score normalization
+  const percentage = total > 0
+    ? Math.round((score / total) * 100)
+    : 0;
 
-  // Rule 2: Difficulty-aware threshold evaluation
-  // ================= SIMPLE =================
-  if (difficulty === "Simple") {
-    if (percentage >= 90) {
-      // Rule 3: Progressive encouragement (Simple -> Medium)
-      title = "Excellent Work!";
-      message =
-        "You have mastered the basics. Try Medium difficulty to strengthen your understanding.";
-    } else if (percentage >= 60) {
-      title = "Good Progress!";
-      message =
-        "You are doing well. Practice a bit more to improve your accuracy.";
-    } else {
-      title = "Keep Practicing!";
-      message =
-        "Focus on understanding the concepts and try again.";
-    }
-  }
+  let title = "";
+  let message = "";
+  let showRequestMoreBtn = false;
 
-  // ================= MEDIUM =================
-  else if (difficulty === "Medium") {
-    if (percentage >= 90) {
-      // Rule 3: Progressive encouragement (Medium -> Advanced)
-      title = "Great Job!";
-      message =
-        "You are handling Medium questions confidently. Try Advanced to challenge yourself.";
-    } else if (percentage >= 60) {
-      title = "Nice Effort!";
-      message =
-        "Review your mistakes and aim for higher accuracy.";
-    } else {
-      title = "Don't Give Up!";
-      message =
-        "Revisit the basics and attempt this level again.";
-    }
-  }
+  /* ================= SIMPLE ================= */
+  if (normalizedDifficulty === "Simple") {
+    if (percentage >= 90) {
+      title = "Excellent Work!";
+      message =
+        "You have mastered the basics. Try Medium difficulty to strengthen your understanding.";
+    } else if (percentage >= 60) {
+      title = "Good Progress!";
+      message =
+        "You are doing well. Practice a bit more to improve your accuracy.";
+    } else {
+      title = "Keep Practicing!";
+      message =
+        "Focus on understanding the concepts and try again.";
+    }
+  }
 
-  // ================= ADVANCED =================
-  else if (difficulty === "Advanced") {
-    if (percentage >= 90) {
-      // Rule 3 & 4: Conditional unlock (Advanced >= 90%)
-      title = "Outstanding Performance!";
-      message =
-        "Scoring above 90% in Advanced shows exceptional understanding. You can now request more challenging questions.";
-      showRequestMoreBtn = true;
-    } else if (percentage >= 60) {
-      title = "Strong Attempt!";
-      message =
-        "You are close to mastery. Review carefully and try again.";
-    } else {
-      title = "Advanced Is Tough!";
-      message =
-        "Advanced questions need precision. Practice more and retry.";
-    }
-  }
+  /* ================= MEDIUM ================= */
+  else if (normalizedDifficulty === "Medium") {
+    if (percentage >= 90) {
+      title = "Great Job!";
+      message =
+        "You are handling Medium questions confidently. Try Advanced to challenge yourself.";
+    } else if (percentage >= 60) {
+      title = "Nice Effort!";
+      message =
+        "Review your mistakes and aim for higher accuracy.";
+    } else {
+      title = "Don't Give Up!";
+      message =
+        "Revisit the basics and attempt this level again.";
+    }
+  }
 
-  return {
-    title,
-    message,
-    showRequestMoreBtn,
-    percentage,
-    context: {
-      difficulty,
-      percentage,
-    },
-  };
+  /* ================= ADVANCED ================= */
+  else if (normalizedDifficulty === "Advanced") {
+    if (percentage >= 90) {
+      title = "Outstanding Performance!";
+      message =
+        "Scoring above 90% in Advanced shows exceptional understanding. You can now request more challenging questions.";
+      showRequestMoreBtn = true;
+    } else if (percentage >= 60) {
+      title = "Strong Attempt!";
+      message =
+        "You are close to mastery. Review carefully and try again.";
+    } else {
+      title = "Advanced Is Tough!";
+      message =
+        "Advanced questions need precision. Practice more and retry.";
+    }
+  }
+
+  return {
+    title,
+    message,
+    showRequestMoreBtn,
+    percentage,
+    context: {
+      difficulty: normalizedDifficulty,
+      percentage,
+    },
+  };
 }
+
 /* -----------------------------------
-   RESULT FEEDBACK + UNLOCK UI
-   (Updated to support Rule 5 Decoupling)
+   RESULT FEEDBACK + UNLOCK UI
 ----------------------------------- */
 export function showResultFeedback(feedback, requestMoreHandler) {
-  initializeElements();
+  initializeElements();
+  if (!els.reviewScreen) return;
 
-  if (!els.reviewScreen) return;
+  // Guard: do not render empty feedback
+  if (!feedback?.title && !feedback?.message) return;
 
-  // Remove old feedback if present
-  let container = document.getElementById("result-feedback-container");
-  if (container) container.remove();
+  // Remove old feedback if present
+  let container = document.getElementById("result-feedback-container");
+  if (container) container.remove();
 
-  container = document.createElement("div");
-  container.id = "result-feedback-container";
-  container.className =
-    "w-full max-w-3xl mx-auto mt-6 p-5 rounded-lg border border-gray-200 bg-blue-50 text-center";
+  // Create container
+  container = document.createElement("div");
+  container.id = "result-feedback-container";
+  container.className =
+    "w-full max-w-3xl mx-auto mt-6 p-5 rounded-lg border border-gray-200 bg-blue-50 text-center";
 
-  const titleEl = document.createElement("h3");
-  titleEl.className = "text-xl font-bold text-blue-800 mb-2";
-  titleEl.textContent = feedback.title || "";
+  // Title
+  const titleEl = document.createElement("h3");
+  titleEl.className = "text-xl font-bold text-blue-800 mb-2";
+  titleEl.textContent = feedback.title;
 
-  const msgEl = document.createElement("p");
-  msgEl.className = "text-gray-800 mb-4";
-  msgEl.textContent = feedback.message || "";
+  // Message
+  const msgEl = document.createElement("p");
+  msgEl.className = "text-gray-800 mb-4";
+  msgEl.textContent = feedback.message;
 
-  container.appendChild(titleEl);
-  container.appendChild(msgEl);
+  container.appendChild(titleEl);
+  container.appendChild(msgEl);
 
-  // Rule 4 check
-  if (feedback.showRequestMoreBtn) {
-    const btn = document.createElement("button");
-    btn.id = "request-more-btn";
-    btn.className =
-      "bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded transition duration-200 mt-2";
-    btn.textContent = "Request More Challenging Questions";
+  // Unlock button (Advanced ≥ 90%)
+  if (feedback.showRequestMoreBtn) {
+    const btn = document.createElement("button");
+    btn.id = "request-more-btn";
+    btn.className =
+      "bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded transition duration-200 mt-2";
+    btn.textContent = "Request More Challenging Questions";
 
-    // Rule 5: Attach the event handler passed from the quiz engine
-    if (requestMoreHandler) {
-      btn.addEventListener("click", () => requestMoreHandler(feedback.context));
-    }
+    if (requestMoreHandler) {
+      btn.addEventListener("click", () =>
+        requestMoreHandler(feedback.context)
+      );
+    }
 
-    container.appendChild(btn);
-  }
-  
-  // Insert the feedback container above the results section buttons
-  const resultsSection = document.getElementById("results-screen");
-  if (resultsSection)
-    resultsSection.insertBefore(
-      container,
-      resultsSection.querySelector(".flex") || null
-    );
+    container.appendChild(btn);
+  }
+
+  // Insert feedback above results buttons
+  const resultsSection = document.getElementById("results-screen");
+  if (resultsSection) {
+    resultsSection.insertBefore(
+      container,
+      resultsSection.querySelector(".flex") || null
+    );
+  }
 }
