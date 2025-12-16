@@ -389,6 +389,7 @@ export function renderAllQuestionsForReview(questions, userAnswers = {}) {
   showView("results-screen");
 }
 /* -----------------------------------
+ /* -----------------------------------
    RESULT FEEDBACK DECISION ENGINE
    (Implements Rules 1, 2, 3, 4, 5)
 ----------------------------------- */
@@ -407,6 +408,7 @@ export function getResultFeedback({ score, total, difficulty }) {
 
   let title = "";
   let message = "";
+  let curiosity = "";
   let showRequestMoreBtn = false;
 
   /* ================= SIMPLE ================= */
@@ -415,14 +417,20 @@ export function getResultFeedback({ score, total, difficulty }) {
       title = "Excellent Work!";
       message =
         "You have mastered the basics. Try Medium difficulty to strengthen your understanding.";
+      curiosity =
+        "You are closer to something deeper — higher levels unlock challenges most learners never see.";
     } else if (percentage >= 60) {
       title = "Good Progress!";
       message =
         "You are doing well. Practice a bit more to improve your accuracy.";
+      curiosity =
+        "There is more ahead. Precision is the key that opens the next door.";
     } else {
       title = "Keep Practicing!";
       message =
         "Focus on understanding the concepts and try again.";
+      curiosity =
+        "Every expert starts here. Consistency unlocks what is hidden.";
     }
   }
 
@@ -432,14 +440,20 @@ export function getResultFeedback({ score, total, difficulty }) {
       title = "Great Job!";
       message =
         "You are handling Medium questions confidently. Try Advanced to challenge yourself.";
+      curiosity =
+        "Advanced mastery is different — something exclusive unlocks only at the top.";
     } else if (percentage >= 60) {
       title = "Nice Effort!";
       message =
         "Review your mistakes and aim for higher accuracy.";
+      curiosity =
+        "You are approaching a hidden threshold. Accuracy reveals it.";
     } else {
       title = "Don't Give Up!";
       message =
         "Revisit the basics and attempt this level again.";
+      curiosity =
+        "Progress here determines what becomes visible next.";
     }
   }
 
@@ -448,22 +462,29 @@ export function getResultFeedback({ score, total, difficulty }) {
     if (percentage >= 90) {
       title = "Outstanding Performance!";
       message =
-        "Scoring above 90% in Advanced shows exceptional understanding. You can now request more challenging questions.";
+        "Scoring above 90% in Advanced shows exceptional understanding.";
+      curiosity =
+        "You have crossed the mastery line. New challenges are now unlocked.";
       showRequestMoreBtn = true;
     } else if (percentage >= 60) {
       title = "Strong Attempt!";
       message =
         "You are close to mastery. Review carefully and try again.";
+      curiosity =
+        "Something unlocks at 90%. Precision is the final gate.";
     } else {
       title = "Advanced Is Tough!";
       message =
         "Advanced questions need precision. Practice more and retry.";
+      curiosity =
+        "Only a few unlock what lies beyond this level.";
     }
   }
 
   return {
     title,
     message,
+    curiosity,
     showRequestMoreBtn,
     percentage,
     context: {
@@ -497,21 +518,29 @@ export function showResultFeedback(feedback, requestMoreHandler) {
   const titleEl = document.createElement("h3");
   titleEl.className = "text-xl font-bold text-blue-800 mb-2";
   titleEl.textContent = feedback.title;
+  container.appendChild(titleEl);
 
   // Message
   const msgEl = document.createElement("p");
-  msgEl.className = "text-gray-800 mb-4";
+  msgEl.className = "text-gray-800 mb-2";
   msgEl.textContent = feedback.message;
-
-  container.appendChild(titleEl);
   container.appendChild(msgEl);
+
+  // Curiosity (highlighted, special)
+  if (feedback.curiosity) {
+    const curiosityEl = document.createElement("p");
+    curiosityEl.className =
+      "text-sm text-indigo-700 font-semibold italic mb-4";
+    curiosityEl.textContent = feedback.curiosity;
+    container.appendChild(curiosityEl);
+  }
 
   // Unlock button (Advanced ≥ 90%)
   if (feedback.showRequestMoreBtn) {
     const btn = document.createElement("button");
     btn.id = "request-more-btn";
     btn.className =
-      "bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded transition duration-200 mt-2";
+      "bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-5 rounded transition duration-200";
     btn.textContent = "Request More Challenging Questions";
 
     if (requestMoreHandler) {
