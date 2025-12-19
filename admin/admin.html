@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
   <title>Ready4Exam — Admin Dashboard</title>
 
-  <!-- Tailwind -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -18,45 +17,48 @@
     }
   </script>
 
-  <!-- ✅ Correct path (admin.css is in same folder as admin.html) -->
   <link rel="stylesheet" href="./admin.css">
+  <style>
+    /* Toggle Switch Styles */
+    .switch { width:44px; height:24px; background:#e6e6e6; border-radius:999px; position:relative; cursor:pointer; transition: background 0.2s; }
+    .switch .knob { position:absolute; top:2px; left:2px; width:20px; height:20px; border-radius:999px; background:white; box-shadow:0 1px 3px rgba(0,0,0,0.2); transition: transform 0.2s; }
+    .switch.on { background: #16a34a; }
+    .switch.on .knob { transform: translateX(20px); }
+  </style>
 </head>
 
-<body class="bg-gray-100 min-h-screen">
+<body class="bg-gray-100 min-h-screen font-sans">
 
-  <!-- HEADER -->
-  <header class="bg-white shadow">
+  <header class="bg-white shadow sticky top-0 z-50">
     <div class="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
-      <h1 class="text-2xl font-extrabold text-cbse-blue">
-        Ready4Exam <span class="text-accent-gold">Admin</span>
+      <h1 class="text-2xl font-extrabold text-cbse-blue tracking-tight">
+        Ready4Exam <span class="text-accent-gold uppercase text-sm ml-1">Admin Panel</span>
       </h1>
       <div class="flex items-center gap-4">
-        <span id="current-admin-email" class="text-sm text-gray-600"></span>
-        <button id="logout-btn" class="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700">
+        <span id="current-admin-email" class="text-sm font-bold text-gray-600"></span>
+        <button id="logout-btn" class="px-4 py-2 rounded-lg bg-red-600 text-white font-bold hover:bg-red-700 transition">
           Logout
         </button>
       </div>
     </div>
   </header>
 
-  <!-- MAIN CONTENT -->
   <main class="max-w-7xl mx-auto px-6 py-8">
 
-    <h2 class="text-xl font-bold mb-4">User Management</h2>
+    <h2 class="text-xl font-black text-gray-800 mb-6 uppercase tracking-widest">User Access Management</h2>
 
-    <!-- FILTERS -->
-    <div class="bg-white p-4 rounded shadow mb-6">
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 mb-8">
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
 
         <div>
-          <label class="text-sm font-semibold">Search by Email</label>
-          <input id="filter-email" class="mt-1 w-full border rounded px-3 py-2" placeholder="user@example.com">
+          <label class="text-[10px] font-black uppercase text-gray-400 mb-2 block">Search by Email</label>
+          <input id="filter-email" class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-cbse-blue outline-none transition" placeholder="user@example.com">
         </div>
 
         <div>
-          <label class="text-sm font-semibold">Filter by Class</label>
-          <select id="filter-class" class="mt-1 w-full border rounded px-3 py-2">
-            <option value="">All</option>
+          <label class="text-[10px] font-black uppercase text-gray-400 mb-2 block">Filter by Class</label>
+          <select id="filter-class" class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none bg-white">
+            <option value="">All Classes</option>
             <option value="6">Class 6</option>
             <option value="7">Class 7</option>
             <option value="8">Class 8</option>
@@ -68,9 +70,9 @@
         </div>
 
         <div>
-          <label class="text-sm font-semibold">Filter by Stream</label>
-          <select id="filter-stream" class="mt-1 w-full border rounded px-3 py-2">
-            <option value="">All</option>
+          <label class="text-[10px] font-black uppercase text-gray-400 mb-2 block">Filter by Stream</label>
+          <select id="filter-stream" class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none bg-white">
+            <option value="">All Streams</option>
             <option value="science">Science</option>
             <option value="commerce">Commerce</option>
             <option value="arts">Arts</option>
@@ -79,17 +81,20 @@
 
       </div>
 
-      <div class="mt-4 flex gap-3">
-        <button id="apply-filters" class="px-4 py-2 bg-cbse-blue text-white rounded hover:bg-blue-700">
+      <div class="mt-6 flex flex-wrap items-center gap-4">
+        <button id="apply-filters" class="px-8 py-2.5 bg-cbse-blue text-white font-bold rounded-xl hover:shadow-lg transition">
           Apply Filters
         </button>
-        <button id="clear-filters" class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">
+        <button id="clear-filters" class="px-6 py-2.5 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 transition font-bold text-sm">
           Clear
         </button>
+        <button id="refresh-btn" class="ml-auto text-cbse-blue font-bold text-sm hover:underline">
+          ↻ Refresh List
+        </button>
 
-        <div class="ml-auto flex gap-2 items-center">
-          <label class="text-sm">Page Size:</label>
-          <select id="page-size" class="border rounded px-2 py-1">
+        <div class="flex gap-2 items-center ml-4 border-l pl-4">
+          <label class="text-[10px] font-black uppercase text-gray-400">Page Size:</label>
+          <select id="page-size" class="border rounded-lg px-2 py-1 text-xs font-bold">
             <option>10</option>
             <option selected>20</option>
             <option>50</option>
@@ -98,62 +103,57 @@
       </div>
     </div>
 
-    <!-- RESULTS -->
-    <div class="bg-white rounded shadow overflow-x-auto">
-      <table class="min-w-full text-sm">
-        <thead class="bg-gray-100 text-gray-700 uppercase text-xs">
-          <tr>
-            <th class="px-4 py-3 text-left">Email</th>
-            <th class="px-4 py-3 text-left">Role</th>
-            <th class="px-4 py-3 text-left">Signup Date</th>
-            <th class="px-4 py-3 text-left">Access Expiry</th>
-            <th class="px-4 py-3 text-left">Paid Classes</th>
-            <th class="px-4 py-3 text-left">Streams</th>
-            <th class="px-4 py-3 text-left">Chapter Access</th>
-            <th class="px-4 py-3 text-left">Actions</th>
-          </tr>
-        </thead>
-        <tbody id="users-tbody"></tbody>
-      </table>
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-sm">
+          <thead class="bg-gray-50 border-b border-gray-100">
+            <tr class="text-[10px] font-black uppercase text-gray-400 tracking-widest">
+              <th class="px-6 py-4 text-left">Student Details</th>
+              <th class="px-6 py-4 text-left">Role & Signup</th>
+              <th class="px-6 py-4 text-left">Access Expiry</th>
+              <th class="px-6 py-4 text-left">Paid Classes</th>
+              <th class="px-6 py-4 text-left">Stream (11/12)</th>
+              <th class="px-6 py-4 text-left">Chapters</th>
+              <th class="px-6 py-4 text-center">Admin Actions</th>
+            </tr>
+          </thead>
+          <tbody id="users-tbody" class="divide-y divide-gray-50">
+            </tbody>
+        </table>
+      </div>
 
-      <div class="p-4 flex justify-between items-center bg-gray-50 border-t">
-        <button id="prev-page" class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">
-          Previous
+      <div class="p-6 flex justify-between items-center bg-gray-50 border-t border-gray-100">
+        <button id="prev-page" class="px-4 py-2 text-sm font-bold text-cbse-blue disabled:opacity-30 transition" disabled>
+          ← Previous
         </button>
-
-        <span id="results-count" class="text-gray-600 text-sm"></span>
-
-        <button id="next-page" class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">
-          Next
+        <span id="results-count" class="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+          0 Users Loaded
+        </span>
+        <button id="next-page" class="px-4 py-2 text-sm font-bold text-cbse-blue disabled:opacity-30 transition">
+          Next →
         </button>
       </div>
     </div>
 
   </main>
 
-  <!-- FOOTER -->
-  <footer class="text-center py-6 text-gray-500 text-sm">
-    Ready4Exam Admin Panel · © 2025
+  <footer class="text-center py-10 text-gray-400 text-[10px] font-black uppercase tracking-widest">
+    Ready4Exam Admin Dashboard · Production Environment · © 2025
   </footer>
 
-  <!-- Chapter Selection Modal -->
-  <div id="chapter-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full">
-    <div class="relative top-20 mx-auto p-5 border w-1/2 shadow-lg rounded-md bg-white">
-      <div class="mt-3 text-center">
-        <h3 class="text-lg leading-6 font-medium text-gray-900">Manage Chapter Access</h3>
-        <div id="chapter-modal-body" class="mt-2 px-7 py-3">
-          <!-- Chapters will be loaded here -->
-        </div>
-        <div class="items-center px-4 py-3">
-          <button id="close-modal-btn" class="px-4 py-2 bg-gray-500 text-white text-base font-medium rounded-md w-auto shadow-sm hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-300">
-            Close
-          </button>
-        </div>
+  <div id="chapter-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-60 backdrop-blur-sm overflow-y-auto h-full w-full z-[60]">
+    <div class="relative top-10 mx-auto p-8 border w-11/12 md:w-2/3 lg:w-1/2 shadow-2xl rounded-3xl bg-white animate-fadeIn">
+      <div class="text-left">
+          <div class="flex justify-between items-center mb-6">
+              <h3 class="text-xl font-black text-cbse-blue uppercase tracking-tighter">Manual Chapter Override</h3>
+              <button id="close-modal-btn" class="text-gray-400 hover:text-gray-600 font-black">CLOSE</button>
+          </div>
+        <div id="chapter-modal-body" class="mt-4 max-h-[60vh] overflow-y-auto pr-2 space-y-6">
+          </div>
       </div>
     </div>
   </div>
 
-  <!-- ✅ Correct path (admin.js is in same folder as admin.html) -->
   <script type="module" src="./admin.js"></script>
 
 </body>
