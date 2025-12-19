@@ -1,16 +1,16 @@
+// admin/admin.js - Production Manual Override Control
 import { initializeServices, getInitializedClients } from "../template/js/config.js";
 import { 
   collection, query, orderBy, limit, getDocs, where, doc, updateDoc, getDoc 
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 import { signOut } from "../template/js/auth-paywall.js";
 
-// 1. ACCESS CONFIG
+// 1. SECURITY: Whitelisted Admin Emails
 const ADMIN_EMAILS = ["keshav.karn@gmail.com", "ready4urexam@gmail.com"];
 
 let db, auth;
 const selectors = {
   tbody: document.getElementById("users-tbody"),
-  emptyState: document.getElementById("empty-state"),
   resultsCount: document.getElementById("results-count"),
   filterEmail: document.getElementById("filter-email"),
   applyFilters: document.getElementById("apply-filters"),
@@ -21,79 +21,68 @@ const selectors = {
 };
 
 /* -----------------------------------
-   UI RENDERING COMPONENT
+   UI RENDERING
 ----------------------------------- */
 
 function renderUserRow(uid, data) {
   const tr = document.createElement("tr");
-  tr.className = "group hover:bg-slate-50 transition-colors";
+  tr.className = "border-b border-slate-100 hover:bg-slate-50 transition";
 
-  // DETAILS
+  // Identification Column
   tr.innerHTML = `
-    <td class="px-8 py-6">
-      <div class="flex flex-col">
-        <span class="text-sm font-black text-slate-800">${data.email || 'No Email'}</span>
-        <span class="text-[9px] font-mono text-slate-400 uppercase tracking-tighter mt-1">${uid}</span>
-        <div class="mt-2 flex gap-2">
-            <span class="px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest ${data.role === 'admin' ? 'bg-purple-100 text-purple-600' : 'bg-blue-100 text-blue-600'}">
-                ${data.role || 'student'}
-            </span>
-        </div>
-      </div>
+    <td class="px-6 py-4">
+      <div class="font-bold text-slate-800">${data.email || 'No Email'}</div>
+      <div class="text-[9px] text-slate-400 font-mono tracking-tighter">${uid}</div>
     </td>`;
 
-  // EXPIRY PICKER (Manual 15-day override)
+  // Manual Expiry (Only triggers if YOU set a date)
   const expiryTd = document.createElement("td");
-  expiryTd.className = "px-8 py-6";
+  expiryTd.className = "px-6 py-4";
   const dateInput = document.createElement("input");
   dateInput.type = "date";
-  dateInput.className = "text-xs font-bold border border-slate-200 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-cbse-blue bg-slate-50";
+  dateInput.className = "text-xs border rounded-lg px-2 py-1 outline-none focus:ring-1 focus:ring-cbse-blue";
   if (data.accessExpiryDate) dateInput.value = data.accessExpiryDate.split('T')[0];
-  dateInput.onchange = async (e) => await updateField(uid, { accessExpiryDate: new Date(e.target.value).toISOString() });
+  dateInput.onchange = async (e) => await updateField(uid, { 
+      accessExpiryDate: e.target.value ? new Date(e.target.value).toISOString() : null 
+  });
   expiryTd.appendChild(dateInput);
   tr.appendChild(expiryTd);
 
-  // PAID CLASSES (C6-C12)
+  // Paid Classes (6-12)
   const classesTd = document.createElement("td");
-  classesTd.className = "px-8 py-6";
-  const classGrid = document.createElement("div");
-  classGrid.className = "flex flex-wrap gap-1.5 max-w-[180px]";
-  
+  classesTd.className = "px-6 py-4 flex flex-wrap gap-1 max-w-[200px]";
   ["6","7","8","9","10","11","12"].forEach(c => {
     const active = data.paidClasses && data.paidClasses[c];
     const btn = document.createElement("button");
-    btn.className = `w-7 h-7 flex items-center justify-center rounded-lg text-[10px] font-black transition-all ${active ? 'bg-green-600 text-white shadow-md shadow-green-100' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`;
+    btn.className = `w-7 h-7 rounded-lg text-[10px] font-black transition-all ${active ? 'bg-green-600 text-white shadow-sm' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`;
     btn.textContent = c;
     btn.onclick = () => updateField(uid, { [`paidClasses.${c}`]: !active });
-    classGrid.appendChild(btn);
+    classGrid.appendChild(btn); // Fixed Reference
+    classesTd.appendChild(btn);
   });
-  classesTd.appendChild(classGrid);
   tr.appendChild(classesTd);
 
-  // STREAM ASSIGNMENT (11/12 Science/Commerce/Arts)
+  // Stream Assignment (Science/Commerce/Arts)
   const streamTd = document.createElement("td");
-  streamTd.className = "px-8 py-6";
-  const streamWrap = document.createElement("div");
-  streamWrap.className = "flex gap-2";
+  streamTd.className = "px-6 py-4 space-x-2";
   ["science", "commerce", "arts"].forEach(s => {
     const active = data.streams === s;
     const btn = document.createElement("button");
-    btn.className = `px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${active ? 'bg-cbse-blue text-white shadow-md' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`;
+    btn.className = `px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${active ? 'bg-cbse-blue text-white shadow-sm' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`;
     btn.textContent = s;
     btn.onclick = () => updateField(uid, { streams: active ? "" : s });
-    streamWrap.appendChild(btn);
+    streamTd.appendChild(btn);
   });
-  streamTd.appendChild(streamWrap);
   tr.appendChild(streamTd);
 
-  // ACTION PANEL
+  // Revoke All Action
   const actionTd = document.createElement("td");
-  actionTd.className = "px-8 py-6 text-right";
-  const revokeBtn = document.createElement("button");
-  revokeBtn.className = "text-[10px] font-black text-slate-300 hover:text-red-500 uppercase tracking-widest transition-colors";
-  revokeBtn.textContent = "Revoke All";
-  revokeBtn.onclick = () => { if(confirm("Clear all manual overrides?")) updateField(uid, { paidClasses: {}, streams: "" }); };
-  actionTd.appendChild(revokeBtn);
+  actionTd.className = "px-6 py-4 text-right";
+  const revoke = document.createElement("button");
+  revoke.className = "text-red-400 font-bold text-[10px] uppercase tracking-widest hover:text-red-600";
+  revoke.textContent = "Revoke All";
+  revoke.onclick = () => { if(confirm("Revoke all access for this user?")) updateField(uid, { paidClasses: {}, streams: "" }); };
+  actionTd.appendChild(revoke);
   tr.appendChild(actionTd);
 
   return tr;
@@ -105,22 +94,21 @@ function renderUserRow(uid, data) {
 
 async function updateField(uid, obj) {
   try {
-    await updateDoc(doc(db, "users", uid), obj);
-    fetchUsers(); // Live Refresh
+    const userRef = doc(db, "users", uid);
+    await updateDoc(userRef, obj);
+    await fetchUsers(); // Immediate UI Refresh
   } catch (e) {
-    alert("Permission Denied: Ensure your email is whitelisted in Security Rules.");
+    alert("Update failed: " + e.message);
   }
 }
 
 async function fetchUsers() {
-  selectors.tbody.innerHTML = `<tr><td colspan="5" class="py-20 text-center text-slate-400 font-bold animate-pulse">Syncing with Firestore...</td></tr>`;
-  selectors.emptyState.classList.add("hidden");
-
+  selectors.tbody.innerHTML = "<tr><td colspan='5' class='py-20 text-center text-slate-400 font-bold'>Syncing Student Records...</td></tr>";
   try {
     const usersCol = collection(db, "users");
-    let q = query(usersCol, orderBy("email"), limit(50));
+    let q = query(usersCol, limit(20));
 
-    // Email Search Filter
+    // Handle Manual Email Search
     const searchEmail = selectors.filterEmail.value.trim();
     if (searchEmail) {
       q = query(usersCol, where("email", "==", searchEmail));
@@ -128,20 +116,20 @@ async function fetchUsers() {
 
     const snap = await getDocs(q);
     selectors.tbody.innerHTML = "";
-    selectors.resultsCount.textContent = `${snap.docs.length} Student${snap.docs.length === 1 ? '' : 's'}`;
-
+    selectors.resultsCount.textContent = `${snap.docs.length} Users Found`;
+    
     if (snap.empty) {
-        selectors.emptyState.classList.remove("hidden");
+        selectors.tbody.innerHTML = "<tr><td colspan='5' class='py-20 text-center text-slate-400'>No users found.</td></tr>";
     } else {
         snap.docs.forEach(d => selectors.tbody.appendChild(renderUserRow(d.id, d.data())));
     }
   } catch (e) {
-    selectors.tbody.innerHTML = `<tr><td colspan="5" class="py-20 text-center text-red-500 font-bold">Query Error: ${e.message}</td></tr>`;
+    selectors.tbody.innerHTML = `<tr><td colspan='5' class='py-20 text-center text-red-500'>Error: ${e.message}</td></tr>`;
   }
 }
 
 /* -----------------------------------
-   INITIALIZATION
+   INITIALIZATION & BOOT
 ----------------------------------- */
 
 async function boot() {
@@ -150,9 +138,10 @@ async function boot() {
   db = clients.db;
   auth = clients.auth;
 
-  auth.onAuthStateChanged(async user => {
+  // Verify Admin Authentication
+  auth.onAuthStateChanged(user => {
     if (!user || !ADMIN_EMAILS.includes(user.email.toLowerCase())) {
-        alert("Access Blocked: Not an authorized admin.");
+        alert("Access Denied: Admin role required.");
         location.href = "../index.html";
         return;
     }
@@ -160,7 +149,7 @@ async function boot() {
     fetchUsers();
   });
 
-  // Event Listeners
+  // Attach Event Handlers
   selectors.applyFilters.onclick = fetchUsers;
   selectors.refreshBtn.onclick = fetchUsers;
   selectors.clearFilters.onclick = () => { selectors.filterEmail.value = ""; fetchUsers(); };
