@@ -17,144 +17,88 @@
     }
   </script>
 
-  <link rel="stylesheet" href="./admin.css">
   <style>
-    /* Toggle Switch Styles */
-    .switch { width:44px; height:24px; background:#e6e6e6; border-radius:999px; position:relative; cursor:pointer; transition: background 0.2s; }
-    .switch .knob { position:absolute; top:2px; left:2px; width:20px; height:20px; border-radius:999px; background:white; box-shadow:0 1px 3px rgba(0,0,0,0.2); transition: transform 0.2s; }
-    .switch.on { background: #16a34a; }
-    .switch.on .knob { transform: translateX(20px); }
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #f1f1f1; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
   </style>
 </head>
 
-<body class="bg-gray-100 min-h-screen font-sans">
+<body class="bg-slate-50 min-h-screen font-sans antialiased text-slate-900">
 
-  <header class="bg-white shadow sticky top-0 z-50">
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-50">
     <div class="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
-      <h1 class="text-2xl font-extrabold text-cbse-blue tracking-tight">
-        Ready4Exam <span class="text-accent-gold uppercase text-sm ml-1">Admin Panel</span>
-      </h1>
-      <div class="flex items-center gap-4">
-        <span id="current-admin-email" class="text-sm font-bold text-gray-600"></span>
-        <button id="logout-btn" class="px-4 py-2 rounded-lg bg-red-600 text-white font-bold hover:bg-red-700 transition">
-          Logout
+      <div class="flex items-center gap-2">
+        <div class="w-8 h-8 bg-cbse-blue rounded-lg flex items-center justify-center">
+            <span class="text-white font-black text-xl">R</span>
+        </div>
+        <h1 class="text-xl font-black text-cbse-blue tracking-tighter uppercase">
+            Ready4Exam <span class="text-accent-gold">Control</span>
+        </h1>
+      </div>
+      <div class="flex items-center gap-6">
+        <div class="text-right hidden sm:block">
+            <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Administrator</p>
+            <p id="current-admin-email" class="text-sm font-bold text-slate-700"></p>
+        </div>
+        <button id="logout-btn" class="px-4 py-2 bg-red-50 text-red-600 rounded-xl font-black text-xs uppercase hover:bg-red-100 transition-all border border-red-100">
+          Sign Out
         </button>
       </div>
     </div>
   </header>
 
-  <main class="max-w-7xl mx-auto px-6 py-8">
+  <main class="max-w-7xl mx-auto px-6 py-10">
 
-    <h2 class="text-xl font-black text-gray-800 mb-6 uppercase tracking-widest">User Access Management</h2>
-
-    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 mb-8">
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
-
-        <div>
-          <label class="text-[10px] font-black uppercase text-gray-400 mb-2 block">Search by Email</label>
-          <input id="filter-email" class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-cbse-blue outline-none transition" placeholder="user@example.com">
+    <div class="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-10">
+        <div class="lg:col-span-3 bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
+            <label class="text-[10px] font-black uppercase text-slate-400 mb-2 block tracking-widest">Search Student Records</label>
+            <div class="flex gap-3">
+                <input id="filter-email" type="text" class="flex-1 bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3 text-sm focus:ring-2 focus:ring-cbse-blue outline-none transition-all" placeholder="Enter student email address...">
+                <button id="apply-filters" class="bg-cbse-blue text-white px-8 py-3 rounded-2xl font-bold text-sm shadow-md hover:shadow-lg transition-all">Search</button>
+                <button id="clear-filters" class="bg-slate-100 text-slate-600 px-6 py-3 rounded-2xl font-bold text-sm hover:bg-slate-200 transition-all">Reset</button>
+            </div>
         </div>
-
-        <div>
-          <label class="text-[10px] font-black uppercase text-gray-400 mb-2 block">Filter by Class</label>
-          <select id="filter-class" class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none bg-white">
-            <option value="">All Classes</option>
-            <option value="6">Class 6</option>
-            <option value="7">Class 7</option>
-            <option value="8">Class 8</option>
-            <option value="9">Class 9</option>
-            <option value="10">Class 10</option>
-            <option value="11">Class 11</option>
-            <option value="12">Class 12</option>
-          </select>
+        <div class="bg-cbse-blue p-6 rounded-3xl shadow-xl flex flex-col justify-center border border-cbse-blue">
+            <p class="text-blue-200 text-[10px] font-black uppercase tracking-widest mb-1">System Status</p>
+            <h3 class="text-white font-black text-2xl" id="results-count">0 Users</h3>
+            <button id="refresh-btn" class="text-blue-300 text-xs font-bold mt-2 text-left hover:text-white transition-colors">↻ Force Sync Data</button>
         </div>
-
-        <div>
-          <label class="text-[10px] font-black uppercase text-gray-400 mb-2 block">Filter by Stream</label>
-          <select id="filter-stream" class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none bg-white">
-            <option value="">All Streams</option>
-            <option value="science">Science</option>
-            <option value="commerce">Commerce</option>
-            <option value="arts">Arts</option>
-          </select>
-        </div>
-
-      </div>
-
-      <div class="mt-6 flex flex-wrap items-center gap-4">
-        <button id="apply-filters" class="px-8 py-2.5 bg-cbse-blue text-white font-bold rounded-xl hover:shadow-lg transition">
-          Apply Filters
-        </button>
-        <button id="clear-filters" class="px-6 py-2.5 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 transition font-bold text-sm">
-          Clear
-        </button>
-        <button id="refresh-btn" class="ml-auto text-cbse-blue font-bold text-sm hover:underline">
-          ↻ Refresh List
-        </button>
-
-        <div class="flex gap-2 items-center ml-4 border-l pl-4">
-          <label class="text-[10px] font-black uppercase text-gray-400">Page Size:</label>
-          <select id="page-size" class="border rounded-lg px-2 py-1 text-xs font-bold">
-            <option>10</option>
-            <option selected>20</option>
-            <option>50</option>
-          </select>
-        </div>
-      </div>
     </div>
 
-    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+    <div class="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
       <div class="overflow-x-auto">
-        <table class="min-w-full text-sm">
-          <thead class="bg-gray-50 border-b border-gray-100">
-            <tr class="text-[10px] font-black uppercase text-gray-400 tracking-widest">
-              <th class="px-6 py-4 text-left">Student Details</th>
-              <th class="px-6 py-4 text-left">Role & Signup</th>
-              <th class="px-6 py-4 text-left">Access Expiry</th>
-              <th class="px-6 py-4 text-left">Paid Classes</th>
-              <th class="px-6 py-4 text-left">Stream (11/12)</th>
-              <th class="px-6 py-4 text-left">Chapters</th>
-              <th class="px-6 py-4 text-center">Admin Actions</th>
+        <table class="w-full text-left">
+          <thead class="bg-slate-50 border-b border-slate-100">
+            <tr class="text-[10px] font-black uppercase text-slate-400 tracking-widest">
+              <th class="px-8 py-5">Identification</th>
+              <th class="px-8 py-5">Trial Expiry Control</th>
+              <th class="px-8 py-5">Paid Class Access</th>
+              <th class="px-8 py-5">Stream Assignment</th>
+              <th class="px-8 py-5 text-right">System Actions</th>
             </tr>
           </thead>
-          <tbody id="users-tbody" class="divide-y divide-gray-50">
+          <tbody id="users-tbody" class="divide-y divide-slate-50">
             </tbody>
         </table>
       </div>
-
-      <div class="p-6 flex justify-between items-center bg-gray-50 border-t border-gray-100">
-        <button id="prev-page" class="px-4 py-2 text-sm font-bold text-cbse-blue disabled:opacity-30 transition" disabled>
-          ← Previous
-        </button>
-        <span id="results-count" class="text-[10px] font-black text-gray-400 uppercase tracking-widest">
-          0 Users Loaded
-        </span>
-        <button id="next-page" class="px-4 py-2 text-sm font-bold text-cbse-blue disabled:opacity-30 transition">
-          Next →
-        </button>
+      
+      <div id="empty-state" class="hidden py-20 text-center">
+          <div class="text-slate-300 mb-4">
+              <svg class="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+          </div>
+          <p class="text-slate-500 font-bold">No students found matching your search.</p>
       </div>
     </div>
 
   </main>
 
-  <footer class="text-center py-10 text-gray-400 text-[10px] font-black uppercase tracking-widest">
-    Ready4Exam Admin Dashboard · Production Environment · © 2025
+  <footer class="max-w-7xl mx-auto px-6 py-10 flex flex-col md:flex-row justify-between items-center text-slate-400 border-t border-slate-200 mt-10">
+    <p class="text-[10px] font-black uppercase tracking-widest">Ready4Exam Internal Infrastructure v2.0</p>
+    <p class="text-[10px] font-black uppercase tracking-widest mt-4 md:mt-0">© 2025 Production Environment</p>
   </footer>
 
-  <div id="chapter-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-60 backdrop-blur-sm overflow-y-auto h-full w-full z-[60]">
-    <div class="relative top-10 mx-auto p-8 border w-11/12 md:w-2/3 lg:w-1/2 shadow-2xl rounded-3xl bg-white animate-fadeIn">
-      <div class="text-left">
-          <div class="flex justify-between items-center mb-6">
-              <h3 class="text-xl font-black text-cbse-blue uppercase tracking-tighter">Manual Chapter Override</h3>
-              <button id="close-modal-btn" class="text-gray-400 hover:text-gray-600 font-black">CLOSE</button>
-          </div>
-        <div id="chapter-modal-body" class="mt-4 max-h-[60vh] overflow-y-auto pr-2 space-y-6">
-          </div>
-      </div>
-    </div>
-  </div>
-
   <script type="module" src="./admin.js"></script>
-
 </body>
 </html>
