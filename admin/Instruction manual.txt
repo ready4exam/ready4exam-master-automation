@@ -1,0 +1,88 @@
+This is the **Master Instruction Manual and Runbook** for your `admin.html` page. It combines the operational logic, security protocols, and administrative management into one comprehensive guide to be pasted into your project's `README.md` or a dedicated help file.
+
+---
+
+# 📑 Ready4Exam: Master Administrative Manual
+
+## 1. System Overview
+
+The **Ready4Exam Management Suite** is a real-time administrative interface for controlling student access across all class-specific quiz platforms. It operates on a **Manual-First** principle, where all access permissions are controlled by the admin rather than automated timers.
+
+---
+
+## 2. Admin Authentication & Management
+
+Only authorized accounts can view data or make changes. If an unauthorized user attempts to log in, they will be redirected to the homepage.
+
+### How to Add a New Admin
+
+To grant an email address administrative privileges, you must complete **two** mandatory steps:
+
+1. **Code Authorization**:
+* Open `admin/admin.js`.
+* Add the new email to the `ADMIN_EMAILS` array (use lowercase):
+`const ADMIN_EMAILS = ["current@email.com", "new-admin@email.com"];`.
+
+
+2. **Database Authorization**:
+* Log into the **Firebase Console** -> **Firestore** -> **Rules**.
+* Add the email to the whitelist in the security rules to allow them to read/write to the `users` collection.
+
+
+
+---
+
+## 3. Student Access Control Logic
+
+### The "Silent Trial" Rule
+
+* Students are **NOT** automatically blocked after any set period (like 15 days).
+* Access remains open indefinitely as long as a **Class Toggle** is Green and the **Expiry Override** is empty.
+
+### Managing Classes 6–10
+
+* **To Enable**: Click the specific grade number button. It will turn **Green**.
+* **To Block**: Click the Green button. It will turn **Grey**, and the student is instantly locked out of that grade's quizzes.
+
+### Managing Senior Streams (11 & 12)
+
+Access for senior grades requires a "Double-Lock" verification:
+
+1. **Grade Lock**: The **11** or **12** button must be **Green**.
+2. **Stream Lock**: You must select **Science**, **Commerce**, or **Arts**.
+* *Example*: If a student has "12" enabled but the Stream is set to "Commerce," they cannot open Science-related quizzes.
+
+
+
+---
+
+## 4. Manual Expiry (The Master Kill-Switch)
+
+The **Expiry Override** column allows you to bypass all toggles and block a user entirely.
+
+* **Setting a Date**: Click the calendar icon and select a date.
+* **Instant Block**: If you select **Today's Date** or a date in the past, the user is blocked from **ALL** quizzes immediately, even if their class buttons are green.
+* **Restoring Access**: Clear the date field or change it to a future year to re-enable the student.
+
+---
+
+## 5. Quick Actions & Status Indicators
+
+| Interface Element | Action | Result |
+| --- | --- | --- |
+| **Search Bar** | Enter Email | Filters the list to a specific student. |
+| **Force Sync** | Click Button | Refreshes the list from the Firestore database. |
+| **Reset Access** | Click (Red) | Wipes all enabled classes and streams for that user. |
+| **Sign Out** | Click | Terminates the admin session and returns to login. |
+
+---
+
+## 6. Troubleshooting
+
+* **Spinner keeps revolving**: Check that `window.__firebase_config` in `admin.html` contains your valid API and Supabase keys.
+* **"Access Denied" Alert**: Ensure you are signed into Chrome/the browser with your authorized admin email.
+* **Data not saving**: Check your internet connection or verify that your Firestore Security Rules haven't expired.
+
+---
+
+**Next Step**: Would you like me to generate a **9:16 aspect ratio** "Admin Login Policy" graphic that you can provide to your team for easy reference on how to keep these credentials secure?
