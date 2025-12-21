@@ -23,16 +23,14 @@ jobs:
       - name: 📦 Install dependencies
         run: npm install
 
-      - name: 🧠 Generate curriculum.js from JSON
-        run: node scripts/generateCurriculumJS.js
-        env:
-          CLASS: ${{ github.event.inputs.class }}
+      # 🚫 IMPORTANT:
+      # curriculum.js generation is intentionally NOT part of this workflow
+      # Curriculum is injected ONLY if destination repo does not already have it
 
       - name: 🚀 Run Class Automation
         env:
           CLASS: ${{ github.event.inputs.class }}
 
-          # 🔥 Option A — Universal Firebase Variables
           FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
           FIREBASE_AUTH_DOMAIN: ${{ secrets.FIREBASE_AUTH_DOMAIN }}
           FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
@@ -41,11 +39,9 @@ jobs:
           FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
           FIREBASE_MEASUREMENT_ID: ${{ secrets.FIREBASE_MEASUREMENT_ID }}
 
-          # 🔥 Universal Supabase variables
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
 
-          # GitHub
           GIT_OWNER: ${{ secrets.GIT_OWNER }}
           GIT_TOKEN: ${{ secrets.GIT_TOKEN }}
 
