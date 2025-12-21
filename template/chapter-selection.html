@@ -1,7 +1,8 @@
 <script type="module">
 import curriculum from "./js/curriculum.js";
 import { transliterate as tr } from "https://cdn.jsdelivr.net/npm/transliteration/+esm";
-// NEW: Import authentication tools to identify students
+
+// ALIGNED: Imports the non-blocking auth tools from your template/js folder
 import { signInWithGoogle, checkAccess } from "./js/auth-paywall.js";
 
 const CLASS_ID = "{{CLASS}}";
@@ -17,7 +18,7 @@ let selectedBook = null;
 let selectedChapter = null;
 let selectedDifficulty = null;
 
-// Subject Metadata
+// Subject Metadata - NO CHANGES
 const meta = {
   Physics: "Explore mechanics, waves & thermodynamics.",
   Chemistry: "Atoms, reactions, bonding & periodicity.",
@@ -28,7 +29,7 @@ const meta = {
 subjectDesc.textContent = meta[subject] || "";
 
 /* --------------------------
-   BOOK LISTING
+   BOOK LISTING - NO CHANGES
 --------------------------- */
 function renderBooks(){
   const data = curriculum[subject];
@@ -55,7 +56,7 @@ function renderBooks(){
 }
 
 /* --------------------------
-   CHAPTER LISTING
+   CHAPTER LISTING - NO CHANGES
 --------------------------- */
 function renderChapters(book){
   selectedBook = book;
@@ -84,7 +85,7 @@ function renderChapters(book){
 }
 
 /* --------------------------
-   CHAPTER SELECTION
+   CHAPTER SELECTION - NO CHANGES
 --------------------------- */
 function selectChapter(title, button){
   document.querySelectorAll(".topic-btn").forEach(b => b.classList.remove("selected"));
@@ -99,7 +100,7 @@ function selectChapter(title, button){
 }
 
 /* --------------------------
-   DIFFICULTY SELECTION
+   DIFFICULTY SELECTION - NO CHANGES
 --------------------------- */
 document.querySelectorAll(".difficulty-btn").forEach(btn => {
   btn.onclick = e => {
@@ -112,7 +113,7 @@ document.querySelectorAll(".difficulty-btn").forEach(btn => {
 });
 
 /* --------------------------
-   TABLE NAME GENERATOR
+   TABLE NAME GENERATOR - NO CHANGES
 --------------------------- */
 function buildTableName(chapter){
   let chapterSlug = tr(chapter || "")
@@ -137,6 +138,7 @@ function buildTableName(chapter){
 
 /* --------------------------
    START QUIZ (WITH AUTH GATE)
+   ALIGNED: Mandatory login before quiz starts
 --------------------------- */
 startBtn.onclick = async () => {
   if (!selectedChapter || !selectedDifficulty) {
@@ -145,10 +147,10 @@ startBtn.onclick = async () => {
     return;
   }
 
-  // 1. Check if user is already logged in
+  // 1. Check if user is already logged in via existing session
   let user = checkAccess(); 
 
-  // 2. Mandatory Login: If not logged in, trigger Google Sign-In
+  // 2. Mandatory Login: If not logged in, trigger Google Sign-In popup
   if (!user) {
     user = await signInWithGoogle();
   }
@@ -164,6 +166,7 @@ startBtn.onclick = async () => {
       difficulty: selectedDifficulty,
       table
     });
+    // Redirects to quiz with student identity captured
     location.href = `quiz-engine.html?${params.toString()}`;
   } else {
     errorMsg.textContent = "Login is required to attempt the quiz.";
