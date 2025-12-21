@@ -1,6 +1,5 @@
-// scripts/createClassRepo.js
 // ------------------------------------------------------------
-// Ready4Exam - Class Repo Automation
+// Ready4Exam - Class Repo Automation (CURRICULUM SAFE)
 // ------------------------------------------------------------
 
 import fs from "fs";
@@ -26,10 +25,10 @@ if (!GITHUB_TOKEN) {
 
 console.log(`⚙ Running createClassRepo.js → CLASS=${CLASS}`);
 
-// repo paths
 const ROOT = process.cwd();
 const TEMPLATE_DIR = path.join(ROOT, "template");
 const OUTPUT_DIR = path.join(ROOT, "output");
+
 if (!fs.existsSync(OUTPUT_DIR)) fs.mkdirSync(OUTPUT_DIR);
 
 const REPO_NAME = `ready4exam-class-${CLASS}`;
@@ -53,22 +52,20 @@ const replacements = {
 };
 
 // ============================================================
-// CHECK OR CREATE GITHUB REPO
+// ENSURE REPO EXISTS
 // ============================================================
 async function ensureRepoExists() {
   console.log(`🔍 Checking repo → ${REPO_NAME}`);
 
-  const req = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}`, {
-    headers: { Authorization: `token ${GITHUB_TOKEN}` }
-  });
+  const req = await fetch(
+    `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}`,
+    { headers: { Authorization: `token ${GITHUB_TOKEN}` } }
+  );
 
-  if (req.status === 200) {
-    console.log("✅ Repo exists");
-    return;
-  }
+  if (req.status === 200) return;
 
   if (req.status === 404) {
-    console.log("📦 Creating new repo…");
+    console.log("📦 Creating new repo...");
     const res = await fetch("https://api.github.com/user/repos", {
       method: "POST",
       headers: {
@@ -77,6 +74,7 @@ async function ensureRepoExists() {
       },
       body: JSON.stringify({ name: REPO_NAME, private: false })
     });
+
     if (!res.ok) {
       console.error("❌ Repo creation failed:", await res.text());
       process.exit(1);
@@ -85,12 +83,12 @@ async function ensureRepoExists() {
     return;
   }
 
-  console.error("❌ GitHub API Error:", await req.text());
+  console.error("❌ GitHub API error");
   process.exit(1);
 }
 
 // ============================================================
-// APPLY REPLACEMENTS IN FILES
+// FILE HELPERS
 // ============================================================
 function applyReplacements(file) {
   let text = fs.readFileSync(file, "utf8");
@@ -101,7 +99,7 @@ function applyReplacements(file) {
 }
 
 // ============================================================
-// COPY TEMPLATE → TARGET REPO  (with curriculum override)
+// COPY TEMPLATE → TARGET (CURRICULUM IMMUTABLE)
 // ============================================================
 function copyRecursive(src, dest) {
   if (!fs.existsSync(dest)) fs.mkdirSync(dest, { recursive: true });
@@ -110,16 +108,28 @@ function copyRecursive(src, dest) {
     const srcPath = path.join(src, item);
     const destPath = path.join(dest, item);
 
-    // 🔥 curriculum override
+    // 🔒 CRITICAL: curriculum.js RULES
     if (item === "curriculum.js") {
-      const generated = path.join(ROOT, "classes_repo", `class${CLASS}`, "js", "curriculum.js");
+      // 1️⃣ If destination already has curriculum → NEVER TOUCH
+      if (fs.existsSync(destPath)) {
+        console.log("🔒 Preserving existing destination curriculum.js");
+        continue;
+      }
 
-      if (fs.existsSync(generated)) {
-        console.log(`🔁 Using BUILT curriculum.js for class ${CLASS}`);
-        fs.copyFileSync(generated, destPath);
+      // 2️⃣ Inject built curriculum ONLY if destination missing
+      const builtCurriculum = path.join(
+        ROOT,
+        "classes_repo",
+        `class${CLASS}`,
+        "js",
+        "curriculum.js"
+      );
+
+      if (fs.existsSync(builtCurriculum)) {
+        console.log(`📘 Injecting built curriculum.js for Class ${CLASS}`);
+        fs.copyFileSync(builtCurriculum, destPath);
       } else {
-        console.log(`⚠ No built file — using template curriculum.js`);
-        fs.copyFileSync(srcPath, destPath);
+        console.log("⛔ No curriculum injected (template blocked)");
       }
       continue;
     }
@@ -130,10 +140,15 @@ function copyRecursive(src, dest) {
     }
 
     fs.copyFileSync(srcPath, destPath);
-    if (destPath.endsWith(".html") || destPath.endsWith(".js")) applyReplacements(destPath);
+
+    if (destPath.endsWith(".html") || destPath.endsWith(".js")) {
+      applyReplacements(destPath);
+    }
   }
 }
 
+// ============================================================
+// GIT OPS
 // ============================================================
 function cloneOrPull() {
   if (!fs.existsSync(TARGET_DIR)) {
@@ -153,7 +168,7 @@ function pushRepo() {
     execSync(`git -C ${TARGET_DIR} add .`);
     execSync(`git -C ${TARGET_DIR} commit -m "🚀 Auto update for Class ${CLASS}"`);
   } catch {
-    console.log("ℹ No changes — nothing to commit");
+    console.log("ℹ No changes to commit");
   }
 
   execSync(`git -C ${TARGET_DIR} push`);
@@ -161,10 +176,13 @@ function pushRepo() {
 }
 
 // ============================================================
+// RUN
+// ============================================================
 async function run() {
   await ensureRepoExists();
   cloneOrPull();
   copyRecursive(TEMPLATE_DIR, TARGET_DIR);
   pushRepo();
 }
+
 run();
