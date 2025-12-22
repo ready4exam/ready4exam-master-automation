@@ -45,10 +45,27 @@ function pushLog(logs, msg) {
 }
 
 // =====================================================================
-// TABLE NAME BUILDER — MATCHES FRONTEND
+// ⭐ UNIVERSAL TABLE NAME BUILDER — SUPPORTS CBSE & ALL BOARDS
 // =====================================================================
 function buildTableName(meta) {
-  const grade = meta.class_name || "11";
+  const rawClass = meta.class_name || "11";
+  
+  // Logic for backward compatibility with CBSE (Numbers only)
+  const isCBSE = !isNaN(rawClass);
+  
+  let boardSuffix = ""; 
+  let classNum = rawClass;
+
+  if (!isCBSE) {
+      // Logic for 2-letter board code suffixes
+      if (rawClass.includes("Telangana")) boardSuffix = "tg";
+      else if (rawClass.includes("ICSE")) boardSuffix = "ic";
+      else if (rawClass.includes("Karnataka")) boardSuffix = "ka";
+      
+      // Extract numeric part: "9Telangana" -> "9"
+      const match = rawClass.match(/\d+/);
+      classNum = match ? match[0] : rawClass;
+  }
 
   const rawSubject = meta.subject || "";
   let subjectSlug = tr(rawSubject)
@@ -68,7 +85,8 @@ function buildTableName(meta) {
   const first = filtered[0] || words[0] || "ch";
   const last  = filtered[filtered.length - 1] || words[words.length - 1] || "x";
 
-  return `${subjectSlug}_${first}_${last}_${grade}_quiz`;
+  const finalClassPart = boardSuffix ? `${classNum}${boardSuffix}` : classNum;
+  return `${subjectSlug}_${first}_${last}_${finalClassPart}_quiz`.replace(/[^a-z0-9_]/g, "");
 }
 
 // =====================================================================
@@ -177,7 +195,7 @@ function applyTableIdToCurriculum(curriculum, meta, tableName) {
 }
 
 // =====================================================================
-// UPDATE curriculum.js IN class repo (⭐ UPDATED FOR TELANGANA SUPPORT)
+// UPDATE curriculum.js IN class repo (UNIVERSAL REPO MAPPING)
 // =====================================================================
 async function updateCurriculumForChapter(meta, tableName, logs) {
   const owner = process.env.GITHUB_OWNER;
@@ -190,14 +208,8 @@ async function updateCurriculumForChapter(meta, tableName, logs) {
     return;
   }
 
-  // Handle specific repository for Telangana, fallback to standard for others
-  let repo;
-  if (className === "9Telangana") {
-    repo = `ready4exam-class-9Telangana`;
-  } else {
-    repo = `ready4exam-class-${className}`;
-  }
-
+  // Automates repo mapping: ready4exam-class-9 OR ready4exam-class-9Telangana
+  const repo = `ready4exam-class-${className}`;
   const path = "js/curriculum.js";
 
   const file = await fetchGithubFile({ owner, repo, path, token });
@@ -262,7 +274,6 @@ export default async function handler(req, res) {
 
     pushLog(logs, `📌 Starting automation for Class ${class_name} → ${subject} → ${chapter}`);
 
-    // Use ONLY these env vars (your requirement)
     const supabaseUrl = process.env.SUPABASE_URL_11;
     const supabaseKey = process.env.SUPABASE_SERVICE_KEY_11;
 
@@ -275,7 +286,6 @@ export default async function handler(req, res) {
     const table = buildTableName(meta);
     pushLog(logs, `📌 Target table: ${table}`);
 
-    // 1) Ensure table exists (via RPC)
     const ensure = await supabase.rpc("ensure_table_exists", { table_name: table });
     if (ensure.error) {
       console.error("❌ ensure_table_exists error:", ensure.error);
@@ -283,7 +293,6 @@ export default async function handler(req, res) {
     }
     pushLog(logs, `✔ Table created/ensured: ${table}`);
 
-    // 2) Enforce RLS + SELECT Policy (safe to re-run)
     const rls = await supabase.rpc("exec_sql", {
       sql: `
         ALTER TABLE public.${table} ENABLE ROW LEVEL SECURITY;
@@ -316,7 +325,6 @@ export default async function handler(req, res) {
     }
     pushLog(logs, "✔ RLS enabled + SELECT granted (anon + authenticated)");
 
-    // 3) Clear existing rows
     const cleared = await supabase.from(table).delete().neq("id", 0);
     if (cleared.error) {
       console.error("❌ Delete existing rows error:", cleared.error);
@@ -324,7 +332,6 @@ export default async function handler(req, res) {
     }
     pushLog(logs, "✔ Existing rows cleared");
 
-    // 4) Insert new rows
     const rows = csv.map(r => ({
       difficulty: normalizeDifficulty(r.difficulty),
       question_type: normalizeQType(r.question_type),
@@ -343,7 +350,6 @@ export default async function handler(req, res) {
       throw inserted.error;
     }
 
-    // Counts by difficulty (for neat logs)
     const simpleCount   = rows.filter(r => r.difficulty === "Simple").length;
     const mediumCount   = rows.filter(r => r.difficulty === "Medium").length;
     const advancedCount = rows.filter(r => r.difficulty === "Advanced").length;
@@ -353,7 +359,6 @@ export default async function handler(req, res) {
       `✔ Inserted ${rows.length} questions (${simpleCount} Simple, ${mediumCount} Medium, ${advancedCount} Advanced)`
     );
 
-    // 5) usage_logs: ALWAYS update same row by table_name
     const lookup = await supabase
       .from("usage_logs")
       .select("*")
@@ -392,7 +397,6 @@ export default async function handler(req, res) {
       pushLog(logs, "✔ usage_logs row created");
     }
 
-    // 6) Update curriculum.js in the correct class repo
     await updateCurriculumForChapter(meta, table, logs);
 
     pushLog(logs, "📌 Upload completed successfully — chapter is live in Quiz Engine.");
