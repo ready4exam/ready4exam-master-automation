@@ -88,7 +88,7 @@ export function renderQuestion(q, idx, selected, submitted) {
     initializeElements();
     const type = (q.question_type || "").toLowerCase();
 
-    /* ASSERTION–REASON (ROBUST SPLIT) */
+    /* ASSERTION–REASON (ROBUST SPLIT TO PREVENT DUPLICATION) */
     if (type.includes("ar") || type.includes("assertion")) {
         const raw = [q.text || "", q.scenario_reason || ""].join(" ").replace(/\s+/g, " ").trim();
         let A = raw;
@@ -103,7 +103,9 @@ export function renderQuestion(q, idx, selected, submitted) {
             R = (q.scenario_reason || "").replace(/Reason\s*\(R\)\s*:/ig, "").trim();
         }
 
+        // Final cleanup to ensure Reason isn't leaked into Assertion
         if (R && A.includes(R)) A = A.replace(R, "").trim();
+        A = A.replace(/Reason\s*\(R\)\s*:.*/i, "").trim();
 
         els.list.innerHTML = `
             <div class="space-y-6 text-left animate-fadeIn">
@@ -200,9 +202,6 @@ export function renderResults(stats, diff) {
                     improve: "🚀 Explorer: Break scenario puzzles into smaller steps first."
                 }
             ];
-
-            const strong = skills.filter(s => s.score >= 0.7).map(s => s.name);
-            const weak = skills.filter(s => s.score < 0.7).map(s => s.name);
 
             els.analysisContent.innerHTML = `
                 <div class="space-y-5">
