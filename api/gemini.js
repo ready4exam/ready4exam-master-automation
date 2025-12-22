@@ -1,4 +1,4 @@
-// ============================================================================
+// ============================================================================ 
 // /api/gemini.js — UNIVERSAL PRODUCTION VERSION
 // Supports: CBSE (NCERT), Telangana, ICSE, Karnataka, etc.
 // Includes: Failover Chain, JSON Cleaner, and Dynamic Board Prompting
