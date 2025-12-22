@@ -1,7 +1,3 @@
-// ============================================================================
-// /api/gemini.js — FINAL PRODUCTION VERSION (PROTOCOL-LEVEL JSON)
-// ============================================================================
-
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 export const config = { runtime: "nodejs" };
@@ -33,7 +29,7 @@ async function getBatch(prompt) {
 
       const parsed = JSON.parse(raw);
 
-      // FIX: Handle both raw Array [...] and Object wrapper { questions: [...] }
+      // CRITICAL FIX: Handle both Raw Array and Object Wrapper
       if (Array.isArray(parsed)) {
         return parsed;
       } else if (parsed && Array.isArray(parsed.questions)) {
@@ -44,7 +40,6 @@ async function getBatch(prompt) {
       continue;
     }
   }
-
   return [];
 }
 
@@ -66,7 +61,19 @@ export default async function handler(req, res) {
     const isCBSE = !isNaN(rawClass);
     const board = !isCBSE && rawClass.includes("Telangana") ? "Telangana State Board (SCERT)" : "CBSE / NCERT";
 
-    const baseFormat = `
+    const prompt = `
+    Generate 30 MCQ questions.
+    Board: ${board}
+    Class: ${rawClass}
+    Subject: ${meta.subject}
+    Chapter: ${meta.chapter}
+
+    Strict Requirements:
+    - Return ONLY a JSON array.
+    - Mix Simple, Medium, Advanced.
+    - correct_answer_key must be "A", "B", "C", or "D".
+
+    JSON Format:
     [
       {
         "difficulty": "Simple|Medium|Advanced",
@@ -77,31 +84,14 @@ export default async function handler(req, res) {
         "option_b": "string",
         "option_c": "string",
         "option_d": "string",
-        "correct_answer_key": "A|B|C|D"
+        "correct_answer_key": "A"
       }
-    ]`;
-
-    const prompt = `
-    Generate 30 MCQ questions.
-    Board: ${board}
-    Class: ${rawClass}
-    Subject: ${meta.subject}
-    Chapter: ${meta.chapter}
-
-    Strict Requirements:
-    - Return valid JSON only.
-    - Mix Simple, Medium, Advanced.
-    - correct_answer_key must be "A", "B", "C", or "D".
-
-    JSON Schema:
-    ${baseFormat}
+    ]
     `;
 
-    let questions = [];
-
-    // Retry loop
+    // Retry Loop
     for (let attempt = 1; attempt <= 3; attempt++) {
-      questions = await getBatch(prompt);
+      const questions = await getBatch(prompt);
       if (questions.length >= 5) {
         return res.status(200).json({
           ok: true,
@@ -113,10 +103,7 @@ export default async function handler(req, res) {
       }
     }
 
-    return res.status(500).json({
-      ok: false,
-      error: "Gemini returned zero valid questions after retries."
-    });
+    return res.status(500).json({ ok: false, error: "Gemini failed to generate valid JSON." });
 
   } catch (err) {
     return res.status(500).json({ ok: false, error: err.message });
