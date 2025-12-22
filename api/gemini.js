@@ -1,12 +1,12 @@
 // ============================================================================
-// /api/gemini.js — UNIVERSAL PRODUCTION VERSION (OPTION A ENFORCED)
+// /api/gemini.js — UNIVERSAL PRODUCTION VERSION (20 MCQ ONLY)
 // ============================================================================
 // BEHAVIOR:
-// - Accepts partial batches
-// - Rejects ZERO-question output (HARD FAIL)
+// - Generates ONLY 20 MCQ questions
+// - No AR / No Case-Based
+// - HARD FAIL if zero questions
 // - JSON-safe prompting
 // - Model failover chain
-// - No silent success
 // ============================================================================
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
@@ -47,17 +47,14 @@ function extractJSON(raw) {
     text = text.slice(first, last + 1);
     const parsed = JSON.parse(text);
 
-    if (Array.isArray(parsed)) return parsed;
-    if (Array.isArray(parsed?.questions)) return parsed.questions;
-
-    return [];
+    return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
   }
 }
 
 // --------------------------------------------------------------------
-// SINGLE BATCH GENERATOR (WITH MODEL FAILOVER)
+// SINGLE BATCH GENERATOR
 // --------------------------------------------------------------------
 async function getBatch(prompt) {
   const client = new GoogleGenerativeAI(GEMINI_API_KEY);
@@ -106,10 +103,13 @@ export default async function handler(req, res) {
         ? "Telangana State Board (SCERT)"
         : "CBSE / NCERT";
 
+    // --------------------------------------------------
+    // MCQ FORMAT ONLY
+    // --------------------------------------------------
     const baseFormat = `[
       {
         "difficulty": "Simple|Medium|Advanced",
-        "question_type": "MCQ|AR|Case-Based",
+        "question_type": "MCQ",
         "question_text": "",
         "scenario_reason_text": "",
         "option_a": "",
@@ -120,11 +120,10 @@ export default async function handler(req, res) {
       }
     ]`;
 
-    // --------------------------------------------------
-    // STRICT JSON RULES (CRITICAL)
-    // --------------------------------------------------
     const rules = `
 STRICT RULES:
+- Generate ONLY MCQ questions
+- Generate EXACTLY 20 questions
 - Output MUST be valid JSON
 - Output MUST start with '[' and end with ']'
 - Do NOT add explanations
@@ -133,71 +132,47 @@ STRICT RULES:
 - Do NOT add trailing commas
 `;
 
-    const prompt1 = `
+    const prompt = `
 Generate questions for ${board}
 Class: ${rawClass}
 Subject: ${meta.subject}
 Chapter: ${meta.chapter}
 
-Create:
-- 15 Simple MCQs
-- 15 Medium MCQs
+Create EXACTLY 20 MCQ questions:
+- 8 Simple
+- 7 Medium
+- 5 Advanced
 
 ${rules}
 FORMAT: ${baseFormat}
 `;
 
-    const prompt2 = `
-Generate questions for ${board}
-Class: ${rawClass}
-Subject: ${meta.subject}
-Chapter: ${meta.chapter}
-
-Create:
-- 10 Advanced MCQs
-- 10 Assertion-Reason questions
-- 10 Case-Based questions
-
-For AR and Case-Based:
-- scenario_reason_text MUST NOT be empty
-
-${rules}
-FORMAT: ${baseFormat}
-`;
-
-    let finalQuestions = [];
+    let questions = [];
 
     // --------------------------------------------------
-    // GLOBAL RETRY LOOP
+    // RETRY LOOP
     // --------------------------------------------------
     for (let attempt = 1; attempt <= 3; attempt++) {
-      const [b1, b2] = await Promise.all([
-        getBatch(prompt1),
-        getBatch(prompt2)
-      ]);
+      questions = await getBatch(prompt);
 
-      finalQuestions = [...b1, ...b2].filter(Boolean);
-
-      // SUCCESS THRESHOLD (RELAXED BUT NON-ZERO)
-      if (finalQuestions.length >= 25) {
+      if (questions.length >= 15) {
         return res.status(200).json({
           ok: true,
           board,
-          count: finalQuestions.length,
+          count: questions.length,
           attempts: attempt,
-          partial: finalQuestions.length < 40,
-          questions: finalQuestions
+          questions
         });
       }
     }
 
     // --------------------------------------------------
-    // OPTION A — HARD FAIL ON ZERO QUESTIONS
+    // HARD FAIL IF ZERO QUESTIONS
     // --------------------------------------------------
-    if (finalQuestions.length === 0) {
+    if (questions.length === 0) {
       return res.status(500).json({
         ok: false,
-        error: "Gemini returned zero valid questions after retries"
+        error: "Gemini returned zero valid MCQ questions after retries"
       });
     }
 
@@ -207,9 +182,9 @@ FORMAT: ${baseFormat}
     return res.status(200).json({
       ok: true,
       board,
-      count: finalQuestions.length,
+      count: questions.length,
       partial: true,
-      questions: finalQuestions
+      questions
     });
 
   } catch (err) {
