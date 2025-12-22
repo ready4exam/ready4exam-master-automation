@@ -2,7 +2,7 @@ import { cleanKatexMarkers } from './utils.js';
 
 let els = {};
 let isInit = false;
-
+ 
 const AR_LABELS = {
     A: "Both A and R are true and R is the correct explanation of A.",
     B: "Both A and R are true but R is not the correct explanation of A.",
