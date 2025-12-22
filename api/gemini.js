@@ -1,12 +1,11 @@
 // ============================================================================
-// /api/gemini.js — UNIVERSAL PRODUCTION VERSION (20 MCQ ONLY)
+// /api/gemini.js — UNIVERSAL PRODUCTION VERSION (LENIENT MCQ MODE)
 // ============================================================================
-// BEHAVIOR:
-// - Generates ONLY 20 MCQ questions
-// - No AR / No Case-Based
-// - HARD FAIL if zero questions
-// - JSON-safe prompting
-// - Model failover chain
+// CHANGES APPLIED:
+// - Relaxed prompt (10–25 MCQs, no exact split)
+// - JSON-only output rules
+// - Success threshold lowered (>= 8)
+// - HARD FAIL if zero questions (Option A)
 // ============================================================================
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
@@ -54,7 +53,7 @@ function extractJSON(raw) {
 }
 
 // --------------------------------------------------------------------
-// SINGLE BATCH GENERATOR
+// SINGLE BATCH GENERATOR (WITH MODEL FAILOVER)
 // --------------------------------------------------------------------
 async function getBatch(prompt) {
   const client = new GoogleGenerativeAI(GEMINI_API_KEY);
@@ -120,28 +119,28 @@ export default async function handler(req, res) {
       }
     ]`;
 
+    // --------------------------------------------------
+    // RELAXED, JSON-ONLY RULES (CRITICAL CHANGE)
+    // --------------------------------------------------
     const rules = `
 STRICT RULES:
-- Generate ONLY MCQ questions
-- Generate EXACTLY 20 questions
-- Output MUST be valid JSON
+- Output ONLY a valid JSON array
 - Output MUST start with '[' and end with ']'
-- Do NOT add explanations
-- Do NOT add markdown
-- Do NOT add comments
-- Do NOT add trailing commas
+- Do NOT include explanations or text outside JSON
+- Do NOT include markdown
 `;
 
     const prompt = `
-Generate questions for ${board}
+Generate MCQ questions for ${board}
 Class: ${rawClass}
 Subject: ${meta.subject}
 Chapter: ${meta.chapter}
 
-Create EXACTLY 20 MCQ questions:
-- 8 Simple
-- 7 Medium
-- 5 Advanced
+Requirements:
+- Generate between 10 and 25 MCQ questions
+- Use a mix of Simple, Medium, and Advanced
+- Each question must have exactly 4 options (A, B, C, D)
+- correct_answer_key must be one of A, B, C, or D
 
 ${rules}
 FORMAT: ${baseFormat}
@@ -155,7 +154,7 @@ FORMAT: ${baseFormat}
     for (let attempt = 1; attempt <= 3; attempt++) {
       questions = await getBatch(prompt);
 
-      if (questions.length >= 15) {
+      if (questions.length >= 8) {
         return res.status(200).json({
           ok: true,
           board,
@@ -167,7 +166,7 @@ FORMAT: ${baseFormat}
     }
 
     // --------------------------------------------------
-    // HARD FAIL IF ZERO QUESTIONS
+    // OPTION A — HARD FAIL ON ZERO QUESTIONS
     // --------------------------------------------------
     if (questions.length === 0) {
       return res.status(500).json({
