@@ -1,3 +1,5 @@
+// /api/gemini.js — RAW DIAGNOSTIC (WORKING MODEL)
+
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 export const config = { runtime: "nodejs" };
@@ -10,48 +12,46 @@ export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
   if (req.method === "OPTIONS") return res.status(200).end();
-  if (req.method !== "POST")
+  if (req.method !== "POST") {
     return res.status(405).json({ ok: false, error: "POST only" });
+  }
 
   try {
     const body =
       typeof req.body === "string" ? JSON.parse(req.body) : req.body;
 
     const meta = body?.meta;
-    if (!meta)
+    if (!meta) {
       return res.status(400).json({ ok: false, error: "Missing meta" });
+    }
 
     const prompt = `
 You are a school teacher preparing practice questions.
 
-For the following syllabus details, create exactly THREE multiple-choice questions:
-
-Board: Telangana State Board (SCERT)
+Create THREE MCQ questions for:
 Class: ${meta.class_name}
 Subject: ${meta.subject}
 Chapter: ${meta.chapter}
 
-Requirements:
-- Question 1: Simple difficulty
-- Question 2: Medium difficulty
-- Question 3: Advanced difficulty
-- Each question should have 4 options (A, B, C, D)
-- Clearly mention the correct answer for each question
-
-Just write the questions naturally the way a teacher would.
+- One Simple
+- One Medium
+- One Advanced
+- Each with 4 options
+- Mention correct answer
 `;
 
     const client = new GoogleGenerativeAI(GEMINI_API_KEY);
 
-    // ✅ CORRECT MODEL
-    const model = client.getGenerativeModel({ model: "gemini-pro" });
+    // ✅ THIS IS THE ONLY VALID MODEL
+    const model = client.getGenerativeModel({
+      model: "models/gemini-1.0-pro"
+    });
 
     const result = await model.generateContent(prompt);
     const text = result.response.text();
 
     return res.status(200).json({
       ok: true,
-      mode: "diagnostic-raw",
       output: text
     });
 
