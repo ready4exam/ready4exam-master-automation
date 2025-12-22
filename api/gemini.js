@@ -1,11 +1,12 @@
 // ============================================================================
-// /api/gemini.js — UNIVERSAL PRODUCTION VERSION (HARDENED)
-// FIXES:
+// /api/gemini.js — UNIVERSAL PRODUCTION VERSION (OPTION A ENFORCED)
+// ============================================================================
+// BEHAVIOR:
 // - Accepts partial batches
+// - Rejects ZERO-question output (HARD FAIL)
 // - JSON-safe prompting
-// - Lowered success threshold
-// - No fatal failure after retries
-// - Works for CBSE + State Boards + ICSE
+// - Model failover chain
+// - No silent success
 // ============================================================================
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
@@ -14,16 +15,18 @@ export const config = { runtime: "nodejs" };
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
-// Failover chain (ordered by speed → stability)
+// --------------------------------------------------------------------
+// MODEL FAILOVER CHAIN
+// --------------------------------------------------------------------
 const MODEL_CHAIN = [
   "gemini-2.0-flash",
   "gemini-1.5-flash",
   "gemini-1.5-flash-latest"
 ];
 
-// =====================================================================
-// AGGRESSIVE JSON CLEANER (SAFE)
-// =====================================================================
+// --------------------------------------------------------------------
+// AGGRESSIVE JSON CLEANER
+// --------------------------------------------------------------------
 function extractJSON(raw) {
   if (!raw) return [];
 
@@ -44,20 +47,18 @@ function extractJSON(raw) {
     text = text.slice(first, last + 1);
     const parsed = JSON.parse(text);
 
-    return Array.isArray(parsed)
-      ? parsed
-      : Array.isArray(parsed?.questions)
-        ? parsed.questions
-        : [];
+    if (Array.isArray(parsed)) return parsed;
+    if (Array.isArray(parsed?.questions)) return parsed.questions;
 
+    return [];
   } catch {
     return [];
   }
 }
 
-// =====================================================================
+// --------------------------------------------------------------------
 // SINGLE BATCH GENERATOR (WITH MODEL FAILOVER)
-// =====================================================================
+// --------------------------------------------------------------------
 async function getBatch(prompt) {
   const client = new GoogleGenerativeAI(GEMINI_API_KEY);
 
@@ -77,9 +78,9 @@ async function getBatch(prompt) {
   return [];
 }
 
-// =====================================================================
+// --------------------------------------------------------------------
 // MAIN HANDLER
-// =====================================================================
+// --------------------------------------------------------------------
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
@@ -119,9 +120,9 @@ export default async function handler(req, res) {
       }
     ]`;
 
-    // ---------------------------
-    // JSON-SAFE PROMPTS
-    // ---------------------------
+    // --------------------------------------------------
+    // STRICT JSON RULES (CRITICAL)
+    // --------------------------------------------------
     const rules = `
 STRICT RULES:
 - Output MUST be valid JSON
@@ -166,9 +167,9 @@ FORMAT: ${baseFormat}
 
     let finalQuestions = [];
 
-    // ---------------------------
+    // --------------------------------------------------
     // GLOBAL RETRY LOOP
-    // ---------------------------
+    // --------------------------------------------------
     for (let attempt = 1; attempt <= 3; attempt++) {
       const [b1, b2] = await Promise.all([
         getBatch(prompt1),
@@ -177,7 +178,7 @@ FORMAT: ${baseFormat}
 
       finalQuestions = [...b1, ...b2].filter(Boolean);
 
-      // ✅ SUCCESS CONDITION (RELAXED)
+      // SUCCESS THRESHOLD (RELAXED BUT NON-ZERO)
       if (finalQuestions.length >= 25) {
         return res.status(200).json({
           ok: true,
@@ -190,20 +191,29 @@ FORMAT: ${baseFormat}
       }
     }
 
-    // ---------------------------
-    // FINAL FALLBACK (NO HARD FAIL)
-    // ---------------------------
+    // --------------------------------------------------
+    // OPTION A — HARD FAIL ON ZERO QUESTIONS
+    // --------------------------------------------------
+    if (finalQuestions.length === 0) {
+      return res.status(500).json({
+        ok: false,
+        error: "Gemini returned zero valid questions after retries"
+      });
+    }
+
+    // --------------------------------------------------
+    // PARTIAL SUCCESS (NON-ZERO)
+    // --------------------------------------------------
     return res.status(200).json({
       ok: true,
       board,
       count: finalQuestions.length,
       partial: true,
-      warning: "Partial generation after retries",
       questions: finalQuestions
     });
 
   } catch (err) {
-    res.status(500).json({
+    return res.status(500).json({
       ok: false,
       error: err.message
     });
