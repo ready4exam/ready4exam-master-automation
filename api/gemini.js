@@ -1,6 +1,7 @@
 // ============================================================================
-// /api/gemini.js — PRODUCTION VERSION
-// Free-tier Failover + Improved NCERT Prompt + Strong JSON Mode + CORS
+// /api/gemini.js — UNIVERSAL PRODUCTION VERSION
+// Supports: CBSE (NCERT), Telangana, ICSE, Karnataka, etc.
+// Includes: Failover Chain, JSON Cleaner, and Dynamic Board Prompting
 // ============================================================================
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
@@ -12,16 +13,15 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 // ============================================================================
 //  MODEL FAILOVER CHAIN (FREE-TIER SAFE)
 // ============================================================================
-
 const MODEL_CHAIN = [
-  "gemini-2.5-flash",        // Best free model
-  "gemini-flash-latest",     // Backup
-  "gemini-2.0-flash",        // Backup
-  "gemini-2.5-flash-lite"    // Last fallback
+  "gemini-2.0-flash",        // Newest high-speed model
+  "gemini-1.5-flash",        // Reliable backup
+  "gemini-1.5-flash-latest", // Backup
+  "gemini-2.0-flash-lite-preview" // Fallback
 ];
 
 // ============================================================================
-//  JSON CLEANER
+//  JSON CLEANER (Preserved Full Robustness)
 // ============================================================================
 function extractJSON(raw) {
   if (!raw) return { ok: false, error: "EMPTY_OUTPUT" };
@@ -78,7 +78,6 @@ async function callGemini(prompt) {
     } catch (err) {
       lastErr = err;
       const status = err?.status;
-
       console.log(`❌ Model ${model} failed (${status}):`, err.message);
 
       if (status === 429) {
@@ -101,12 +100,12 @@ async function callGemini(prompt) {
 }
 
 // ============================================================================
-//  MAIN API HANDLER — CORS ENABLED
+//  MAIN API HANDLER — UNIVERSAL VERSION
 // ============================================================================
 export default async function handler(req, res) {
   
   // ------------ CORS BLOCK ------------
-  res.setHeader("Access-Control-Allow-Origin", "https://ready4exam.github.io");
+  res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   res.setHeader("Access-Control-Allow-Credentials", "true");
@@ -115,7 +114,6 @@ export default async function handler(req, res) {
   if (req.method !== "POST")
     return res.status(405).json({ ok: false, error: "ONLY_POST_ALLOWED" });
 
-  // ------------ BODY PARSING ------------
   try {
     const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
     const meta = body?.meta;
@@ -124,15 +122,33 @@ export default async function handler(req, res) {
       return res.status(400).json({ ok: false, error: "NO_META_PROVIDED" });
 
     // ========================================================================
-    //  ⭐ RESTORED + IMPROVED NCERT PROMPT
+    //  ⭐ DYNAMIC BOARD DETECTION (Universal Logic)
     // ========================================================================
+    const rawClass = meta.class_name || "";
+    const isCBSE = !isNaN(rawClass); // If strictly numeric (e.g., "9"), it's CBSE
+    
+    let boardLabel = "NCERT / CBSE";
+    let specialGuidance = "Follow NCERT textbook standards strictly.";
+
+    if (!isCBSE) {
+      if (rawClass.includes("Telangana")) {
+        boardLabel = "Telangana State Board (SCERT)";
+        specialGuidance = "Follow Telangana SCERT textbook patterns and specific terminology.";
+      } else if (rawClass.includes("ICSE")) {
+        boardLabel = "ICSE (CISCE) Board";
+        specialGuidance = "Follow ICSE application-based curriculum. Questions should be rigorous.";
+      } else if (rawClass.includes("Karnataka")) {
+        boardLabel = "Karnataka State Board (KSEEB)";
+        specialGuidance = "Follow Karnataka State syllabus and textbook concepts.";
+      }
+    }
+
     const prompt = `
 You MUST output ONLY a valid JSON array.
-No text before it.
-No text after it.
-No commentary.
-No markdown.
-No headings.
+No text before it. No text after it. No commentary. No markdown.
+
+You are an expert examiner for the ${boardLabel}.
+Generate EXACTLY 60 questions for Class ${rawClass}, Subject: ${meta.subject}, Chapter: ${meta.chapter}.
 
 STRICT FORMAT FOR EVERY QUESTION:
 [
@@ -149,38 +165,23 @@ STRICT FORMAT FOR EVERY QUESTION:
   }
 ]
 
-==============================
-  CLASS: ${meta.class_name}
-  SUBJECT: ${meta.subject}
-  CHAPTER: ${meta.chapter}
-==============================
-
 REQUIREMENTS:
-- Generate EXACTLY 60 NCERT-standard questions
-- Distribution:
-    • 20 Simple  
-    • 20 Medium  
-    • 20 Advanced  
-- At least **10 Case-Based or Assertion-Reason**
-- Simple/Medium/Advanced should reflect cognitive depth
-- All MCQ types → scenario_reason_text MUST be ""
-- Case-Based & Assertion Reason → scenario_reason_text MUST NOT be empty
-- No multiline text in any JSON field
-- No escape characters
-- No duplicate questions
-- No nested structures
-
-FINAL RULE:
-Return ONLY the JSON array. NOTHING else.
+- BOARD STANDARDS: ${boardLabel}. ${specialGuidance}
+- Distribution: 20 Simple, 20 Medium, 20 Advanced.
+- At least 10 Case-Based or Assertion-Reason (AR) questions.
+- For MCQ, scenario_reason_text MUST be "".
+- For Case-Based & AR, scenario_reason_text MUST contain the passage or logic.
+- Ensure no duplicate questions and no nested structures.
+- Return ONLY the JSON array.
 `;
 
     const start = Date.now();
 
     // ========================================================================
-    // 3 ATTEMPTS (each attempt includes model failover)
+    // 3 ATTEMPTS (each attempt includes model failover chain)
     // ========================================================================
     for (let attempt = 1; attempt <= 3; attempt++) {
-      console.log("🔁 Attempt:", attempt);
+      console.log("🔁 Global Attempt:", attempt);
 
       try {
         const raw = await callGemini(prompt);
@@ -189,7 +190,8 @@ Return ONLY the JSON array. NOTHING else.
         if (parsed.ok) {
           return res.status(200).json({
             ok: true,
-            engine: "gemini_failover_v2",
+            board: boardLabel,
+            engine: "gemini_universal_v2_failover",
             attempts: attempt,
             count: parsed.questions.length,
             durationMs: Date.now() - start,
@@ -203,8 +205,7 @@ Return ONLY the JSON array. NOTHING else.
       }
     }
 
-    // After 3 failed attempts:
-    return res.status(500).json({ ok: false, error: "GEMINI_INVALID_JSON" });
+    return res.status(500).json({ ok: false, error: "GEMINI_INVALID_JSON_AFTER_RETRIES" });
 
   } catch (err) {
     console.error("❌ API ERROR:", err);
