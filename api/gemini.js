@@ -2,79 +2,37 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 
 export const config = { runtime: "nodejs" };
 
+// SAFETY CHECK: Ensure API Key is loaded
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+if (!GEMINI_API_KEY) {
+  throw new Error("SERVER CONFIG ERROR: GEMINI_API_KEY is missing in Vercel.");
+}
 
-// Using 1.5-flash as primary because it is the most stable for large JSON tasks
-const MODEL_CHAIN = [
-  "gemini-1.5-flash",
-  "gemini-1.5-flash-latest",
-  "gemini-1.0-pro"
-];
+// 1. MATCHING YOUR SUCCESSFUL CURL MODEL
+const MODEL_NAME = "gemini-1.5-flash-latest";
 
-// Helper: robustly extract JSON from a text block (Markdown or plain)
-function cleanAndExtractJSON(text) {
+function cleanJSON(text) {
   if (!text) return null;
+  // 1. Remove Markdown Wrappers
+  let clean = text.replace(/```json/gi, "").replace(/```/g, "").trim();
   
-  // 1. Try to find a JSON array block [...]
-  const firstOpen = text.indexOf("[");
-  const lastClose = text.lastIndexOf("]");
+  // 2. Find the Array brackets [ ... ]
+  const first = clean.indexOf("[");
+  const last = clean.lastIndexOf("]");
   
-  if (firstOpen !== -1 && lastClose !== -1 && lastClose > firstOpen) {
-    const jsonCandidate = text.substring(firstOpen, lastClose + 1);
-    try {
-      return JSON.parse(jsonCandidate);
-    } catch (e) {
-      // Continue to other cleanup methods if simple extraction fails
-    }
-  }
-
-  // 2. Remove Markdown code blocks if strictly wrapped
-  const cleanText = text.replace(/```json/gi, "").replace(/```/g, "").trim();
+  if (first === -1 || last === -1) return null;
+  
+  // 3. Extract and Parse
+  clean = clean.substring(first, last + 1);
   try {
-    return JSON.parse(cleanText);
+    return JSON.parse(clean);
   } catch (e) {
     return null;
   }
 }
 
-async function getBatch(prompt) {
-  const client = new GoogleGenerativeAI(GEMINI_API_KEY);
-
-  let lastError = null;
-  let rawOutput = "";
-
-  for (const modelName of MODEL_CHAIN) {
-    try {
-      const model = client.getGenerativeModel({ model: modelName });
-      
-      // Standard text generation (mimics your successful CURL)
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      const text = response.text();
-      
-      rawOutput = text; // Save for debugging
-
-      const parsed = cleanAndExtractJSON(text);
-
-      // Handle wrapping: { "questions": [...] } vs [...]
-      if (parsed) {
-        if (Array.isArray(parsed)) return parsed;
-        if (parsed.questions && Array.isArray(parsed.questions)) return parsed.questions;
-      }
-
-    } catch (err) {
-      console.error(`Model ${modelName} failed:`, err.message);
-      lastError = err;
-      continue;
-    }
-  }
-
-  // Throw specific error with the raw output for debugging
-  throw new Error(`Failed to parse JSON. Raw Output: ${rawOutput.substring(0, 100)}...`);
-}
-
 export default async function handler(req, res) {
-  // CORS Setup
+  // CORS
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -85,26 +43,19 @@ export default async function handler(req, res) {
   try {
     const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
     const meta = body?.meta;
-
     if (!meta) return res.status(400).json({ ok: false, error: "Missing meta" });
 
-    const rawClass = meta.class_name || "";
-    const isCBSE = !isNaN(rawClass);
-    const board = !isCBSE && rawClass.includes("Telangana") ? "Telangana State Board (SCERT)" : "CBSE / NCERT";
+    const client = new GoogleGenerativeAI(GEMINI_API_KEY);
+    const model = client.getGenerativeModel({ model: MODEL_NAME });
 
-    // 2-Batch Strategy: Split the load to avoid token limits (30 + 30 is safer than 60)
-    // BUT for stability now, let's do ONE batch of 30 to prove it works first.
-    
+    // 2. SIMPLIFIED PROMPT (Mimics your Curl)
+    // We request 10 questions first to ensure stability. 
+    // Once this passes, we can increase it.
     const prompt = `
-    You are an expert exam setter for ${board}.
-    Target: Class ${rawClass}, Subject: ${meta.subject}, Chapter: ${meta.chapter}
-
-    Generate EXACTLY 30 Multiple Choice Questions (MCQ).
+    You are a strict API. Return ONLY a JSON Array.
+    Task: Generate 10 MCQ Questions for Class ${meta.class_name}, Subject: ${meta.subject}, Chapter: ${meta.chapter}.
     
-    OUTPUT FORMAT:
-    Return ONLY a valid JSON Array. Do not wrap in markdown 'json' tags if possible.
-    
-    Structure:
+    Format:
     [
       {
         "difficulty": "Simple",
@@ -119,28 +70,30 @@ export default async function handler(req, res) {
     ]
     `;
 
-    // Try up to 2 times
-    for (let i = 0; i < 2; i++) {
-        try {
-            const questions = await getBatch(prompt);
-            if (questions && questions.length > 0) {
-                return res.status(200).json({
-                    ok: true,
-                    board,
-                    count: questions.length,
-                    questions
-                });
-            }
-        } catch (e) {
-            console.log(`Attempt ${i+1} failed: ${e.message}`);
-            if (i === 1) throw e; // Throw on last attempt
-        }
+    const result = await model.generateContent(prompt);
+    const rawText = result.response.text();
+
+    // 3. PARSE
+    const questions = cleanJSON(rawText);
+
+    if (!questions || !Array.isArray(questions)) {
+      // 4. DEBUGGING: Return the ACTUAL bad output to the frontend
+      console.error("BAD OUTPUT:", rawText);
+      return res.status(500).json({ 
+        ok: false, 
+        error: "INVALID_JSON", 
+        raw_output: rawText // This will show up in your Network Tab
+      });
     }
 
-  } catch (err) {
-    return res.status(500).json({ 
-        ok: false, 
-        error: err.message || "Unknown Gemini Error" 
+    return res.status(200).json({
+      ok: true,
+      count: questions.length,
+      questions
     });
+
+  } catch (err) {
+    console.error("API FAIL:", err.message);
+    return res.status(500).json({ ok: false, error: err.message });
   }
 }
