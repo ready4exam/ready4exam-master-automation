@@ -1,7 +1,6 @@
 // ============================================================================
-// /api/gemini.js — UNIVERSAL PRODUCTION VERSION (FIXED & ROBUST)
-// Supports: CBSE, Telangana, ICSE, Karnataka, etc.
-// Features: Failover Chain, Aggressive JSON Cleaning, and Multi-Board Logic
+// /api/gemini.js — UNIVERSAL PRODUCTION VERSION (BATCHED & ROBUST)
+// Includes: Parallel Batching (Fixes 500 error), Failover Chain, & JSON Cleaner
 // ============================================================================
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
@@ -10,153 +9,118 @@ export const config = { runtime: "nodejs" };
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
-// Failover Chain using different model versions to ensure 200 OK
+// Model chain for failover
 const MODEL_CHAIN = [
   "gemini-2.0-flash",        
   "gemini-1.5-flash",        
-  "gemini-1.5-flash-latest", 
-  "gemini-2.0-flash-lite-preview" 
+  "gemini-1.5-flash-latest"
 ];
 
-// ============================================================================
-// AGGRESSIVE JSON EXTRACTION (Fixes Parsing Errors)
-// ============================================================================
+// =====================================================================
+// AGGRESSIVE JSON CLEANER
+// =====================================================================
 function extractJSON(raw) {
-  if (!raw) return { ok: false, error: "EMPTY_OUTPUT" };
-
-  // Remove markdown tags and non-printable characters
-  let text = raw.trim()
-    .replace(/```json/gi, "")
-    .replace(/```/g, "")
-    .replace(/[\u0000-\u001F]+/g, " ")
-    .replace(/“|”/g, '"')
-    .replace(/‘|’/g, "'")
-    .replace(/,\s*]/g, "]")
-    .replace(/,\s*}/g, "}");
-
-  // Locate the array boundaries
-  const first = text.indexOf("[");
-  const last = text.lastIndexOf("]");
-
-  if (first !== -1 && last !== -1) {
-    text = text.slice(first, last + 1);
-  }
-
+  if (!raw) return [];
   try {
+    let text = raw.trim()
+      .replace(/```json/gi, "")
+      .replace(/```/g, "")
+      .replace(/[\u0000-\u001F]+/g, " ")
+      .replace(/“|”/g, '"')
+      .replace(/‘|’/g, "'");
+
+    const first = text.indexOf("[");
+    const last = text.lastIndexOf("]");
+    if (first === -1 || last === -1) return [];
+
+    text = text.slice(first, last + 1);
     const parsed = JSON.parse(text);
-    const questions = Array.isArray(parsed) ? parsed : (parsed.questions || []);
-    if (questions.length > 0) return { ok: true, questions };
-    return { ok: false, error: "ZERO_QUESTIONS_PARSED" };
+    return Array.isArray(parsed) ? parsed : (parsed.questions || []);
   } catch (err) {
-    return { ok: false, error: "INVALID_JSON_FORMAT", raw: text };
+    console.error("❌ JSON Clean/Parse Error:", err.message);
+    return [];
   }
 }
 
-// ============================================================================
-// GEMINI ENGINE WITH FAILOVER
-// ============================================================================
-async function callGemini(prompt) {
+// =====================================================================
+// BATCH GENERATOR (Parallelized)
+// =====================================================================
+async function getBatch(prompt) {
   const client = new GoogleGenerativeAI(GEMINI_API_KEY);
   let lastErr = null;
 
-  for (const model of MODEL_CHAIN) {
+  for (const modelName of MODEL_CHAIN) {
     try {
-      const g = client.getGenerativeModel({ model });
+      const g = client.getGenerativeModel({ model: modelName });
       const output = await g.generateContent(prompt);
-      const txt = output.response.text();
-
-      if (txt && txt.trim().length > 0) return txt;
+      const text = output.response.text();
+      const questions = extractJSON(text);
+      if (questions.length > 0) return questions;
     } catch (err) {
       lastErr = err;
-      console.log(`❌ Model ${model} failed. Trying next...`);
+      console.log(`⚠ Model ${modelName} batch failed, trying next...`);
       continue;
     }
   }
-  throw lastErr || new Error("All Gemini models failed to respond.");
+  return []; // Return empty if all fail
 }
 
-// ============================================================================
+// =====================================================================
 // MAIN HANDLER
-// ============================================================================
+// =====================================================================
 export default async function handler(req, res) {
-  // CORS Headers
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
   if (req.method === "OPTIONS") return res.status(200).end();
-  if (req.method !== "POST") return res.status(405).json({ error: "Only POST allowed" });
+  if (req.method !== "POST") return res.status(405).json({ ok: false, error: "POST only" });
 
   try {
     const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
     const meta = body?.meta;
+    if (!meta) return res.status(400).json({ ok: false, error: "Missing Meta" });
 
-    if (!meta || !meta.chapter) {
-      return res.status(400).json({ error: "Missing metadata (chapter/subject)" });
-    }
-
-    // ⭐ DYNAMIC BOARD DETECTION
     const rawClass = meta.class_name || "";
-    const isCBSE = !isNaN(rawClass); 
-    
-    let boardLabel = "NCERT / CBSE";
-    let boardInstruction = "Strictly follow NCERT curriculum standards.";
+    const isCBSE = !isNaN(rawClass);
+    const board = !isCBSE && rawClass.includes("Telangana") ? "Telangana State Board (SCERT)" : "CBSE/NCERT";
 
-    if (!isCBSE) {
-      if (rawClass.includes("Telangana")) {
-        boardLabel = "Telangana State Board (SCERT)";
-        boardInstruction = "Follow Telangana SCERT textbook depth and specific scientific terminology.";
-      } else if (rawClass.includes("ICSE")) {
-        boardLabel = "ICSE (CISCE) Board";
-        boardInstruction = "Follow ICSE application-based curriculum style.";
-      }
-    }
+    const baseFormat = `[{ "difficulty": "Simple|Medium|Advanced", "question_type": "MCQ|Case-Based|AR", "question_text": "", "scenario_reason_text": "", "option_a": "", "option_b": "", "option_c": "", "option_d": "", "correct_answer_key": "A" }]`;
 
-    // THE PROMPT
-    const prompt = `
-Output ONLY a valid JSON array. No conversational text or markdown.
-Expert Examiner Mode: ${boardLabel}
-Generate EXACTLY 60 questions for Class ${rawClass}, Subject: ${meta.subject}, Chapter: ${meta.chapter}.
+    // PROMPTS SPLIT INTO TWO BATCHES TO PREVENT JSON CUT-OFF
+    const prompt1 = `Generate EXACTLY 30 questions (15 Simple, 15 Medium) for ${board} Class ${rawClass}, Subject: ${meta.subject}, Chapter: ${meta.chapter}. Output ONLY a JSON array. Format: ${baseFormat}`;
+    const prompt2 = `Generate EXACTLY 30 questions (10 Advanced MCQ, 10 Assertion-Reason, 10 Case-Based) for ${board} Class ${rawClass}, Subject: ${meta.subject}, Chapter: ${meta.chapter}. For AR/Case questions, scenario_reason_text MUST NOT BE EMPTY. Output ONLY a JSON array. Format: ${baseFormat}`;
 
-STRICT JSON STRUCTURE:
-[{
-  "difficulty": "Simple | Medium | Advanced",
-  "question_type": "MCQ | Case-Based | AR",
-  "question_text": "",
-  "scenario_reason_text": "",
-  "option_a": "", "option_b": "", "option_c": "", "option_d": "",
-  "correct_answer_key": "A"
-}]
+    let finalQuestions = [];
 
-REQUIREMENTS:
-1. Standards: ${boardInstruction}
-2. Distribution: 20 Simple, 20 Medium, 20 Advanced.
-3. Content: Include at least 10 Assertion-Reason or Case-Based questions.
-4. Language: Clear and technically accurate.
-`;
-
-    // 3 ATTEMPTS GLOBAL LOOP
+    // Global Attempt Loop (Up to 3 times)
     for (let attempt = 1; attempt <= 3; attempt++) {
-      try {
-        const raw = await callGemini(prompt);
-        const result = extractJSON(raw);
+      console.log(`🔄 Global Attempt ${attempt} for ${meta.chapter}`);
 
-        if (result.ok) {
-          return res.status(200).json({
-            ok: true,
-            questions: result.questions,
-            board: boardLabel,
-            attempts: attempt
-          });
-        }
-      } catch (err) {
-        console.error(`Attempt ${attempt} failed:`, err.message);
+      // Run both batches in parallel for speed
+      const [batch1, batch2] = await Promise.all([
+        getBatch(prompt1),
+        getBatch(prompt2)
+      ]);
+
+      const combined = [...batch1, ...batch2];
+
+      if (combined.length >= 40) { // Success threshold
+        return res.status(200).json({
+          ok: true,
+          board,
+          count: combined.length,
+          attempts: attempt,
+          questions: combined
+        });
       }
+      console.log(`⚠ Attempt ${attempt} incomplete (${combined.length} questions), retrying...`);
     }
 
-    res.status(500).json({ error: "GEMINI_INVALID_JSON_AFTER_RETRIES" });
+    throw new Error("GEMINI_INVALID_JSON_AFTER_RETRIES_OR_INCOMPLETE_BATCH");
 
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("❌ API ERROR:", err.message);
+    res.status(500).json({ ok: false, error: err.message });
   }
 }
