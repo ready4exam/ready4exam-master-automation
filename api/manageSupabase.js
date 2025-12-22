@@ -177,7 +177,7 @@ function applyTableIdToCurriculum(curriculum, meta, tableName) {
 }
 
 // =====================================================================
-// UPDATE curriculum.js IN class repo
+// UPDATE curriculum.js IN class repo (⭐ UPDATED FOR TELANGANA SUPPORT)
 // =====================================================================
 async function updateCurriculumForChapter(meta, tableName, logs) {
   const owner = process.env.GITHUB_OWNER;
@@ -190,13 +190,20 @@ async function updateCurriculumForChapter(meta, tableName, logs) {
     return;
   }
 
-  const repo = `ready4exam-class-${className}`;
+  // Handle specific repository for Telangana, fallback to standard for others
+  let repo;
+  if (className === "9Telangana") {
+    repo = `ready4exam-class-9Telangana`;
+  } else {
+    repo = `ready4exam-class-${className}`;
+  }
+
   const path = "js/curriculum.js";
 
   const file = await fetchGithubFile({ owner, repo, path, token });
   if (!file?.content || !file?.sha) {
     console.warn("⚠ Could not fetch curriculum.js from:", repo);
-    pushLog(logs, "⚠ curriculum.js not updated (file not found in repo)");
+    pushLog(logs, `⚠ curriculum.js not updated (file not found in repo: ${repo})`);
     return;
   }
 
@@ -209,7 +216,7 @@ async function updateCurriculumForChapter(meta, tableName, logs) {
 
   const changed = applyTableIdToCurriculum(obj, meta, tableName);
   if (!changed) {
-    pushLog(logs, "⚠ curriculum.js not updated (chapter not found)");
+    pushLog(logs, `⚠ curriculum.js not updated (chapter "${meta.chapter}" not found in ${repo})`);
     return;
   }
 
