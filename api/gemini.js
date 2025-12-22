@@ -1,11 +1,10 @@
 // ============================================================================
-// /api/gemini.js — UNIVERSAL PRODUCTION VERSION (LENIENT MCQ MODE)
+// /api/gemini.js — FINAL PRODUCTION VERSION (PROTOCOL-LEVEL JSON)
 // ============================================================================
-// CHANGES APPLIED:
-// - Relaxed prompt (10–25 MCQs, no exact split)
-// - JSON-only output rules
-// - Success threshold lowered (>= 8)
-// - HARD FAIL if zero questions (Option A)
+// CORE FIX:
+// - Uses responseMimeType: "application/json"
+// - Stops relying on response.text()
+// - Eliminates JSON drift, prose, markdown, truncation
 // ============================================================================
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
@@ -24,49 +23,32 @@ const MODEL_CHAIN = [
 ];
 
 // --------------------------------------------------------------------
-// AGGRESSIVE JSON CLEANER
-// --------------------------------------------------------------------
-function extractJSON(raw) {
-  if (!raw) return [];
-
-  try {
-    let text = raw
-      .replace(/```json/gi, "")
-      .replace(/```/g, "")
-      .replace(/[\u0000-\u001F]+/g, " ")
-      .replace(/“|”/g, '"')
-      .replace(/‘|’/g, "'")
-      .trim();
-
-    const first = text.indexOf("[");
-    const last = text.lastIndexOf("]");
-
-    if (first === -1 || last === -1) return [];
-
-    text = text.slice(first, last + 1);
-    const parsed = JSON.parse(text);
-
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
-// --------------------------------------------------------------------
-// SINGLE BATCH GENERATOR (WITH MODEL FAILOVER)
+// SINGLE BATCH GENERATOR (NATIVE JSON MODE)
 // --------------------------------------------------------------------
 async function getBatch(prompt) {
   const client = new GoogleGenerativeAI(GEMINI_API_KEY);
 
   for (const modelName of MODEL_CHAIN) {
     try {
-      const model = client.getGenerativeModel({ model: modelName });
-      const result = await model.generateContent(prompt);
-      const text = result.response.text();
-      const questions = extractJSON(text);
+      const model = client.getGenerativeModel({
+        model: modelName,
+        generationConfig: {
+          responseMimeType: "application/json"
+        }
+      });
 
-      if (questions.length > 0) return questions;
-    } catch {
+      const result = await model.generateContent(prompt);
+
+      // Gemini guarantees JSON at protocol level
+      const raw =
+        result.response.candidates?.[0]?.content?.parts?.[0]?.text;
+
+      if (!raw) continue;
+
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+
+    } catch (err) {
       continue;
     }
   }
@@ -103,35 +85,27 @@ export default async function handler(req, res) {
         : "CBSE / NCERT";
 
     // --------------------------------------------------
-    // MCQ FORMAT ONLY
+    // MCQ-ONLY JSON SCHEMA (MODEL-ENFORCED)
     // --------------------------------------------------
     const baseFormat = `[
       {
         "difficulty": "Simple|Medium|Advanced",
         "question_type": "MCQ",
-        "question_text": "",
+        "question_text": "string",
         "scenario_reason_text": "",
-        "option_a": "",
-        "option_b": "",
-        "option_c": "",
-        "option_d": "",
-        "correct_answer_key": "A"
+        "option_a": "string",
+        "option_b": "string",
+        "option_c": "string",
+        "option_d": "string",
+        "correct_answer_key": "A|B|C|D"
       }
     ]`;
 
-    // --------------------------------------------------
-    // RELAXED, JSON-ONLY RULES (CRITICAL CHANGE)
-    // --------------------------------------------------
-    const rules = `
-STRICT RULES:
-- Output ONLY a valid JSON array
-- Output MUST start with '[' and end with ']'
-- Do NOT include explanations or text outside JSON
-- Do NOT include markdown
-`;
-
     const prompt = `
-Generate MCQ questions for ${board}
+You are an exam question generator.
+
+Generate MCQ questions for:
+Board: ${board}
 Class: ${rawClass}
 Subject: ${meta.subject}
 Chapter: ${meta.chapter}
@@ -139,17 +113,17 @@ Chapter: ${meta.chapter}
 Requirements:
 - Generate between 10 and 25 MCQ questions
 - Use a mix of Simple, Medium, and Advanced
-- Each question must have exactly 4 options (A, B, C, D)
-- correct_answer_key must be one of A, B, C, or D
+- Every question must have 4 options (A–D)
+- correct_answer_key must be A, B, C, or D
 
-${rules}
-FORMAT: ${baseFormat}
+Return ONLY a JSON array matching this format:
+${baseFormat}
 `;
 
     let questions = [];
 
     // --------------------------------------------------
-    // RETRY LOOP
+    // RETRY LOOP (NOW MEANINGFUL)
     // --------------------------------------------------
     for (let attempt = 1; attempt <= 3; attempt++) {
       questions = await getBatch(prompt);
@@ -166,12 +140,12 @@ FORMAT: ${baseFormat}
     }
 
     // --------------------------------------------------
-    // OPTION A — HARD FAIL ON ZERO QUESTIONS
+    // OPTION A — HARD FAIL ON ZERO
     // --------------------------------------------------
     if (questions.length === 0) {
       return res.status(500).json({
         ok: false,
-        error: "Gemini returned zero valid MCQ questions after retries"
+        error: "Gemini returned zero valid questions (protocol JSON enforced)"
       });
     }
 
