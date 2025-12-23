@@ -260,12 +260,7 @@ export function attachAnswerListeners(fn) {
         if (radio) fn(radio.dataset.id, radio.value);
     };
 }
-export function updateAuthUI(u) {
-    if (u && els.welcomeUser) {
-        els.welcomeUser.textContent = `Welcome, ${u.email.split("@")[0]}`;
-        els.welcomeUser.classList.remove("hidden");
-    }
-}
+
 /* -----------------------------------
    IDENTITY & ACCESS UI HELPERS
 ----------------------------------- */
