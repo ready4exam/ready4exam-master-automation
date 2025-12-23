@@ -90,52 +90,59 @@ export function showExpiredPopup(message) {
 
 /**
  * Core Logic: Controls access based on Class-Lock and Manual Expiry.
+ * Ensures the first class clicked is "Ticked Green" in the Admin Portal.
  */
 export async function checkClassAccess(classId, stream) {
   await initializeServices();
   const { auth, db } = getInitializedClients();
   const user = auth.currentUser;
   
+  // 1. Force Authentication
   if (!user) return { allowed: false, reason: "Please sign in to continue." };
 
   const userRef = doc(db, "users", user.uid);
   const snap = await getDoc(userRef);
   
-  // New users get immediate access (they will be auto-locked on their first action)
+  // Handle case where user exists in Auth but not yet in Firestore
   if (!snap.exists()) return { allowed: true };
   
   const data = snap.data();
+
+  // 2. Admin Bypass: Admins have 100% access to all classes
   if (data.role === "admin") return { allowed: true };
 
-  // 1. Identify which classes are currently "Green" (true)
-  const activeClasses = Object.keys(data.paidClasses || {}).filter(k => data.paidClasses[k] === true);
+  // 3. Identify currently "Green" (Active) classes
+  const activeClasses = Object.keys(data.paidClasses || {}).filter(
+    (key) => data.paidClasses[key] === true
+  );
 
-  // 2. AUTO-LOCK: If no class is green yet, lock them into THIS one
+  // 4. AUTO-LOCK LOGIC: 
+  // If no class is ticked green yet, lock this specific class immediately.
   if (activeClasses.length === 0) {
-    await updateDoc(userRef, { [`paidClasses.${classId}`]: true });
+    await updateDoc(userRef, {
+      [`paidClasses.${classId}`]: true
+    });
+    // Return allowed so the first quiz can start immediately
     return { allowed: true };
   }
 
-  // 3. CLASS LOCK CHECK: If trying a class different from their green one
+  // 5. BLOCKING LOGIC: 
+  // If they have a green class, but it IS NOT the one in the current URL/Slug
   if (!data.paidClasses[classId]) {
-    const primaryClass = activeClasses[0];
+    const primaryClass = activeClasses[0]; 
     return { 
       allowed: false, 
       reason: `You are currently an **Exclusive Member** of our Class ${primaryClass} Learning Program! To expand your academic portfolio to Class ${classId}, let's get you upgraded.` 
     };
   }
 
-  // 4. MANUAL EXPIRY CHECK: Only blocks if you manually set a date in the Portal
+  // 6. MANUAL EXPIRY CHECK: 
+  // Only blocks if you manually set an 'accessExpiryDate' in the Admin Portal.
   if (isSignupExpired(data)) {
     return { 
       allowed: false, 
       reason: "Your personalized access period has concluded. Please contact your mentor to renew your scholarship." 
     };
-  }
-
-  // 5. Senior Stream Validation (Optional but kept for safety)
-  if ((classId === "11" || classId === "12") && stream && data.streams && data.streams !== stream) {
-      return { allowed: false, reason: `Authorized for ${data.streams} only. This is a ${stream} worksheet.` };
   }
 
   return { allowed: true };
