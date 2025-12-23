@@ -1,6 +1,6 @@
 // ============================================================================
-// /api/gemini.js — PRODUCTION STABLE VERSION
-// Logic: Robust Text-Mode Extraction + Stable Model Names
+// /api/gemini.js — FINAL STABLE VERSION
+// Fix: Uses ONLY "gemini-1.5-flash" (No experimental/deprecated chains)
 // ============================================================================
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
@@ -10,16 +10,11 @@ export const config = { runtime: "nodejs" };
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 // 1. STABLE MODEL CONFIGURATION
-// These are the canonical names supported by the Google Node.js SDK.
-// We removed "latest" aliases to prevent 404 errors.
-const MODEL_CHAIN = [
-  "gemini-1.5-flash",  // Primary: Fast & Cheap
-  "gemini-1.5-pro",    // Fallback: Higher Reasoning
-  "gemini-1.0-pro"     // Last Resort: Legacy Stable
-];
+// We use ONLY this model because it is the current standard.
+// Removing the chain prevents 404 errors from deprecated models.
+const MODEL_NAME = "gemini-1.5-flash";
 
 // 2. ROBUST JSON PARSER
-// This allows the AI to return "Here is your JSON: [...]" without breaking the app.
 function cleanJSON(text) {
   if (!text) return null;
 
@@ -41,40 +36,6 @@ function cleanJSON(text) {
   }
 }
 
-async function getBatch(prompt) {
-  const client = new GoogleGenerativeAI(GEMINI_API_KEY);
-  let lastError = null;
-
-  // 3. FAILOVER CHAIN
-  // If Flash fails (rare), it automatically tries Pro.
-  for (const modelName of MODEL_CHAIN) {
-    try {
-      const model = client.getGenerativeModel({ model: modelName });
-      
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      const text = response.text();
-
-      // 4. VALIDATION
-      const parsed = cleanJSON(text);
-      
-      // Handle wrapped responses { "questions": [...] } vs raw [...]
-      if (parsed) {
-        if (Array.isArray(parsed)) return parsed;
-        if (parsed.questions && Array.isArray(parsed.questions)) return parsed.questions;
-      }
-
-    } catch (err) {
-      console.error(`Model ${modelName} failed:`, err.message);
-      lastError = err;
-      continue; // Try next model in chain
-    }
-  }
-  
-  // If we get here, all models failed or returned bad JSON
-  throw lastError || new Error("AI generated invalid structure after multiple attempts.");
-}
-
 export default async function handler(req, res) {
   // CORS Headers
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -90,8 +51,10 @@ export default async function handler(req, res) {
 
     if (!meta) return res.status(400).json({ ok: false, error: "Missing meta" });
 
-    // 5. PROMPT ENGINEERING
-    // We explicitly ask for 30 questions. The "Stable" models handle this context window easily.
+    // 3. GENERATION LOGIC
+    const client = new GoogleGenerativeAI(GEMINI_API_KEY);
+    const model = client.getGenerativeModel({ model: MODEL_NAME });
+
     const rawClass = meta.class_name || "";
     const isCBSE = !isNaN(rawClass);
     const board = !isCBSE && rawClass.includes("Telangana") ? "Telangana State Board (SCERT)" : "CBSE / NCERT";
@@ -119,7 +82,18 @@ export default async function handler(req, res) {
     ]
     `;
 
-    const questions = await getBatch(prompt);
+    // Attempt generation
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text();
+    
+    // Parse
+    const questions = cleanJSON(text);
+    
+    // Validation
+    if (!questions || !Array.isArray(questions)) {
+        throw new Error("AI returned invalid JSON format.");
+    }
 
     return res.status(200).json({
       ok: true,
@@ -129,6 +103,7 @@ export default async function handler(req, res) {
     });
 
   } catch (err) {
+    console.error("Gemini API Error:", err.message);
     return res.status(500).json({ 
         ok: false, 
         error: err.message
