@@ -1,6 +1,6 @@
 // ============================================================================
-// /api/gemini.js — FINAL STABLE VERSION
-// Fix: Uses ONLY "gemini-1.5-flash" (No experimental/deprecated chains)
+// /api/gemini.js — PRODUCTION VERSION
+// Free-tier Failover + Improved NCERT Prompt + Strong JSON Mode + CORS
 // ============================================================================
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
@@ -9,104 +9,205 @@ export const config = { runtime: "nodejs" };
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
-// 1. STABLE MODEL CONFIGURATION
-// We use ONLY this model because it is the current standard.
-// Removing the chain prevents 404 errors from deprecated models.
-const MODEL_NAME = "gemini-1.5-flash";
+// ============================================================================
+//  MODEL FAILOVER CHAIN (FREE-TIER SAFE)
+// ============================================================================
 
-// 2. ROBUST JSON PARSER
-function cleanJSON(text) {
-  if (!text) return null;
+const MODEL_CHAIN = [
+  "gemini-2.5-flash",        // Best free model
+  "gemini-flash-latest",     // Backup
+  "gemini-2.0-flash",        // Backup
+  "gemini-2.5-flash-lite"    // Last fallback
+];
 
-  // A. Strip Markdown wrappers
-  let clean = text.replace(/```json/gi, "").replace(/```/g, "").trim();
+// ============================================================================
+//  JSON CLEANER
+// ============================================================================
+function extractJSON(raw) {
+  if (!raw) return { ok: false, error: "EMPTY_OUTPUT" };
 
-  // B. Locate the array brackets [ ... ]
-  const first = clean.indexOf("[");
-  const last = clean.lastIndexOf("]");
+  let text = raw.trim()
+    .replace(/```json/gi, "")
+    .replace(/```/g, "")
+    .replace(/[\u0000-\u001F]+/g, " ")
+    .replace(/\n+/g, " ")
+    .replace(/“|”/g, '"')
+    .replace(/‘|’/g, "'")
+    .replace(/,\s*]/g, "]")
+    .replace(/,\s*}/g, "}");
 
-  if (first === -1 || last === -1) return null;
+  const first = text.indexOf("[");
+  const last = text.lastIndexOf("]");
 
-  // C. Parse the valid substring
-  clean = clean.substring(first, last + 1);
+  if (first !== -1 && last !== -1)
+    text = text.slice(first, last + 1);
+
   try {
-    return JSON.parse(clean);
-  } catch (e) {
-    return null;
+    const parsed = JSON.parse(text);
+    if (Array.isArray(parsed)) return { ok: true, questions: parsed };
+    if (Array.isArray(parsed.questions)) return { ok: true, questions: parsed.questions };
+    return { ok: false, error: "INVALID_JSON_SHAPE", raw: text };
+  } catch (err) {
+    return { ok: false, error: "INVALID_JSON_PARSE", raw: text };
   }
 }
 
+// ============================================================================
+//  GEMINI FAILOVER ENGINE
+// ============================================================================
+async function callGemini(prompt) {
+  const client = new GoogleGenerativeAI(GEMINI_API_KEY);
+  let lastErr = null;
+
+  for (const model of MODEL_CHAIN) {
+    try {
+      console.log("⚡ Trying model:", model);
+
+      const g = client.getGenerativeModel({ model });
+      const output = await g.generateContent(prompt);
+      const txt = output.response.text();
+
+      if (!txt || !txt.trim()) {
+        console.log("⚠ Empty output → switching model");
+        continue;
+      }
+
+      console.log("✅ Success with model:", model);
+      return txt;
+
+    } catch (err) {
+      lastErr = err;
+      const status = err?.status;
+
+      console.log(`❌ Model ${model} failed (${status}):`, err.message);
+
+      if (status === 429) {
+        console.log("🔄 Quota exceeded → trying next model");
+        continue; 
+      }
+
+      if (status === 500 || status === 503) {
+        console.log("🔁 Server error → retry after delay");
+        await new Promise(r => setTimeout(r, 800));
+        continue;
+      }
+
+      console.log("⏭ Non-recoverable → switching model");
+      continue;
+    }
+  }
+
+  throw lastErr || new Error("All models failed");
+}
+
+// ============================================================================
+//  MAIN API HANDLER — CORS ENABLED
+// ============================================================================
 export default async function handler(req, res) {
-  // CORS Headers
-  res.setHeader("Access-Control-Allow-Origin", "*");
+  
+  // ------------ CORS BLOCK ------------
+  res.setHeader("Access-Control-Allow-Origin", "https://ready4exam.github.io");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Access-Control-Allow-Credentials", "true");
 
   if (req.method === "OPTIONS") return res.status(200).end();
-  if (req.method !== "POST") return res.status(405).json({ ok: false, error: "POST only" });
+  if (req.method !== "POST")
+    return res.status(405).json({ ok: false, error: "ONLY_POST_ALLOWED" });
 
+  // ------------ BODY PARSING ------------
   try {
     const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
     const meta = body?.meta;
 
-    if (!meta) return res.status(400).json({ ok: false, error: "Missing meta" });
+    if (!meta)
+      return res.status(400).json({ ok: false, error: "NO_META_PROVIDED" });
 
-    // 3. GENERATION LOGIC
-    const client = new GoogleGenerativeAI(GEMINI_API_KEY);
-    const model = client.getGenerativeModel({ model: MODEL_NAME });
-
-    const rawClass = meta.class_name || "";
-    const isCBSE = !isNaN(rawClass);
-    const board = !isCBSE && rawClass.includes("Telangana") ? "Telangana State Board (SCERT)" : "CBSE / NCERT";
-
+    // ========================================================================
+    //  ⭐ RESTORED + IMPROVED NCERT PROMPT
+    // ========================================================================
     const prompt = `
-    Role: Expert Exam Setter for ${board}.
-    Task: Generate EXACTLY 30 Multiple Choice Questions (MCQ).
-    Target: Class ${rawClass}, Subject: ${meta.subject}, Chapter: ${meta.chapter}
-    
-    Format Requirement:
-    Return ONLY a raw JSON Array. Do not include introductory text.
-    
-    JSON Structure:
-    [
-      {
-        "difficulty": "Simple",
-        "question_type": "MCQ",
-        "question_text": "Question goes here?",
-        "option_a": "Option A",
-        "option_b": "Option B",
-        "option_c": "Option C",
-        "option_d": "Option D",
-        "correct_answer_key": "A"
-      }
-    ]
-    `;
+You MUST output ONLY a valid JSON array.
+No text before it.
+No text after it.
+No commentary.
+No markdown.
+No headings.
 
-    // Attempt generation
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text();
-    
-    // Parse
-    const questions = cleanJSON(text);
-    
-    // Validation
-    if (!questions || !Array.isArray(questions)) {
-        throw new Error("AI returned invalid JSON format.");
+STRICT FORMAT FOR EVERY QUESTION:
+[
+  {
+    "difficulty": "Simple | Medium | Advanced",
+    "question_type": "MCQ | Case-Based | AR",
+    "question_text": "",
+    "scenario_reason_text": "",
+    "option_a": "",
+    "option_b": "",
+    "option_c": "",
+    "option_d": "",
+    "correct_answer_key": "A"
+  }
+]
+
+==============================
+  CLASS: ${meta.class_name}
+  SUBJECT: ${meta.subject}
+  CHAPTER: ${meta.chapter}
+==============================
+
+REQUIREMENTS:
+- Generate EXACTLY 60 NCERT-standard questions
+- Distribution:
+    • 20 Simple  
+    • 20 Medium  
+    • 20 Advanced  
+- At least **10 Case-Based or Assertion-Reason**
+- Simple/Medium/Advanced should reflect cognitive depth
+- All MCQ types → scenario_reason_text MUST be ""
+- Case-Based & Assertion Reason → scenario_reason_text MUST NOT be empty
+- No multiline text in any JSON field
+- No escape characters
+- No duplicate questions
+- No nested structures
+
+FINAL RULE:
+Return ONLY the JSON array. NOTHING else.
+`;
+
+    const start = Date.now();
+
+    // ========================================================================
+    // 3 ATTEMPTS (each attempt includes model failover)
+    // ========================================================================
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      console.log("🔁 Attempt:", attempt);
+
+      try {
+        const raw = await callGemini(prompt);
+        const parsed = extractJSON(raw);
+
+        if (parsed.ok) {
+          return res.status(200).json({
+            ok: true,
+            engine: "gemini_failover_v2",
+            attempts: attempt,
+            count: parsed.questions.length,
+            durationMs: Date.now() - start,
+            questions: parsed.questions,
+          });
+        }
+
+        console.log("⚠ JSON invalid → retrying...");
+      } catch (err) {
+        console.log("Attempt failed:", err);
+      }
     }
 
-    return res.status(200).json({
-      ok: true,
-      board,
-      count: questions.length,
-      questions
-    });
+    // After 3 failed attempts:
+    return res.status(500).json({ ok: false, error: "GEMINI_INVALID_JSON" });
 
   } catch (err) {
-    console.error("Gemini API Error:", err.message);
-    return res.status(500).json({ 
-        ok: false, 
-        error: err.message
-    });
+    console.error("❌ API ERROR:", err);
+    return res.status(500).json({ ok: false, error: err.message });
   }
 }
