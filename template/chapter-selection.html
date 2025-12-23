@@ -89,6 +89,7 @@ window.__firebase_config = {
 import curriculum from "./js/curriculum.js";
 import { transliterate as tr } from "https://cdn.jsdelivr.net/npm/transliteration/+esm";
 // IMPORT ACCESS LOGIC
+import { requireAuth } from "./js/auth-paywall.js";
 import { checkClassAccess, showExpiredPopup } from "./js/firebase-expiry.js";
 
 const CLASS_ID = "{{CLASS}}";
