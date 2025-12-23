@@ -75,6 +75,8 @@
 <script type="module">
 import curriculum from "./js/curriculum.js";
 import { transliterate as tr } from "https://cdn.jsdelivr.net/npm/transliteration/+esm";
+// IMPORT ACCESS LOGIC
+import { checkClassAccess, showExpiredPopup } from "./js/firebase-expiry.js";
 
 const CLASS_ID = "{{CLASS}}";
 const subject  = new URLSearchParams(location.search).get("subject") || "";
@@ -210,26 +212,51 @@ function buildTableName(chapter){
 }
 
 /* --------------------------
-   START QUIZ
+   START QUIZ (WITH ACCESS LOCK CHECK)
 --------------------------- */
-startBtn.onclick = () => {
+startBtn.onclick = async () => {
   if (!selectedChapter || !selectedDifficulty) {
     errorMsg.textContent = "Please select a chapter and difficulty.";
     errorMsg.classList.remove("hidden");
     return;
   }
 
-  const table = buildTableName(selectedChapter);
-  const params = new URLSearchParams({
-    class: CLASS_ID,
-    subject,
-    book: selectedBook,
-    chapter: selectedChapter,
-    difficulty: selectedDifficulty,
-    table
-  });
+  // Visual feedback: disable while checking database
+  startBtn.disabled = true;
+  const originalText = startBtn.textContent;
+  startBtn.textContent = "Verifying Scholar Status...";
 
-  location.href = `quiz-engine.html?${params.toString()}`;
+  try {
+    // 1. Check access (This will auto-lock the first class they pick)
+    const access = await checkClassAccess(CLASS_ID, subject);
+
+    if (!access.allowed) {
+      // 2. Block and show the Exclusive Member popup
+      showExpiredPopup(access.reason);
+      startBtn.disabled = false;
+      startBtn.textContent = originalText;
+      return; 
+    }
+
+    // 3. Allowed -> Proceed to quiz
+    const table = buildTableName(selectedChapter);
+    const params = new URLSearchParams({
+      class: CLASS_ID,
+      subject,
+      book: selectedBook,
+      chapter: selectedChapter,
+      difficulty: selectedDifficulty,
+      table
+    });
+
+    location.href = `quiz-engine.html?${params.toString()}`;
+  } catch (err) {
+    console.error("Access Check Failed:", err);
+    startBtn.disabled = false;
+    startBtn.textContent = originalText;
+    errorMsg.textContent = "Connection error. Please try again.";
+    errorMsg.classList.remove("hidden");
+  }
 };
 
 // Initial Load
