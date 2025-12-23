@@ -197,24 +197,27 @@ async function init() {
         wireGoogleLogin();
 
         // 3. Handle Auth and Access while data fetches in background
+    // Handle Auth and Access while data fetches in background
         await initializeAuthListener(async user => {
             if (user) {
-                // FIX: Update the header with user info
+                // 1. Update the header with the student's name immediately
                 UI.updateAuthUI(user);
 
-                // FIX: Check if user is allowed to access this specific class
+                // 2. BLOCKING CHECK: Must 'await' the result before doing anything else
                 const access = await checkClassAccess(quizState.classId, quizState.subject);
                 
                 if (access.allowed) {
-                    // Start fetching questions ONLY if access is granted
+                    // 3. ALLOWED: Trigger the question fetch and load the UI
                     questionsPromise = fetchQuestions(quizState.topicSlug, quizState.difficulty);
-                    loadQuiz(); 
+                    await loadQuiz(); 
                 } else {
-                    // ACCESS BLOCKED: Hide loading and show the "Exclusive Member" popup
+                    // 4. BLOCKED: Hard stop. Hide status, force hide quiz view, and show popup.
                     UI.hideStatus();
+                    UI.showView("paywall-screen"); // Ensure quiz-content is hidden
                     showExpiredPopup(access.reason);
                 }
             } else {
+                // User is signed out: Show the standard login paywall
                 UI.showView("paywall-screen");
             }
         });
