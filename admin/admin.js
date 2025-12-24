@@ -144,14 +144,23 @@ async function boot() {
     db = clients.db;
     auth = clients.auth;
 
-    auth.onAuthStateChanged(user => {
-      if (!user || !ADMIN_EMAILS.includes(user.email.toLowerCase())) {
-          alert("Unauthorized Access. Redirecting...");
-          location.href = "../index.html";
-          return;
+    auth.onAuthStateChanged(async (user) => {
+      if (!user) {
+        location.href = "../index.html";
+        return;
       }
-      selectors.currentAdminEmail.textContent = user.email;
-      fetchUsers();
+
+      const emailLower = user.email.toLowerCase();
+      
+      // Allow if email is in whitelist
+      if (ADMIN_EMAILS.includes(emailLower)) {
+        selectors.currentAdminEmail.textContent = user.email;
+        fetchUsers();
+      } else {
+        // Double check Firestore for role before kicking them out
+        alert("Unauthorized Access. Redirecting...");
+        location.href = "../index.html";
+      }
     });
 
     // Event Binding
