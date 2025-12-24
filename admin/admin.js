@@ -18,10 +18,7 @@ const selectors = {
   currentAdminEmail: document.getElementById("current-admin-email")
 };
 
-/**
- * DRY RUN CHECK 1: updateField
- * Updates Firestore and triggers a UI refresh.
- */
+// 1. UPDATE FIELD
 async function updateField(uid, obj) {
   try {
     const userRef = doc(db, "users", uid);
@@ -33,10 +30,7 @@ async function updateField(uid, obj) {
   }
 }
 
-/**
- * DRY RUN CHECK 2: renderUserRow
- * Generates the HTML for each user. Defined before fetchUsers to avoid ReferenceErrors.
- */
+// 2. RENDER ROW
 function renderUserRow(uid, data) {
   const tr = document.createElement("tr");
   tr.className = "border-b border-slate-100 hover:bg-slate-50 transition";
@@ -47,7 +41,7 @@ function renderUserRow(uid, data) {
       <div class="text-[9px] text-slate-400 font-mono mt-1 tracking-tighter">${uid}</div>
     </td>`;
 
-  // Expiry Column
+  // Expiry
   const expiryTd = document.createElement("td");
   expiryTd.className = "px-8 py-5";
   const dateInput = document.createElement("input");
@@ -61,7 +55,7 @@ function renderUserRow(uid, data) {
   expiryTd.appendChild(dateInput);
   tr.appendChild(expiryTd);
 
-  // Class Toggles (6-12)
+  // Class Toggles
   const classesTd = document.createElement("td");
   classesTd.className = "px-8 py-5 flex flex-wrap gap-1.5 max-w-[240px]";
   ["6","7","8","9","10","11","12"].forEach(c => {
@@ -100,12 +94,9 @@ function renderUserRow(uid, data) {
   return tr;
 }
 
-/**
- * DRY RUN CHECK 3: fetchUsers
- * Clears the revolving spinner and populates the table.
- */
+// 3. FETCH USERS
 async function fetchUsers() {
-  selectors.tbody.innerHTML = ""; // This kills the revolving circle
+  selectors.tbody.innerHTML = ""; 
   
   try {
     const usersCol = collection(db, "users");
@@ -129,14 +120,12 @@ async function fetchUsers() {
     }
   } catch (e) {
     console.error("Fetch Error:", e);
-    selectors.tbody.innerHTML = `<tr><td colspan='5' class='py-20 text-center text-red-500 font-black'>Error: ${e.message}</td></tr>`;
+    // If we still get a permission error, show it clearly instead of redirecting
+    selectors.tbody.innerHTML = `<tr><td colspan='5' class='py-20 text-center text-red-500 font-black'>Access Denied: ${e.message}</td></tr>`;
   }
 }
 
-/**
- * DRY RUN CHECK 4: boot
- * Connects to config.js and verifies Admin status.
- */
+// 4. BOOT
 async function boot() {
   try {
     await initializeServices();
@@ -146,24 +135,23 @@ async function boot() {
 
     auth.onAuthStateChanged(async (user) => {
       if (!user) {
-        location.href = "../index.html";
-        return;
+         location.href = "../index.html";
+         return;
       }
-
-      const emailLower = user.email.toLowerCase();
       
-      // Allow if email is in whitelist
-      if (ADMIN_EMAILS.includes(emailLower)) {
+      // STRICT CHECK: Trim & Lowercase
+      const userEmail = user.email.toLowerCase().trim();
+      const isAllowed = ADMIN_EMAILS.some(email => email.toLowerCase().trim() === userEmail);
+
+      if (isAllowed) {
         selectors.currentAdminEmail.textContent = user.email;
         fetchUsers();
       } else {
-        // Double check Firestore for role before kicking them out
         alert("Unauthorized Access. Redirecting...");
         location.href = "../index.html";
       }
     });
 
-    // Event Binding
     selectors.applyFilters.onclick = fetchUsers;
     selectors.refreshBtn.onclick = fetchUsers;
     selectors.clearFilters.onclick = () => { selectors.filterEmail.value = ""; fetchUsers(); };
