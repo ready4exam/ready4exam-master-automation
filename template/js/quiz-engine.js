@@ -1,24 +1,20 @@
-// template/js/quiz-engine.js
 import { initializeServices, getInitializedClients } from "./config.js"; 
 import { fetchQuestions, saveResult } from "./api.js";
 import * as UI from "./ui-renderer.js";
 import { initializeAuthListener, requireAuth } from "./auth-paywall.js";
-// FIX 1: Removed checkClassAccess from imports (since we define it below)
 import { showExpiredPopup } from "./firebase-expiry.js";
 import { doc, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 /* -----------------------------------
-    STRICT GATEKEEPER FUNCTION
+    1. STRICT GATEKEEPER (Security)
 ----------------------------------- */
 export async function checkClassAccess(classId, subject) {
     try {
-        // FIX 2: Get initialized instances safely
         const { auth, db } = getInitializedClients(); 
         
         const user = auth.currentUser;
         if (!user) return { allowed: false, reason: "no_user" };
 
-        // 1. Force Fetch Latest Data (Bypasses Cache)
         const userRef = doc(db, "users", user.uid);
         const snap = await getDoc(userRef);
 
@@ -28,32 +24,28 @@ export async function checkClassAccess(classId, subject) {
 
         const data = snap.data();
         
-        // 2. Admin Bypass
+        // Admin Bypass
         const ADMIN_EMAILS = ["keshav.karn@gmail.com", "ready4urexam@gmail.com"];
         if (user.email && ADMIN_EMAILS.includes(user.email.toLowerCase())) {
             return { allowed: true };
         }
 
-        // 3. Check Locked Classes
+        // Logic: Check Active Classes
         const paidClasses = data.paidClasses || {};
         const isClassActive = paidClasses[classId.toString()] === true; 
-
-        // CHECK: Is the student already locked to ANY OTHER class?
         const lockedClasses = Object.keys(paidClasses).filter(key => paidClasses[key] === true);
         const isLockedToSomething = lockedClasses.length > 0;
 
         if (isClassActive) {
-            // SCENARIO A: They own this class. ALLOW.
             return { allowed: true };
         } 
         else if (isLockedToSomething) {
-            // SCENARIO B: They own a DIFFERENT class. BLOCK.
             console.log(`User is locked to Class ${lockedClasses[0]}, but requested Class ${classId}`);
             return { allowed: false, reason: "exclusive_member" };
         } 
         else {
-            // SCENARIO C: New Student. AUTO-LOCK.
             try {
+                // Auto-lock new student to this class
                 await updateDoc(userRef, {
                     [`paidClasses.${classId}`]: true
                 });
@@ -64,7 +56,6 @@ export async function checkClassAccess(classId, subject) {
                 return { allowed: false, reason: "write_error" };
             }
         }
-
     } catch (error) {
         console.error("Access Check Failed:", error);
         return { allowed: false, reason: "error" };
@@ -82,44 +73,51 @@ let quizState = {
     isSubmitted: false
 };
 
-// Global promise to hold question data while Auth is processing
 let questionsPromise = null;
 
 /* -----------------------------------
-    PARSE URL PARAMETERS (Fully Dynamic)
+    2. HEADER & URL PARSING (Fixed)
 ----------------------------------- */
 function parseUrlParameters() {
     const params = new URLSearchParams(location.search);
-    quizState.topicSlug = params.get("table") || params.get("topic") || "";
+    
     quizState.difficulty = params.get("difficulty") || "Simple";
     quizState.classId = params.get("class") || "11";
     quizState.subject = params.get("subject") || "Physics";
+    quizState.topicSlug = params.get("table") || params.get("topic") || "";
 
-    // 1. Dynamic Cleanup
-    let cleanChapter = quizState.topicSlug
-        .replace(/[_\d]/g, " ")
-        .replace(/quiz/ig, "")
-        .trim();
+    // A. TRY TO GET EXACT CHAPTER NAME FROM URL
+    let displayChapter = params.get("chapter_name");
 
-    // 2. Dynamic Subject Stripping
-    const subjectRegex = new RegExp(`^${quizState.subject}\\s*`, "i");
-    cleanChapter = cleanChapter.replace(subjectRegex, "").trim();
-
-    // 3. Dynamic Title Casing
-    cleanChapter = cleanChapter.replace(/\b\w/g, c => c.toUpperCase());
-
-    // 4. Grammar Refinement
-    cleanChapter = cleanChapter.replace(/And/g, "and"); 
-    if (cleanChapter.toLowerCase().includes("acids bases salts")) {
-        cleanChapter = "Acid, Bases and Salts";
+    // B. FALLBACK: IF NO NAME IN URL, CLEAN THE ID
+    if (!displayChapter) {
+        displayChapter = quizState.topicSlug
+            .replace(/[_-]/g, " ") // Replace underscores/dashes with space
+            .replace(/quiz|worksheet/ig, "") // Remove 'quiz' to avoid "Set Set"
+            .trim();
+            
+        // Remove Subject if it's in the name (e.g. "Physics Motion" -> "Motion")
+        const subjectRegex = new RegExp(`^${quizState.subject}\\s*`, "i");
+        displayChapter = displayChapter.replace(subjectRegex, "").trim();
+    } else {
+        // Decode URI (e.g., "Force%20and%20Motion" -> "Force and Motion")
+        displayChapter = decodeURIComponent(displayChapter);
     }
 
-    const fullTitle = `Class ${quizState.classId}: ${quizState.subject} - ${cleanChapter} Worksheet`;
+    // C. FORMATTING
+    // Title Case
+    displayChapter = displayChapter.replace(/\b\w/g, c => c.toUpperCase());
+    // Fix "And" to "and"
+    displayChapter = displayChapter.replace(/\bAnd\b/g, "and"); 
+
+    // D. SET HEADER: Class : Subject - Chapter Name Worksheet
+    const fullTitle = `Class ${quizState.classId} : ${quizState.subject} - ${displayChapter} Worksheet`;
+    
     UI.updateHeader(fullTitle, quizState.difficulty);
 }
 
 /* -----------------------------------
-    LOAD QUIZ
+    3. LOAD QUIZ
 ----------------------------------- */
 async function loadQuiz() {
     try {
@@ -139,7 +137,7 @@ async function loadQuiz() {
 }
 
 /* -----------------------------------
-    RENDER QUESTION
+    4. RENDER QUESTION
 ----------------------------------- */
 function renderQuestion() {
     const q = quizState.questions[quizState.currentQuestionIndex];
@@ -157,7 +155,7 @@ function renderQuestion() {
 }
 
 /* -----------------------------------
-    ANSWER HANDLERS
+    5. ANSWER HANDLERS
 ----------------------------------- */
 function handleAnswerSelection(id, opt) {
     if (!quizState.isSubmitted) {
@@ -172,7 +170,7 @@ function handleNavigation(delta) {
 }
 
 /* -----------------------------------
-    SUBMIT QUIZ
+    6. SUBMIT & RESULTS
 ----------------------------------- */
 async function handleSubmit() {
     quizState.isSubmitted = true;
@@ -209,7 +207,7 @@ async function handleSubmit() {
 }
 
 /* -----------------------------------
-    DOM EVENTS
+    7. EVENTS
 ----------------------------------- */
 function attachDomEvents() {
     document.addEventListener("click", e => {
@@ -229,9 +227,6 @@ function attachDomEvents() {
     });
 }
 
-/* -----------------------------------
-    GOOGLE LOGIN WIRE
------------------------------------ */
 function wireGoogleLogin() {
     const btn = document.getElementById("google-signin-btn");
     if (btn) {
@@ -243,11 +238,11 @@ function wireGoogleLogin() {
 }
 
 /* -----------------------------------
-    INIT
+    8. INITIALIZATION
 ----------------------------------- */
 async function init() {
     UI.initializeElements();
-    parseUrlParameters();
+    parseUrlParameters(); // Sets the Header
     attachDomEvents();
     UI.attachAnswerListeners(handleAnswerSelection);
 
@@ -255,7 +250,7 @@ async function init() {
         await initializeServices();
         wireGoogleLogin();
 
-        // Handle Auth and Access while data fetches in background
+        // Check Auth & Access
         await initializeAuthListener(async user => {
             if (user) {
                 UI.updateAuthUI(user);
