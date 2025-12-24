@@ -226,7 +226,7 @@ function buildTableName(chapter){
 }
 
 /* --------------------------
-   START QUIZ (Mandatory Auth -> Class Lock Check)
+   START QUIZ (Modified for Header Fix)
 --------------------------- */
 startBtn.onclick = async () => {
   if (!selectedChapter || !selectedDifficulty) {
@@ -236,34 +236,31 @@ startBtn.onclick = async () => {
   }
 
   try {
-    // 1. MANDATORY GOOGLE LOGIN (abc@gsd.com)
-    // Ensures anyone accessing must go through Google sign-in
     const user = await requireAuth(); 
     
-    // 2. VISUAL FEEDBACK
     startBtn.disabled = true;
     const originalText = startBtn.textContent;
     startBtn.textContent = "Verifying Scholar Status...";
 
-    // 3. RUN ACCESS CHECK (Class-Lock & Manual Expiry)
-    // If it's the 1st time, it ticks the class "Green" in Admin Console
     const access = await checkClassAccess(CLASS_ID, subject);
 
     if (access.allowed) {
       // 4. ACCESS GRANTED -> PROCEED TO QUIZ
       const table = buildTableName(selectedChapter);
+      
+      // FIX: ADDED 'chapter_name' TO PARAMS FOR HEADER DISPLAY
       const params = new URLSearchParams({
         class: CLASS_ID,
         subject,
         book: selectedBook,
         chapter: selectedChapter,
         difficulty: selectedDifficulty,
-        table
+        table,
+        chapter_name: selectedChapter // <--- THIS LINE FIXES THE HEADER
       });
 
       location.href = `quiz-engine.html?${params.toString()}`;
     } else {
-      // 5. BLOCKED: Show the "Exclusive Member" message
       showExpiredPopup(access.reason);
       startBtn.disabled = false;
       startBtn.textContent = originalText;
