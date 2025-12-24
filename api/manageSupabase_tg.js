@@ -1,5 +1,5 @@
 // ============================================================================
-// /api/manageSupabase_tg.js — DEDICATED TELANGANA BACKEND
+// /api/manageSupabase_tg.js — UPDATED TABLE SUFFIX
 // ============================================================================
 
 import { createClient } from "@supabase/supabase-js";
@@ -38,15 +38,14 @@ function pushLog(logs, msg) {
 }
 
 // =====================================================================
-// ⭐ TABLE NAME BUILDER (Telangana Specific)
+// ⭐ TABLE NAME BUILDER (Updated to _9telangana_quiz)
 // =====================================================================
 function buildTableName(meta) {
   // Extract grade number (e.g., "9" from "9_telangana")
-  // If the string is just "9_telangana", removing "_telangana" leaves "9"
   let grade = meta.class_name.replace("_telangana", ""); 
   
-  // Force suffix to "tg" -> "9tg"
-  const suffix = `${grade}tg`; 
+  // ⭐ CHANGED: Suffix is now explicitly "telangana"
+  const suffix = `${grade}telangana`; 
 
   const rawSubject = meta.subject || "";
   let subjectSlug = tr(rawSubject)
@@ -66,7 +65,7 @@ function buildTableName(meta) {
   const first = filtered[0] || words[0] || "ch";
   const last  = filtered[filtered.length - 1] || words[words.length - 1] || "x";
 
-  // Result example: physics_light_reflection_9tg_quiz
+  // Result example: physics_light_reflection_9telangana_quiz
   return `${subjectSlug}_${first}_${last}_${suffix}_quiz`;
 }
 
@@ -145,7 +144,6 @@ function applyTableIdToCurriculum(curriculum, meta, tableName) {
   const subjectNode = curriculum[subjectKey];
   const match = ch => norm(ch?.chapter_title) === norm(chapterTitle);
 
-  // Flat array
   if (Array.isArray(subjectNode)) {
     subjectNode.forEach(ch => {
       if (match(ch)) { ch.table_id = tableName; updated = true; }
@@ -153,7 +151,6 @@ function applyTableIdToCurriculum(curriculum, meta, tableName) {
     return updated;
   }
 
-  // Nested Groups
   const groups = subdivision ? [subdivision] : Object.keys(subjectNode);
   groups.forEach(group => {
     const arr = subjectNode[group];
@@ -167,7 +164,7 @@ function applyTableIdToCurriculum(curriculum, meta, tableName) {
 }
 
 // =====================================================================
-// ⭐ UPDATE CURRICULUM (Telangana Repo Hardcoded)
+// UPDATE CURRICULUM
 // =====================================================================
 async function updateCurriculumForChapter(meta, tableName, logs) {
   const owner = process.env.GITHUB_OWNER;
@@ -178,7 +175,6 @@ async function updateCurriculumForChapter(meta, tableName, logs) {
     return;
   }
 
-  // FORCE Telangana Repo
   const repo = "ready4exam-class-9Telangana"; 
   const path = "js/curriculum.js";
 
@@ -240,7 +236,6 @@ export default async function handler(req, res) {
     const { class_name, subject, chapter } = meta;
     pushLog(logs, `📌 [TS] Starting automation for Class ${class_name} → ${subject}`);
 
-    // Use default DB creds (Class 11 keys used as master for now)
     const supabaseUrl = process.env.SUPABASE_URL_11; 
     const supabaseKey = process.env.SUPABASE_SERVICE_KEY_11;
 
@@ -289,7 +284,6 @@ export default async function handler(req, res) {
 
     const inserted = await supabase.from(table).insert(rows);
     if (inserted.error) throw inserted.error;
-    
     pushLog(logs, `✔ Inserted ${rows.length} questions`);
 
     // 5. Update usage_logs
