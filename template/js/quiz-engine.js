@@ -1,9 +1,75 @@
 // template/js/quiz-engine.js
-import { initializeServices } from "./config.js"; 
+import { initializeServices, getInitializedClients } from "./config.js"; 
 import { fetchQuestions, saveResult } from "./api.js";
 import * as UI from "./ui-renderer.js";
 import { initializeAuthListener, requireAuth } from "./auth-paywall.js";
-import { checkClassAccess, showExpiredPopup } from "./firebase-expiry.js";
+// FIX 1: Removed checkClassAccess from imports (since we define it below)
+import { showExpiredPopup } from "./firebase-expiry.js";
+import { doc, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+/* -----------------------------------
+    STRICT GATEKEEPER FUNCTION
+----------------------------------- */
+export async function checkClassAccess(classId, subject) {
+    try {
+        // FIX 2: Get initialized instances safely
+        const { auth, db } = getInitializedClients(); 
+        
+        const user = auth.currentUser;
+        if (!user) return { allowed: false, reason: "no_user" };
+
+        // 1. Force Fetch Latest Data (Bypasses Cache)
+        const userRef = doc(db, "users", user.uid);
+        const snap = await getDoc(userRef);
+
+        if (!snap.exists()) {
+            return { allowed: false, reason: "no_record" };
+        }
+
+        const data = snap.data();
+        
+        // 2. Admin Bypass
+        const ADMIN_EMAILS = ["keshav.karn@gmail.com", "ready4urexam@gmail.com"];
+        if (user.email && ADMIN_EMAILS.includes(user.email.toLowerCase())) {
+            return { allowed: true };
+        }
+
+        // 3. Check Locked Classes
+        const paidClasses = data.paidClasses || {};
+        const isClassActive = paidClasses[classId.toString()] === true; 
+
+        // CHECK: Is the student already locked to ANY OTHER class?
+        const lockedClasses = Object.keys(paidClasses).filter(key => paidClasses[key] === true);
+        const isLockedToSomething = lockedClasses.length > 0;
+
+        if (isClassActive) {
+            // SCENARIO A: They own this class. ALLOW.
+            return { allowed: true };
+        } 
+        else if (isLockedToSomething) {
+            // SCENARIO B: They own a DIFFERENT class. BLOCK.
+            console.log(`User is locked to Class ${lockedClasses[0]}, but requested Class ${classId}`);
+            return { allowed: false, reason: "exclusive_member" };
+        } 
+        else {
+            // SCENARIO C: New Student. AUTO-LOCK.
+            try {
+                await updateDoc(userRef, {
+                    [`paidClasses.${classId}`]: true
+                });
+                console.log(`Auto-locked user to Class ${classId}`);
+                return { allowed: true };
+            } catch (err) {
+                console.error("Auto-lock failed:", err);
+                return { allowed: false, reason: "write_error" };
+            }
+        }
+
+    } catch (error) {
+        console.error("Access Check Failed:", error);
+        return { allowed: false, reason: "error" };
+    }
+}
 
 let quizState = {
     classId: "",
@@ -29,28 +95,26 @@ function parseUrlParameters() {
     quizState.classId = params.get("class") || "11";
     quizState.subject = params.get("subject") || "Physics";
 
-    // 1. Dynamic Cleanup: Remove underscores/numbers and strip the "quiz" suffix
+    // 1. Dynamic Cleanup
     let cleanChapter = quizState.topicSlug
         .replace(/[_\d]/g, " ")
         .replace(/quiz/ig, "")
         .trim();
 
-    // 2. Dynamic Subject Stripping: If the slug starts with the subject name, remove it
+    // 2. Dynamic Subject Stripping
     const subjectRegex = new RegExp(`^${quizState.subject}\\s*`, "i");
     cleanChapter = cleanChapter.replace(subjectRegex, "").trim();
 
-    // 3. Dynamic Title Casing: Convert "acids bases salts" to "Acids Bases Salts"
+    // 3. Dynamic Title Casing
     cleanChapter = cleanChapter.replace(/\b\w/g, c => c.toUpperCase());
 
-    // 4. Grammar Refinement: Standardize common chemical/mathematical chapter naming
-    cleanChapter = cleanChapter.replace(/And/g, "and"); // keep 'and' lowercase for aesthetics
+    // 4. Grammar Refinement
+    cleanChapter = cleanChapter.replace(/And/g, "and"); 
     if (cleanChapter.toLowerCase().includes("acids bases salts")) {
         cleanChapter = "Acid, Bases and Salts";
     }
 
-    // Maintains Final Format: Class 10: Science - Acid, Bases and Salts Worksheet
     const fullTitle = `Class ${quizState.classId}: ${quizState.subject} - ${cleanChapter} Worksheet`;
-
     UI.updateHeader(fullTitle, quizState.difficulty);
 }
 
@@ -61,7 +125,6 @@ async function loadQuiz() {
     try {
         UI.showStatus("Preparing worksheet...", "text-blue-600 font-bold");
 
-        // Wait for the promise that was started in init()
         const processedQuestions = await questionsPromise;
         quizState.questions = processedQuestions;
 
@@ -114,7 +177,6 @@ function handleNavigation(delta) {
 async function handleSubmit() {
     quizState.isSubmitted = true;
 
-    // Single-pass stats calculation for mobile performance
     const stats = {
         total: quizState.questions.length,
         correct: 0,
@@ -184,40 +246,31 @@ function wireGoogleLogin() {
     INIT
 ----------------------------------- */
 async function init() {
-    // 1. Initial UI Setup
     UI.initializeElements();
     parseUrlParameters();
     attachDomEvents();
     UI.attachAnswerListeners(handleAnswerSelection);
 
     try {
-        // 2. Parallel initialization: Start services first
         await initializeServices();
-        
         wireGoogleLogin();
 
-        // 3. Handle Auth and Access while data fetches in background
-    // Handle Auth and Access while data fetches in background
+        // Handle Auth and Access while data fetches in background
         await initializeAuthListener(async user => {
             if (user) {
-                // 1. Update the header with the student's name immediately
                 UI.updateAuthUI(user);
 
-                // 2. BLOCKING CHECK: Must 'await' the result before doing anything else
                 const access = await checkClassAccess(quizState.classId, quizState.subject);
                 
                 if (access.allowed) {
-                    // 3. ALLOWED: Trigger the question fetch and load the UI
                     questionsPromise = fetchQuestions(quizState.topicSlug, quizState.difficulty);
                     await loadQuiz(); 
                 } else {
-                    // 4. BLOCKED: Hard stop. Hide status, force hide quiz view, and show popup.
                     UI.hideStatus();
-                    UI.showView("paywall-screen"); // Ensure quiz-content is hidden
+                    UI.showView("paywall-screen"); 
                     showExpiredPopup(access.reason);
                 }
             } else {
-                // User is signed out: Show the standard login paywall
                 UI.showView("paywall-screen");
             }
         });
