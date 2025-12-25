@@ -1,3 +1,4 @@
+// IMPORT PATHS: Adjusted for your local root structure (root/admin -> root/js)
 import { initializeServices, getInitializedClients } from "../js/config.js"; 
 import { collection, query, limit, getDocs, where, doc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 import { signOut } from "../js/auth-paywall.js"; 
@@ -15,7 +16,7 @@ function renderUserRow(uid, data) {
   const tr = document.createElement("tr");
   tr.className = "border-b border-slate-100 hover:bg-slate-50 transition";
   
-  // PURPLE BADGE LOGIC
+  // --- PURPLE BADGE LOGIC ---
   const isTelangana = data.paidClasses && data.paidClasses["TS_9"];
   const badgeHtml = isTelangana ? `<span class="bg-purple-100 text-purple-700 text-[9px] px-2 py-0.5 rounded ml-2 uppercase font-black tracking-wider border border-purple-200">SCERT / TS</span>` : ``;
 
