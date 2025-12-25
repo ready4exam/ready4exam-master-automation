@@ -1,49 +1,26 @@
-// IMPORT PATHS: Adjusted for your local root structure (root/admin -> root/js)
 import { initializeServices, getInitializedClients } from "../js/config.js"; 
 import { collection, query, limit, getDocs, where, doc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 import { signOut } from "../js/auth-paywall.js"; 
 
 const ADMIN_EMAILS = ["keshav.karn@gmail.com", "ready4urexam@gmail.com"];
 let db, auth;
-const selectors = { 
-  tbody: document.getElementById("users-tbody"), 
-  resultsCount: document.getElementById("results-count"), 
-  filterEmail: document.getElementById("filter-email"), 
-  applyFilters: document.getElementById("apply-filters"), 
-  clearFilters: document.getElementById("clear-filters"), 
-  refreshBtn: document.getElementById("refresh-btn"), 
-  logoutBtn: document.getElementById("logout-btn"), 
-  currentAdminEmail: document.getElementById("current-admin-email") 
-};
+const selectors = { tbody: document.getElementById("users-tbody"), resultsCount: document.getElementById("results-count"), filterEmail: document.getElementById("filter-email"), applyFilters: document.getElementById("apply-filters"), clearFilters: document.getElementById("clear-filters"), refreshBtn: document.getElementById("refresh-btn"), logoutBtn: document.getElementById("logout-btn"), currentAdminEmail: document.getElementById("current-admin-email") };
 
-// --- GENERIC UPDATE FUNCTION (Safe for all users) ---
 async function updateField(uid, obj) {
   try { await updateDoc(doc(db, "users", uid), obj); await fetchUsers(); } 
   catch (e) { alert("Update failed: " + e.message); }
 }
 
-// --- RENDER ROW (The "Hybrid" Logic) ---
 function renderUserRow(uid, data) {
   const tr = document.createElement("tr");
   tr.className = "border-b border-slate-100 hover:bg-slate-50 transition";
-
-  // 1. CHECK FOR TELANGANA TAG (Does not affect CBSE users)
-  const isTelangana = data.paidClasses && data.paidClasses["TS_9"];
   
-  // 2. GENERATE BADGE (Only appears if tag exists)
-  const badgeHtml = isTelangana 
-    ? `<span class="bg-purple-100 text-purple-700 text-[9px] px-2 py-0.5 rounded ml-2 uppercase font-black tracking-wider border border-purple-200">SCERT / TS</span>` 
-    : ``;
+  // PURPLE BADGE LOGIC
+  const isTelangana = data.paidClasses && data.paidClasses["TS_9"];
+  const badgeHtml = isTelangana ? `<span class="bg-purple-100 text-purple-700 text-[9px] px-2 py-0.5 rounded ml-2 uppercase font-black tracking-wider border border-purple-200">SCERT / TS</span>` : ``;
 
-  tr.innerHTML = `
-    <td class="px-8 py-5">
-      <div class="flex items-center">
-          <div class="font-bold text-slate-800 text-sm">${data.email || 'No Email'}</div>
-          ${badgeHtml} </div>
-      <div class="text-[9px] text-slate-400 font-mono mt-1 tracking-tighter">${uid}</div>
-    </td>`;
+  tr.innerHTML = `<td class="px-8 py-5"><div class="flex items-center"><div class="font-bold text-slate-800 text-sm">${data.email || 'No Email'}</div>${badgeHtml}</div><div class="text-[9px] text-slate-400 font-mono mt-1 tracking-tighter">${uid}</div></td>`;
 
-  // Expiry Date (Universal)
   const expiryTd = document.createElement("td");
   expiryTd.className = "px-8 py-5";
   const dateInput = document.createElement("input");
@@ -54,8 +31,6 @@ function renderUserRow(uid, data) {
   expiryTd.appendChild(dateInput);
   tr.appendChild(expiryTd);
 
-  // Class Buttons (Standard 6-12)
-  // Note: Telangana users will have GREY buttons here unless you manually give them CBSE access too.
   const classesTd = document.createElement("td");
   classesTd.className = "px-8 py-5 flex flex-wrap gap-1.5 max-w-[240px]";
   ["6","7","8","9","10","11","12"].forEach(c => {
@@ -63,13 +38,11 @@ function renderUserRow(uid, data) {
     const btn = document.createElement("button");
     btn.className = `w-8 h-8 rounded-xl text-[10px] font-black transition-all ${active ? 'bg-green-600 text-white shadow-md' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`;
     btn.textContent = c;
-    // Clicking this SAFELY merges the new permission. It does NOT delete the TS_9 tag.
     btn.onclick = () => updateField(uid, { [`paidClasses.${c}`]: !active });
     classesTd.appendChild(btn);
   });
   tr.appendChild(classesTd);
 
-  // Stream Buttons (Universal)
   const streamTd = document.createElement("td");
   streamTd.className = "px-8 py-5 space-x-2";
   ["science", "commerce", "arts"].forEach(s => {
@@ -82,7 +55,6 @@ function renderUserRow(uid, data) {
   });
   tr.appendChild(streamTd);
 
-  // Reset Action (Universal)
   const actionTd = document.createElement("td");
   actionTd.className = "px-8 py-5 text-right";
   const revoke = document.createElement("button");
@@ -94,7 +66,6 @@ function renderUserRow(uid, data) {
   return tr;
 }
 
-// --- CORE FETCH LOGIC (Unchanged) ---
 async function fetchUsers() {
   selectors.tbody.innerHTML = ""; 
   try {
