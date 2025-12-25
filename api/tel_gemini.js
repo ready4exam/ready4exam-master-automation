@@ -1,5 +1,5 @@
 // ============================================================================
-// /api/tel_gemini.js — TELANGANA STATE BOARD (SCERT) VERSION
+// /api/tel_gemini.js — TELANGANA (SCERT) + READABLE MATH FIX
 // ============================================================================
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
@@ -9,13 +9,13 @@ export const config = { runtime: "nodejs" };
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 // ============================================================================
-//  1. MODEL FAILOVER CHAIN (Free-Tier Resilience)
+//  1. MODEL FAILOVER CHAIN
 // ============================================================================
 const MODEL_CHAIN = [
-  "gemini-2.5-flash",        // Primary: Fast & High Quality
+  "gemini-2.5-flash",        // Primary
   "gemini-flash-latest",     // Backup 1
   "gemini-2.0-flash",        // Backup 2
-  "gemini-1.5-flash"         // Legacy Backup
+  "gemini-1.5-flash"         // Legacy
 ];
 
 // ============================================================================
@@ -24,16 +24,15 @@ const MODEL_CHAIN = [
 function extractJSON(raw) {
   if (!raw) return { ok: false, error: "EMPTY_OUTPUT" };
 
-  // aggressively strip markdown and code blocks
+  // Strip markdown, code blocks, and newlines
   let text = raw.trim()
     .replace(/```json/gi, "")
     .replace(/```/g, "")
-    .replace(/[\u0000-\u001F]+/g, " ") // Remove control chars
-    .replace(/\n+/g, " ")               // Flatten newlines
-    .replace(/“|”/g, '"')               // Fix smart quotes
+    .replace(/[\u0000-\u001F]+/g, " ") 
+    .replace(/\n+/g, " ")
+    .replace(/“|”/g, '"')
     .replace(/‘|’/g, "'");
 
-  // Extract content between the first [ and last ]
   const first = text.indexOf("[");
   const last = text.lastIndexOf("]");
 
@@ -41,14 +40,11 @@ function extractJSON(raw) {
     text = text.slice(first, last + 1);
   }
 
-  // Attempt parse
   try {
     const parsed = JSON.parse(text);
-    
-    // Validate shape
+    // Validate array shape
     if (Array.isArray(parsed)) return { ok: true, questions: parsed };
     if (parsed.questions && Array.isArray(parsed.questions)) return { ok: true, questions: parsed.questions };
-    
     return { ok: false, error: "INVALID_JSON_SHAPE", raw: text };
   } catch (err) {
     return { ok: false, error: "INVALID_JSON_PARSE", raw: text };
@@ -56,7 +52,7 @@ function extractJSON(raw) {
 }
 
 // ============================================================================
-//  3. GEMINI CALLER WITH FAILOVER
+//  3. GEMINI CALLER
 // ============================================================================
 async function callGemini(prompt) {
   const client = new GoogleGenerativeAI(GEMINI_API_KEY);
@@ -65,36 +61,27 @@ async function callGemini(prompt) {
   for (const model of MODEL_CHAIN) {
     try {
       console.log(`⚡ [tel_gemini] Trying model: ${model}`);
-
       const g = client.getGenerativeModel({ model });
       const output = await g.generateContent(prompt);
       const txt = output.response.text();
 
       if (!txt || !txt.trim()) {
-        console.warn("⚠ Empty output → switching model");
+        console.warn("⚠ Empty output → switching");
         continue;
       }
-
-      console.log(`✅ Success with ${model}`);
       return txt;
 
     } catch (err) {
       lastErr = err;
       const status = err?.status;
-      console.error(`❌ ${model} failed (${status}):`, err.message);
-
-      // Handle Quota (429) or Server Error (500/503)
       if (status === 429 || status === 500 || status === 503) {
-        await new Promise(r => setTimeout(r, 1000)); // Brief pause before next model
+        await new Promise(r => setTimeout(r, 1000));
         continue; 
       }
-      
-      // If it's a content blocking error, likely won't work on other models either, but we try.
       continue;
     }
   }
-
-  throw lastErr || new Error("All models failed to generate content.");
+  throw lastErr || new Error("All models failed.");
 }
 
 // ============================================================================
@@ -102,7 +89,7 @@ async function callGemini(prompt) {
 // ============================================================================
 export default async function handler(req, res) {
   
-  // ------------ CORS ------------
+  // CORS Headers
   res.setHeader("Access-Control-Allow-Origin", "https://ready4exam.github.io");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -117,7 +104,7 @@ export default async function handler(req, res) {
     if (!meta) return res.status(400).json({ ok: false, error: "Missing metadata" });
 
     // ========================================================================
-    //  ⭐ PROMPT: TELANGANA STATE BOARD / SCERT FOCUS
+    //  ⭐ UPDATED PROMPT: STRICT READABLE MATH
     // ========================================================================
     const prompt = `
 You are an expert academic content creator for the **Telangana State Board (SCERT)** curriculum.
@@ -129,33 +116,36 @@ CONTEXT:
 - Subject: ${meta.subject}
 - Chapter: ${meta.chapter}
 
+FORMATTING RULES (CRITICAL):
+1. **NO RAW LATEX**: Do NOT use LaTeX delimiters like \\( ... \\) or commands like \\sqrt{}, \\frac{}{}, \\textbf{}.
+2. **USE UNICODE**: Use readable Unicode symbols for math equations so they display correctly as plain text.
+   - Use '√' instead of \\sqrt (e.g., "√2" not "\\sqrt{2}")
+   - Use '/' for fractions (e.g., "1/2" not "\\frac{1}{2}")
+   - Use '²' for square (e.g., "x²" not "x^2")
+   - Use 'π' instead of \\pi
+   - Use 'θ' instead of \\theta
+   - Use '°' for degrees.
+3. **READABILITY**: The question_text must be readable by a 9th-grade student without needing a Markdown/LaTeX parser.
+
 REQUIREMENTS:
 1. **Quantity:** EXACTLY 60 Questions.
-2. **Syllabus:** Strictly follow the SCERT Telangana textbook content.
-3. **Difficulty Mix:** - 20 Simple (Recall/Definition)
-   - 20 Medium (Conceptual/Application)
-   - 20 Advanced (Critical Thinking/Analysis)
-4. **Question Types:**
-   - Majority: Multiple Choice Questions (MCQ)
-   - Required: At least 10 "Assertion-Reason" or "Case-Based" questions.
-5. **Formatting Rules:**
-   - Output MUST be a valid JSON Array.
-   - No markdown, no "Here is the JSON", no code blocks. Just the raw array.
-   - For MCQs: "scenario_reason_text" must be empty string "".
-   - For Case-Based/AR: "scenario_reason_text" contains the Case or Assertion/Reason text.
+2. **Syllabus:** Strictly follow the SCERT Telangana textbook.
+3. **Mix:** 20 Simple, 20 Medium, 20 Advanced.
+4. **Types:** Majority MCQ; at least 10 "Assertion-Reason" or "Case-Based".
+5. **Structure:** Strictly valid JSON Array.
 
-JSON STRUCTURE (Strictly enforce this):
+JSON STRUCTURE:
 [
   {
-    "difficulty": "Simple", 
+    "difficulty": "Medium", 
     "question_type": "MCQ",
-    "question_text": "The capital of Telangana is?",
+    "question_text": "Rationalize the denominator of 1/(3+√2).",
     "scenario_reason_text": "",
-    "option_a": "Warangal",
-    "option_b": "Hyderabad",
-    "option_c": "Nizamabad",
-    "option_d": "Karimnagar",
-    "correct_answer_key": "B"
+    "option_a": "(3-√2)/7",
+    "option_b": "(3+√2)/7",
+    "option_c": "(3-√2)/11",
+    "option_d": "(3+√2)/11",
+    "correct_answer_key": "A"
   }
 ]
 
@@ -165,7 +155,7 @@ FINAL INSTRUCTION: Return ONLY the JSON array.
     const start = Date.now();
 
     // ========================================================================
-    //  RETRY LOOP (3 Attempts)
+    //  RETRY LOOP
     // ========================================================================
     for (let attempt = 1; attempt <= 3; attempt++) {
       console.log(`🔁 Attempt ${attempt}/3 for ${meta.chapter}`);
@@ -177,22 +167,19 @@ FINAL INSTRUCTION: Return ONLY the JSON array.
         if (result.ok) {
           return res.status(200).json({
             ok: true,
-            engine: "tel_gemini_v1",
+            engine: "tel_gemini_math_v2",
             attempts: attempt,
             count: result.questions.length,
             durationMs: Date.now() - start,
             questions: result.questions,
           });
         }
-        console.warn("⚠ JSON Parse failed on attempt " + attempt);
-
       } catch (innerErr) {
         console.error(`Attempt ${attempt} error:`, innerErr.message);
       }
     }
 
-    // Fail state
-    return res.status(500).json({ ok: false, error: "Failed to generate valid JSON after 3 attempts." });
+    return res.status(500).json({ ok: false, error: "Failed to generate valid JSON." });
 
   } catch (err) {
     console.error("❌ API CRITICAL FAIL:", err);
