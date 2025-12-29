@@ -1,4 +1,5 @@
-// ✅ CORRECT PATHS: Go UP to root, then DOWN to template/js
+// ✅ SAFE MODE ADMIN.JS
+// 1. Imports assuming file is in 'admin/admin.js' and template is sibling
 import { initializeServices, getInitializedClients } from "../template/js/config.js"; 
 import { collection, query, limit, getDocs, where, doc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 import { signOut } from "../template/js/auth-paywall.js"; 
@@ -28,7 +29,6 @@ function renderUserRow(uid, data) {
   const tr = document.createElement("tr");
   tr.className = "border-b border-slate-100 hover:bg-slate-50 transition";
   
-  // 1. CHECK FOR TELANGANA TAG
   const isTelangana = data.paidClasses && data.paidClasses["TS_9"];
   const badgeHtml = isTelangana 
     ? `<span class="bg-purple-100 text-purple-700 text-[9px] px-2 py-0.5 rounded ml-2 uppercase font-black tracking-wider border border-purple-200">SCERT / TS</span>` 
@@ -127,11 +127,17 @@ async function boot() {
     db = clients.db; auth = clients.auth;
     
     auth.onAuthStateChanged(async (user) => {
-      // 1. Check if user is logged in AND is an admin
+      // 🚨 DEBUG MODE: STOP REDIRECT LOOP
+      // If user is not logged in, we show a button instead of crashing with 404
       if (!user || !ADMIN_EMAILS.some(e => e.toLowerCase() === user.email.toLowerCase())) {
-         console.warn("Redirecting: User not logged in or not Admin");
-         // ⚠️ If this line runs and index.html is missing, you get 404
-         return location.href = "../index.html";
+         document.body.innerHTML = `
+           <div style="display:flex; height:100vh; justify-content:center; align-items:center; flex-direction:column; background:#f8fafc; font-family:sans-serif;">
+              <h2 style="color:#1e293b; font-weight:900; font-size:24px;">Admin Access Required</h2>
+              <p style="color:#64748b; margin-bottom:20px;">You are not logged in as an administrator.</p>
+              <a href="../index.html" style="background:#1a3e6a; color:white; padding:12px 24px; text-decoration:none; border-radius:12px; font-weight:bold;">Go to Login Page</a>
+           </div>
+         `;
+         return;
       }
       
       selectors.currentAdminEmail.textContent = user.email;
@@ -144,7 +150,8 @@ async function boot() {
     selectors.logoutBtn.onclick = async () => { await signOut(); location.href = "../index.html"; };
   } catch (err) { 
     console.error("Boot Error:", err);
-    selectors.tbody.innerHTML = `<tr><td colspan='5' class='py-20 text-center text-red-500 font-black'>Init Failed: ${err.message}</td></tr>`; 
+    // If imports fail, this will show on screen
+    document.body.innerHTML = `<div style="padding:40px; text-align:center; color:red; font-weight:bold;">SCRIPT ERROR: ${err.message}<br><br>Check your Console (F12) for details.</div>`;
   }
 }
 boot();
