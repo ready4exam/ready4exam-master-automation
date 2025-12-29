@@ -1,14 +1,12 @@
-// ✅ AUTH-ENABLED ADMIN DASHBOARD
-// Imports go UP to root, then DOWN to template
+// ✅ PERSISTENT ADMIN DASHBOARD
 import { initializeServices, getInitializedClients } from "../template/js/config.js"; 
 import { collection, query, limit, getDocs, where, doc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-// NEW: Import Auth functions for the Login Popup
-import { GoogleAuthProvider, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+// NEW: Import persistence functions
+import { GoogleAuthProvider, signInWithPopup, signOut, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
 const ADMIN_EMAILS = ["keshav.karn@gmail.com", "ready4urexam@gmail.com"];
 let db, auth;
 
-// DOM Elements
 const selectors = { 
   tbody: document.getElementById("users-tbody"), 
   resultsCount: document.getElementById("results-count"), 
@@ -20,7 +18,18 @@ const selectors = {
   currentAdminEmail: document.getElementById("current-admin-email") 
 };
 
-// --- 1. LOGIN SCREEN GENERATOR ---
+// --- 0. LOADING SCREEN ( Prevents Flicker ) ---
+function showLoading() {
+  document.body.innerHTML = `
+    <div style="height:100vh; display:flex; justify-content:center; align-items:center; background:#f8fafc; flex-direction:column;">
+       <div style="width:40px; height:40px; border:4px solid #e2e8f0; border-top-color:#1a3e6a; border-radius:50%; animation:spin 1s linear infinite;"></div>
+       <p style="margin-top:15px; font-family:sans-serif; color:#64748b; font-weight:bold;">Verifying Admin Access...</p>
+       <style>@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>
+    </div>
+  `;
+}
+
+// --- 1. LOGIN SCREEN ---
 function showLoginScreen(message = "Admin Access Required") {
   document.body.innerHTML = `
     <div style="min-height: 100vh; background: #f8fafc; display: flex; align-items: center; justify-content: center; font-family: 'Inter', sans-serif;">
@@ -33,40 +42,34 @@ function showLoginScreen(message = "Admin Access Required") {
           This portal is restricted to authorized administrators only. Please sign in to continue.
         </p>
         <button id="google-login-btn" style="width: 100%; background: #1a3e6a; color: white; padding: 14px; border-radius: 12px; border: none; font-weight: bold; font-size: 15px; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 10px;">
-          <svg style="width: 20px; height: 20px;" viewBox="0 0 24 24"><path fill="currentColor" d="M21.35 11.1h-9.17v2.73h6.51c-.33 3.81-3.5 5.44-6.5 5.44C8.36 19.27 5 16.25 5 12c0-4.1 3.2-7.27 7.2-7.27c3.09 0 4.9 1.97 4.9 1.97L19 4.72S16.56 2 12.1 2C6.42 2 2.03 6.8 2.03 12c0 5.05 4.13 10 10.22 10c5.35 0 9.25-3.67 9.25-9.09c0-1.15-.15-1.81-.15-1.81Z"/></svg>
           Sign in with Google
         </button>
       </div>
     </div>
   `;
-
-  // Attach Click Listener to the new button
   document.getElementById("google-login-btn").addEventListener("click", handleAdminLogin);
 }
 
-// --- 2. LOGIN HANDLER ---
+// --- 2. LOGIN HANDLER (With Persistence) ---
 async function handleAdminLogin() {
   const btn = document.getElementById("google-login-btn");
   btn.innerText = "Verifying...";
   btn.disabled = true;
 
   try {
+    // 🔥 CRITICAL: Force session to stay "LOCAL" (Permanent until logout)
+    await setPersistence(auth, browserLocalPersistence);
+    
     const provider = new GoogleAuthProvider();
     const result = await signInWithPopup(auth, provider);
     const user = result.user;
 
-    // CHECK: Is this email in the Allowed List?
     if (ADMIN_EMAILS.some(email => email.toLowerCase() === user.email.toLowerCase())) {
-      // ✅ SUCCESS: Refresh page to load Dashboard
       location.reload(); 
     } else {
-      // ❌ FAILED: Not an admin
       await signOut(auth);
-      alert("ACCESS DENIED\n\nThe email " + user.email + " is not authorized to access this dashboard.");
-      btn.innerHTML = `
-        <svg style="width: 20px; height: 20px;" viewBox="0 0 24 24"><path fill="currentColor" d="M21.35 11.1h-9.17v2.73h6.51c-.33 3.81-3.5 5.44-6.5 5.44C8.36 19.27 5 16.25 5 12c0-4.1 3.2-7.27 7.2-7.27c3.09 0 4.9 1.97 4.9 1.97L19 4.72S16.56 2 12.1 2C6.42 2 2.03 6.8 2.03 12c0 5.05 4.13 10 10.22 10c5.35 0 9.25-3.67 9.25-9.09c0-1.15-.15-1.81-.15-1.81Z"/></svg>
-        Try Different Account
-      `;
+      alert("ACCESS DENIED: " + user.email + " is not an admin.");
+      btn.innerText = "Try Different Account";
       btn.disabled = false;
     }
   } catch (error) {
@@ -150,12 +153,7 @@ function renderUserRow(uid, data) {
     if(confirm("End user evaluation period? (This will block access immediately)")) {
       const yesterday = new Date();
       yesterday.setDate(yesterday.getDate() - 1);
-      
-      updateField(uid, { 
-        paidClasses: {}, 
-        streams: "",
-        accessExpiryDate: yesterday.toISOString() 
-      }); 
+      updateField(uid, { paidClasses: {}, streams: "", accessExpiryDate: yesterday.toISOString() }); 
     } 
   };
   
@@ -183,20 +181,33 @@ async function boot() {
   try {
     await initializeServices();
     const clients = getInitializedClients();
-    db = clients.db; 
-    auth = clients.auth;
+    db = clients.db; auth = clients.auth;
     
-    // AUTH LISTENER
+    // 🔥 SHOW LOADER INITIALLY (Prevents flickering Login screen)
+    let isInitialLoad = true;
+    showLoading();
+
     auth.onAuthStateChanged(async (user) => {
-      // IF NOT LOGGED IN OR NOT ADMIN -> Show Login Screen
-      if (!user || !ADMIN_EMAILS.some(e => e.toLowerCase() === user.email.toLowerCase())) {
-         showLoginScreen("Admin Access Required");
-         return;
+      // If no user found, show login screen
+      if (!user) {
+        showLoginScreen("Admin Access Required");
+        isInitialLoad = false;
+        return;
       }
       
-      // IF LOGGED IN & ADMIN -> Show Dashboard
-      selectors.currentAdminEmail.textContent = user.email;
-      fetchUsers();
+      // If user found, check if they are admin
+      if (ADMIN_EMAILS.some(e => e.toLowerCase() === user.email.toLowerCase())) {
+        // If this is the first load, RE-RENDER the dashboard HTML because we wiped it with showLoading()
+        if (isInitialLoad) {
+           location.reload(); // Simplest way to restore the dashboard HTML
+           return;
+        }
+        selectors.currentAdminEmail.textContent = user.email;
+        fetchUsers();
+      } else {
+        showLoginScreen("Access Denied");
+      }
+      isInitialLoad = false;
     });
 
     selectors.applyFilters.onclick = fetchUsers;
@@ -205,7 +216,7 @@ async function boot() {
     selectors.logoutBtn.onclick = async () => { await signOut(auth); location.reload(); };
   } catch (err) { 
     console.error("Boot Error:", err);
-    document.body.innerHTML = `<div style="padding:40px; text-align:center; color:red; font-weight:bold;">SYSTEM ERROR: ${err.message}<br><br>Check Console (F12)</div>`;
+    document.body.innerHTML = `<div style="padding:40px; text-align:center; color:red; font-weight:bold;">SYSTEM ERROR: ${err.message}</div>`;
   }
 }
 boot();
