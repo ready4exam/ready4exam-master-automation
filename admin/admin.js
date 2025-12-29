@@ -1,12 +1,14 @@
-// ✅ SAFE MODE ADMIN.JS
-// 1. Imports assuming file is in 'admin/admin.js' and template is sibling
+// ✅ AUTH-ENABLED ADMIN DASHBOARD
+// Imports go UP to root, then DOWN to template
 import { initializeServices, getInitializedClients } from "../template/js/config.js"; 
 import { collection, query, limit, getDocs, where, doc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-import { signOut } from "../template/js/auth-paywall.js"; 
+// NEW: Import Auth functions for the Login Popup
+import { GoogleAuthProvider, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
 const ADMIN_EMAILS = ["keshav.karn@gmail.com", "ready4urexam@gmail.com"];
 let db, auth;
 
+// DOM Elements
 const selectors = { 
   tbody: document.getElementById("users-tbody"), 
   resultsCount: document.getElementById("results-count"), 
@@ -18,13 +20,70 @@ const selectors = {
   currentAdminEmail: document.getElementById("current-admin-email") 
 };
 
-// --- GENERIC UPDATE FUNCTION ---
+// --- 1. LOGIN SCREEN GENERATOR ---
+function showLoginScreen(message = "Admin Access Required") {
+  document.body.innerHTML = `
+    <div style="min-height: 100vh; background: #f8fafc; display: flex; align-items: center; justify-content: center; font-family: 'Inter', sans-serif;">
+      <div style="background: white; padding: 40px; border-radius: 24px; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1); text-align: center; max-width: 400px; width: 90%;">
+        <div style="width: 60px; height: 60px; background: #eff6ff; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px;">
+          <svg style="width: 30px; height: 30px; color: #1a3e6a;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+        </div>
+        <h2 style="color: #1a3e6a; font-weight: 900; font-size: 24px; margin-bottom: 8px;">${message}</h2>
+        <p style="color: #64748b; font-size: 14px; margin-bottom: 30px; line-height: 1.5;">
+          This portal is restricted to authorized administrators only. Please sign in to continue.
+        </p>
+        <button id="google-login-btn" style="width: 100%; background: #1a3e6a; color: white; padding: 14px; border-radius: 12px; border: none; font-weight: bold; font-size: 15px; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 10px;">
+          <svg style="width: 20px; height: 20px;" viewBox="0 0 24 24"><path fill="currentColor" d="M21.35 11.1h-9.17v2.73h6.51c-.33 3.81-3.5 5.44-6.5 5.44C8.36 19.27 5 16.25 5 12c0-4.1 3.2-7.27 7.2-7.27c3.09 0 4.9 1.97 4.9 1.97L19 4.72S16.56 2 12.1 2C6.42 2 2.03 6.8 2.03 12c0 5.05 4.13 10 10.22 10c5.35 0 9.25-3.67 9.25-9.09c0-1.15-.15-1.81-.15-1.81Z"/></svg>
+          Sign in with Google
+        </button>
+      </div>
+    </div>
+  `;
+
+  // Attach Click Listener to the new button
+  document.getElementById("google-login-btn").addEventListener("click", handleAdminLogin);
+}
+
+// --- 2. LOGIN HANDLER ---
+async function handleAdminLogin() {
+  const btn = document.getElementById("google-login-btn");
+  btn.innerText = "Verifying...";
+  btn.disabled = true;
+
+  try {
+    const provider = new GoogleAuthProvider();
+    const result = await signInWithPopup(auth, provider);
+    const user = result.user;
+
+    // CHECK: Is this email in the Allowed List?
+    if (ADMIN_EMAILS.some(email => email.toLowerCase() === user.email.toLowerCase())) {
+      // ✅ SUCCESS: Refresh page to load Dashboard
+      location.reload(); 
+    } else {
+      // ❌ FAILED: Not an admin
+      await signOut(auth);
+      alert("ACCESS DENIED\n\nThe email " + user.email + " is not authorized to access this dashboard.");
+      btn.innerHTML = `
+        <svg style="width: 20px; height: 20px;" viewBox="0 0 24 24"><path fill="currentColor" d="M21.35 11.1h-9.17v2.73h6.51c-.33 3.81-3.5 5.44-6.5 5.44C8.36 19.27 5 16.25 5 12c0-4.1 3.2-7.27 7.2-7.27c3.09 0 4.9 1.97 4.9 1.97L19 4.72S16.56 2 12.1 2C6.42 2 2.03 6.8 2.03 12c0 5.05 4.13 10 10.22 10c5.35 0 9.25-3.67 9.25-9.09c0-1.15-.15-1.81-.15-1.81Z"/></svg>
+        Try Different Account
+      `;
+      btn.disabled = false;
+    }
+  } catch (error) {
+    console.error("Login Error:", error);
+    btn.innerText = "Sign in with Google";
+    btn.disabled = false;
+    alert("Login failed: " + error.message);
+  }
+}
+
+// --- 3. GENERIC UPDATE FUNCTION ---
 async function updateField(uid, obj) {
   try { await updateDoc(doc(db, "users", uid), obj); await fetchUsers(); } 
   catch (e) { alert("Update failed: " + e.message); }
 }
 
-// --- RENDER ROW ---
+// --- 4. RENDER ROW ---
 function renderUserRow(uid, data) {
   const tr = document.createElement("tr");
   tr.className = "border-b border-slate-100 hover:bg-slate-50 transition";
@@ -105,7 +164,7 @@ function renderUserRow(uid, data) {
   return tr;
 }
 
-// --- CORE FETCH LOGIC ---
+// --- 5. CORE FETCH LOGIC ---
 async function fetchUsers() {
   selectors.tbody.innerHTML = ""; 
   try {
@@ -124,22 +183,18 @@ async function boot() {
   try {
     await initializeServices();
     const clients = getInitializedClients();
-    db = clients.db; auth = clients.auth;
+    db = clients.db; 
+    auth = clients.auth;
     
+    // AUTH LISTENER
     auth.onAuthStateChanged(async (user) => {
-      // 🚨 DEBUG MODE: STOP REDIRECT LOOP
-      // If user is not logged in, we show a button instead of crashing with 404
+      // IF NOT LOGGED IN OR NOT ADMIN -> Show Login Screen
       if (!user || !ADMIN_EMAILS.some(e => e.toLowerCase() === user.email.toLowerCase())) {
-         document.body.innerHTML = `
-           <div style="display:flex; height:100vh; justify-content:center; align-items:center; flex-direction:column; background:#f8fafc; font-family:sans-serif;">
-              <h2 style="color:#1e293b; font-weight:900; font-size:24px;">Admin Access Required</h2>
-              <p style="color:#64748b; margin-bottom:20px;">You are not logged in as an administrator.</p>
-              <a href="../index.html" style="background:#1a3e6a; color:white; padding:12px 24px; text-decoration:none; border-radius:12px; font-weight:bold;">Go to Login Page</a>
-           </div>
-         `;
+         showLoginScreen("Admin Access Required");
          return;
       }
       
+      // IF LOGGED IN & ADMIN -> Show Dashboard
       selectors.currentAdminEmail.textContent = user.email;
       fetchUsers();
     });
@@ -147,11 +202,10 @@ async function boot() {
     selectors.applyFilters.onclick = fetchUsers;
     selectors.refreshBtn.onclick = fetchUsers;
     selectors.clearFilters.onclick = () => { selectors.filterEmail.value = ""; fetchUsers(); };
-    selectors.logoutBtn.onclick = async () => { await signOut(); location.href = "../index.html"; };
+    selectors.logoutBtn.onclick = async () => { await signOut(auth); location.reload(); };
   } catch (err) { 
     console.error("Boot Error:", err);
-    // If imports fail, this will show on screen
-    document.body.innerHTML = `<div style="padding:40px; text-align:center; color:red; font-weight:bold;">SCRIPT ERROR: ${err.message}<br><br>Check your Console (F12) for details.</div>`;
+    document.body.innerHTML = `<div style="padding:40px; text-align:center; color:red; font-weight:bold;">SYSTEM ERROR: ${err.message}<br><br>Check Console (F12)</div>`;
   }
 }
 boot();
