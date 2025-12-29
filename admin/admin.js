@@ -1,4 +1,5 @@
-// ✅ CORRECTED PATHS: Points to 'template/js' instead of just 'js'
+// ✅ CORRECTED PATHS: 'admin' and 'template' are sibling folders.
+// We go UP (../) to root, then DOWN into template/js/
 import { initializeServices, getInitializedClients } from "../template/js/config.js"; 
 import { collection, query, limit, getDocs, where, doc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 import { signOut } from "../template/js/auth-paywall.js"; 
@@ -22,7 +23,7 @@ async function updateField(uid, obj) {
   catch (e) { alert("Update failed: " + e.message); }
 }
 
-// --- RENDER ROW (With Purple Badge Logic) ---
+// --- RENDER ROW ---
 function renderUserRow(uid, data) {
   const tr = document.createElement("tr");
   tr.className = "border-b border-slate-100 hover:bg-slate-50 transition";
@@ -44,7 +45,7 @@ function renderUserRow(uid, data) {
       <div class="text-[9px] text-slate-400 font-mono mt-1 tracking-tighter">${uid}</div>
     </td>`;
 
-  // Expiry Date
+  // Expiry Date Input
   const expiryTd = document.createElement("td");
   expiryTd.className = "px-8 py-5";
   const dateInput = document.createElement("input");
@@ -88,7 +89,7 @@ function renderUserRow(uid, data) {
   revoke.className = "text-red-400 font-bold text-[10px] uppercase tracking-widest hover:text-red-600 transition-colors";
   revoke.textContent = "Revoke Access";
   
-  // 🔥 CRITICAL FIX: Set date to YESTERDAY to force immediate expiry
+  // 🔥 CRITICAL FIX: Sets date to YESTERDAY to force immediate expiry
   revoke.onclick = () => { 
     if(confirm("End user evaluation period? (This will block access immediately)")) {
       const yesterday = new Date();
