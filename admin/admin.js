@@ -1,10 +1,11 @@
-// ✅ CORRECTED PATHS: Goes UP (../) from 'admin' folder, then DOWN into 'template/js'
+// ✅ CORRECT PATHS: Go UP to root, then DOWN to template/js
 import { initializeServices, getInitializedClients } from "../template/js/config.js"; 
 import { collection, query, limit, getDocs, where, doc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 import { signOut } from "../template/js/auth-paywall.js"; 
 
 const ADMIN_EMAILS = ["keshav.karn@gmail.com", "ready4urexam@gmail.com"];
 let db, auth;
+
 const selectors = { 
   tbody: document.getElementById("users-tbody"), 
   resultsCount: document.getElementById("results-count"), 
@@ -22,15 +23,13 @@ async function updateField(uid, obj) {
   catch (e) { alert("Update failed: " + e.message); }
 }
 
-// --- RENDER ROW (With Purple Badge Logic) ---
+// --- RENDER ROW ---
 function renderUserRow(uid, data) {
   const tr = document.createElement("tr");
   tr.className = "border-b border-slate-100 hover:bg-slate-50 transition";
   
   // 1. CHECK FOR TELANGANA TAG
   const isTelangana = data.paidClasses && data.paidClasses["TS_9"];
-  
-  // 2. GENERATE BADGE
   const badgeHtml = isTelangana 
     ? `<span class="bg-purple-100 text-purple-700 text-[9px] px-2 py-0.5 rounded ml-2 uppercase font-black tracking-wider border border-purple-200">SCERT / TS</span>` 
     : ``;
@@ -44,7 +43,7 @@ function renderUserRow(uid, data) {
       <div class="text-[9px] text-slate-400 font-mono mt-1 tracking-tighter">${uid}</div>
     </td>`;
 
-  // Expiry Date Input
+  // Expiry Date
   const expiryTd = document.createElement("td");
   expiryTd.className = "px-8 py-5";
   const dateInput = document.createElement("input");
@@ -81,14 +80,13 @@ function renderUserRow(uid, data) {
   });
   tr.appendChild(streamTd);
 
-  // --- REVOKE ACTION (FIXED) ---
+  // --- REVOKE ACTION (Sets Date to Yesterday) ---
   const actionTd = document.createElement("td");
   actionTd.className = "px-8 py-5 text-right";
   const revoke = document.createElement("button");
   revoke.className = "text-red-400 font-bold text-[10px] uppercase tracking-widest hover:text-red-600 transition-colors";
   revoke.textContent = "Revoke Access";
   
-  // 🔥 CRITICAL FIX: Sets date to YESTERDAY to force immediate expiry
   revoke.onclick = () => { 
     if(confirm("End user evaluation period? (This will block access immediately)")) {
       const yesterday = new Date();
@@ -127,16 +125,26 @@ async function boot() {
     await initializeServices();
     const clients = getInitializedClients();
     db = clients.db; auth = clients.auth;
+    
     auth.onAuthStateChanged(async (user) => {
-      // ✅ Redirects to ../index.html which is correct for admin folder
-      if (!user || !ADMIN_EMAILS.some(e => e.toLowerCase() === user.email.toLowerCase())) return location.href = "../index.html";
+      // 1. Check if user is logged in AND is an admin
+      if (!user || !ADMIN_EMAILS.some(e => e.toLowerCase() === user.email.toLowerCase())) {
+         console.warn("Redirecting: User not logged in or not Admin");
+         // ⚠️ If this line runs and index.html is missing, you get 404
+         return location.href = "../index.html";
+      }
+      
       selectors.currentAdminEmail.textContent = user.email;
       fetchUsers();
     });
+
     selectors.applyFilters.onclick = fetchUsers;
     selectors.refreshBtn.onclick = fetchUsers;
     selectors.clearFilters.onclick = () => { selectors.filterEmail.value = ""; fetchUsers(); };
     selectors.logoutBtn.onclick = async () => { await signOut(); location.href = "../index.html"; };
-  } catch (err) { selectors.tbody.innerHTML = `<tr><td colspan='5' class='py-20 text-center text-red-500 font-black'>Init Failed: ${err.message}</td></tr>`; }
+  } catch (err) { 
+    console.error("Boot Error:", err);
+    selectors.tbody.innerHTML = `<tr><td colspan='5' class='py-20 text-center text-red-500 font-black'>Init Failed: ${err.message}</td></tr>`; 
+  }
 }
 boot();
