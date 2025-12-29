@@ -1,5 +1,4 @@
-// ✅ CORRECTED PATHS: 'admin' and 'template' are sibling folders.
-// We go UP (../) to root, then DOWN into template/js/
+// ✅ CORRECTED PATHS: Goes UP (../) from 'admin' folder, then DOWN into 'template/js'
 import { initializeServices, getInitializedClients } from "../template/js/config.js"; 
 import { collection, query, limit, getDocs, where, doc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 import { signOut } from "../template/js/auth-paywall.js"; 
@@ -23,7 +22,7 @@ async function updateField(uid, obj) {
   catch (e) { alert("Update failed: " + e.message); }
 }
 
-// --- RENDER ROW ---
+// --- RENDER ROW (With Purple Badge Logic) ---
 function renderUserRow(uid, data) {
   const tr = document.createElement("tr");
   tr.className = "border-b border-slate-100 hover:bg-slate-50 transition";
@@ -129,6 +128,7 @@ async function boot() {
     const clients = getInitializedClients();
     db = clients.db; auth = clients.auth;
     auth.onAuthStateChanged(async (user) => {
+      // ✅ Redirects to ../index.html which is correct for admin folder
       if (!user || !ADMIN_EMAILS.some(e => e.toLowerCase() === user.email.toLowerCase())) return location.href = "../index.html";
       selectors.currentAdminEmail.textContent = user.email;
       fetchUsers();
