@@ -81,13 +81,27 @@ function renderUserRow(uid, data) {
   });
   tr.appendChild(streamTd);
 
-  // Reset Action
+  // --- REVOKE ACTION (FIXED) ---
   const actionTd = document.createElement("td");
   actionTd.className = "px-8 py-5 text-right";
   const revoke = document.createElement("button");
   revoke.className = "text-red-400 font-bold text-[10px] uppercase tracking-widest hover:text-red-600 transition-colors";
-  revoke.textContent = "Reset Access";
-  revoke.onclick = () => { if(confirm("Revoke all access?")) updateField(uid, { paidClasses: {}, streams: "" }); };
+  revoke.textContent = "Revoke Access";
+  
+  // 🔥 CRITICAL FIX: Set date to YESTERDAY to force immediate expiry
+  revoke.onclick = () => { 
+    if(confirm("End user evaluation period? (This will block access immediately)")) {
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      
+      updateField(uid, { 
+        paidClasses: {}, 
+        streams: "",
+        accessExpiryDate: yesterday.toISOString() 
+      }); 
+    } 
+  };
+  
   actionTd.appendChild(revoke);
   tr.appendChild(actionTd);
   return tr;
