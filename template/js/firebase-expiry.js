@@ -1,3 +1,4 @@
+// ✅ CORRECTED PATH: Imports from same folder using "./"
 import { initializeServices, getInitializedClients } from "./config.js";
 import { 
   doc, getDoc, setDoc, updateDoc, serverTimestamp 
@@ -59,7 +60,6 @@ export async function checkClassAccess(classId, stream) {
   const { auth, db } = getInitializedClients();
   const user = auth.currentUser;
   
-  // 1. Force Authentication
   if (!user) return { allowed: false, reason: "Please sign in to continue." };
 
   const userRef = doc(db, "users", user.uid);
@@ -69,12 +69,11 @@ export async function checkClassAccess(classId, stream) {
   
   const data = snap.data();
 
-  // 2. Admin Bypass
+  // 1. Admin Bypass
   if (data.role === "admin") return { allowed: true };
 
-  // 3. PRIORITY CHECK: Manual Expiry
-  // 🔥 CRITICAL: This must happen BEFORE the "Auto-Lock" (First Class Free) logic.
-  // If the admin set a past date (via Revoke button), we stop them RIGHT HERE.
+  // 2. PRIORITY CHECK: Manual Expiry
+  // 🔥 CRITICAL: Must be checked BEFORE Auto-Lock to stop revoked users.
   if (isSignupExpired(data)) {
     return { 
       allowed: false, 
@@ -82,13 +81,13 @@ export async function checkClassAccess(classId, stream) {
     };
   }
 
-  // 4. Identify currently "Green" (Active) classes
+  // 3. Identify currently "Green" (Active) classes
   const activeClasses = Object.keys(data.paidClasses || {}).filter(
     (key) => data.paidClasses[key] === true
   );
 
-  // 5. AUTO-LOCK LOGIC (First Class Free for NEW users only)
-  // This line is only reached if they are NOT expired.
+  // 4. AUTO-LOCK LOGIC (First Class Free for NEW users only)
+  // Reached only if user is NOT expired.
   if (activeClasses.length === 0) {
     await updateDoc(userRef, {
       [`paidClasses.${classId}`]: true
@@ -96,7 +95,7 @@ export async function checkClassAccess(classId, stream) {
     return { allowed: true };
   }
 
-  // 6. BLOCKING LOGIC (Class Mismatch)
+  // 5. BLOCKING LOGIC (Class Mismatch)
   if (!data.paidClasses[classId]) {
     const primaryClass = activeClasses[0]; 
     return { 
@@ -113,7 +112,6 @@ export async function checkClassAccess(classId, stream) {
 /* -------------------------------------------------------------------------- */
 
 export function showExpiredPopup(message) {
-  // Prevent duplicate popups
   if (document.getElementById("r4e-expired-overlay")) return;
 
   const overlay = document.createElement("div");
@@ -123,7 +121,6 @@ export function showExpiredPopup(message) {
   const title = "Access Information";
   const subTitle = "Ready4Exam Pilot Program";
   
-  // Use the passed 'message' or a default one
   const bodyText = message || `
     We hope you enjoyed experiencing the <strong>Ready4Exam</strong> platform. 
     <br><br>
