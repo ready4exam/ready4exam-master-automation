@@ -45,14 +45,15 @@ export async function checkClassAccess(classId, subject) {
         } 
         else {
             try {
-                // Auto-lock new student to this class
-                await updateDoc(userRef, {
+                // OPTIMIZATION: Auto-lock new student as a non-blocking background task
+                updateDoc(userRef, {
                     [`paidClasses.${classId}`]: true
-                });
-                console.log(`Auto-locked user to Class ${classId}`);
+                }).catch(err => console.error("Background auto-lock failed:", err));
+                
+                console.log(`Auto-locking user to Class ${classId} in background...`);
                 return { allowed: true };
             } catch (err) {
-                console.error("Auto-lock failed:", err);
+                console.error("Auto-lock logic failed:", err);
                 return { allowed: false, reason: "write_error" };
             }
         }
@@ -246,6 +247,9 @@ async function init() {
     attachDomEvents();
     UI.attachAnswerListeners(handleAnswerSelection);
 
+    // OPTIMIZATION: Start fetching questions immediately in parallel with service init
+    questionsPromise = fetchQuestions(quizState.topicSlug, quizState.difficulty);
+
     try {
         await initializeServices();
         wireGoogleLogin();
@@ -258,7 +262,7 @@ async function init() {
                 const access = await checkClassAccess(quizState.classId, quizState.subject);
                 
                 if (access.allowed) {
-                    questionsPromise = fetchQuestions(quizState.topicSlug, quizState.difficulty);
+                    // Data fetch was already started; loadQuiz will await the promise
                     await loadQuiz(); 
                 } else {
                     UI.hideStatus();
