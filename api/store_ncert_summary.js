@@ -1,11 +1,7 @@
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 
-/**
- * FIREBASE ADMIN INITIALIZATION
- * Ensure the FIREBASE_SERVICE_ACCOUNT environment variable is set in Vercel
- * as a single-string JSON object.
- */
+// 1. Initialize Firebase Admin safely
 if (!getApps().length) {
   try {
     const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
@@ -13,27 +9,27 @@ if (!getApps().length) {
       credential: cert(serviceAccount)
     });
   } catch (err) {
-    console.error("Firebase Admin Initialization Error:", err.message);
+    console.error("Firebase Initialization Error:", err.message);
   }
 }
 
 const db = getFirestore();
 
 export default async function handler(req, res) {
-  // 1. MANDATORY CORS HEADERS
-  // Matches the origin used in your generate_ncert_summary.js for consistency
+  // 2. MANDATORY CORS HEADERS
+  // We specify your frontend origin explicitly for maximum browser compatibility.
   res.setHeader('Access-Control-Allow-Origin', 'https://ready4exam.github.io');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   res.setHeader('Access-Control-Allow-Credentials', 'true');
 
-  // 2. HANDLE PREFLIGHT (OPTIONS)
-  // Essential to resolve the "blocked by CORS policy" error in the browser
+  // 3. HANDLE THE PREFLIGHT (OPTIONS) REQUEST
+  // If the browser sends an OPTIONS request, we must return a 200 OK immediately.
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
 
-  // 3. ONLY ALLOW POST FOR STORAGE
+  // 4. RESTRICT TO POST METHOD ONLY
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
@@ -41,34 +37,35 @@ export default async function handler(req, res) {
   try {
     const { meta, data } = req.body;
 
-    /**
-     * DOCUMENT ID GENERATION
-     * Format: classId_subject_topicSlug (e.g., 9_science_gravitation)
-     * Matches the lookup logic used in the student.html console.
-     */
+    // Validate incoming data
+    if (!meta || !data) {
+      return res.status(400).json({ error: "Missing metadata or summary data." });
+    }
+
+    // Generate Document ID: e.g., "9_science_motion"
     const docId = `${meta.classId}_${meta.subject}_${meta.topicSlug}`.toLowerCase();
 
-    // 4. FIRESTORE UPSERT (Update or Insert)
-    // Uses { merge: true } to preserve existing metadata if only content updates
+    // 5. FIRESTORE UPSERT
+    // Saves the structured data for Math, Science, or Social Science disciplines.
     await db.collection('ncert_summaries').doc(docId).set({
-      ...data,               // AI-generated JSON (History, Geography, etc.)
-      metadata: meta,        // Original class/subject/discipline info
+      ...data,               // Subject-specific keys (formulaVault, geographyData, etc.)
+      metadata: meta,        // Contextual info (class, subject, discipline)
       lastUpdated: new Date().toISOString(),
       status: "published"
     }, { merge: true });
 
-    console.log(`✅ Firestore Sync Successful: ${docId}`);
+    console.log(`✅ Success: Stored ${docId}`);
 
     return res.status(200).json({ 
       success: true, 
       id: docId,
-      message: "Summary stored successfully in ncert_summaries"
+      message: "NCERT Summary successfully stored in Firestore."
     });
 
   } catch (error) {
-    console.error("Firestore Storage Error:", error);
+    console.error("Storage Error:", error);
     return res.status(500).json({ 
-      error: "Database Storage Failed", 
+      error: "Database error occurred", 
       details: error.message 
     });
   }
