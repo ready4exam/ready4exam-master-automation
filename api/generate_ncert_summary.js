@@ -1,5 +1,22 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
+/**
+ * Summary API request contract (canonical metadata schema):
+ * {
+ *   meta: {
+ *     class_name: string,   // required
+ *     subject: string,      // required
+ *     chapter: string,      // required
+ *     book?: string,
+ *     topicSlug?: string
+ *   }
+ * }
+ *
+ * Backward-compatible aliases accepted from automation/frontend:
+ * - classId -> class_name
+ * - chapterTitle -> chapter
+ */
+
 export const config = { runtime: "nodejs" };
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
@@ -25,6 +42,16 @@ function extractJSON(raw) {
   } catch (err) {
     return { ok: false };
   }
+}
+
+function normalizeMeta(meta = {}) {
+  const classId = meta.class_name || meta.classId;
+  const subject = meta.subject;
+  const chapterTitle = meta.chapter || meta.chapterTitle;
+  const book = meta.book;
+  const topicSlug = meta.topicSlug;
+
+  return { classId, subject, chapterTitle, book, topicSlug };
 }
 
 async function callGemini(prompt) {
@@ -54,9 +81,21 @@ export default async function handler(req, res) {
   
   try {
     const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
-    const { meta } = body;
+    const { meta } = body || {};
+    const normalizedMeta = normalizeMeta(meta);
+    const missingFields = [];
 
-    const prompt = `Act as an NCERT Educator. Class ${meta.classId}, Subject ${meta.subject}, Chapter "${meta.chapterTitle}". 
+    if (!normalizedMeta.classId) missingFields.push("class_name");
+    if (!normalizedMeta.subject) missingFields.push("subject");
+    if (!normalizedMeta.chapterTitle) missingFields.push("chapter");
+
+    if (missingFields.length) {
+      return res.status(400).json({
+        error: `Missing required metadata fields after normalization: ${missingFields.join(", ")}`
+      });
+    }
+
+    const prompt = `Act as an NCERT Educator. Class ${normalizedMeta.classId}, Subject ${normalizedMeta.subject}, Chapter "${normalizedMeta.chapterTitle}". 
     Return a high-density JSON summary with keys: majorPoints, oneLineDefinitions, tipsAndTricks, formulaVault, historyData, geographyData, civicsData, economicsData. 
     Return ONLY raw JSON.`;
 
