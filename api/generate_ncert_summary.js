@@ -1,6 +1,23 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { getCorsHeaders } from "./cors.js";
 
+/**
+ * Summary API request contract (canonical metadata schema):
+ * {
+ *   meta: {
+ *     class_name: string,   // required
+ *     subject: string,      // required
+ *     chapter: string,      // required
+ *     book?: string,
+ *     topicSlug?: string
+ *   }
+ * }
+ *
+ * Backward-compatible aliases accepted from automation/frontend:
+ * - classId -> class_name
+ * - chapterTitle -> chapter
+ */
+
 export const config = { runtime: "nodejs" };
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
@@ -36,6 +53,16 @@ function extractJSON(raw) {
   }
 }
 
+function normalizeMeta(meta = {}) {
+  const classId = meta.class_name || meta.classId;
+  const subject = meta.subject;
+  const chapterTitle = meta.chapter || meta.chapterTitle;
+  const book = meta.book;
+  const topicSlug = meta.topicSlug;
+
+  return { classId, subject, chapterTitle, book, topicSlug };
+}
+
 async function callGemini(prompt) {
   const client = new GoogleGenerativeAI(GEMINI_API_KEY);
   for (const modelId of MODEL_CHAIN) {
@@ -64,20 +91,21 @@ export default async function handler(req, res) {
 
   try {
     const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
-    const meta = body?.meta;
+    const { meta } = body || {};
+    const normalizedMeta = normalizeMeta(meta);
+    const missingFields = [];
 
-    if (!meta || typeof meta !== "object" || Array.isArray(meta)) {
-      return sendError(res, 400, "Missing required object: meta", {
-        missingKeys: REQUIRED_META_FIELDS
+    if (!normalizedMeta.classId) missingFields.push("class_name");
+    if (!normalizedMeta.subject) missingFields.push("subject");
+    if (!normalizedMeta.chapterTitle) missingFields.push("chapter");
+
+    if (missingFields.length) {
+      return res.status(400).json({
+        error: `Missing required metadata fields after normalization: ${missingFields.join(", ")}`
       });
     }
 
-    const missingKeys = REQUIRED_META_FIELDS.filter((key) => !meta[key]);
-    if (missingKeys.length) {
-      return sendError(res, 400, "Missing required meta fields", { missingKeys });
-    }
-
-    const prompt = `Act as an NCERT Educator. Class ${meta.classId}, Subject ${meta.subject}, Chapter "${meta.chapterTitle}". 
+    const prompt = `Act as an NCERT Educator. Class ${normalizedMeta.classId}, Subject ${normalizedMeta.subject}, Chapter "${normalizedMeta.chapterTitle}". 
     Return a high-density JSON summary with keys: majorPoints, oneLineDefinitions, tipsAndTricks, formulaVault, historyData, geographyData, civicsData, economicsData. 
     Return ONLY raw JSON.`;
 

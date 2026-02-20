@@ -2,6 +2,24 @@ import { initializeApp, getApps, cert } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { getCorsHeaders } from "./cors.js";
 
+/**
+ * Summary API request contract (canonical metadata schema):
+ * {
+ *   meta: {
+ *     class_name: string,   // required
+ *     subject: string,      // required
+ *     chapter: string,      // required
+ *     book?: string,
+ *     topicSlug?: string
+ *   },
+ *   data: object
+ * }
+ *
+ * Backward-compatible aliases accepted from automation/frontend:
+ * - classId -> class_name
+ * - chapterTitle -> chapter
+ */
+
 export const config = { runtime: "nodejs" };
 
 const REQUIRED_META_FIELDS = ["classId", "subject", "topicSlug"];
@@ -52,6 +70,24 @@ function getDb() {
   }
 }
 
+function slugify(value = "") {
+  return String(value)
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function normalizeMeta(meta = {}) {
+  const classId = meta.class_name || meta.classId;
+  const subject = meta.subject;
+  const chapterTitle = meta.chapter || meta.chapterTitle;
+  const book = meta.book;
+  const topicSlug = meta.topicSlug || slugify(chapterTitle);
+
+  return { classId, subject, chapterTitle, book, topicSlug };
+}
+
 export default async function handler(req, res) {
   const origin = req.headers.origin || "";
   Object.entries(getCorsHeaders(origin)).forEach(([k, v]) => res.setHeader(k, v));
@@ -65,26 +101,35 @@ export default async function handler(req, res) {
 
   try {
     const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
-    const { meta, data } = body ?? {};
+    const { meta, data } = body || {};
+    const normalizedMeta = normalizeMeta(meta);
 
-    if (!meta || typeof meta !== "object" || Array.isArray(meta)) {
-      return sendError(res, 400, "Missing required object: meta");
+    const missingFields = [];
+    if (!normalizedMeta.classId) missingFields.push("class_name");
+    if (!normalizedMeta.subject) missingFields.push("subject");
+    if (!normalizedMeta.chapterTitle) missingFields.push("chapter");
+    if (!normalizedMeta.topicSlug) missingFields.push("topicSlug/chapter");
+
+    if (missingFields.length) {
+      return res.status(400).json({
+        error: `Missing required metadata fields after normalization: ${missingFields.join(", ")}`
+      });
     }
 
-    if (!data || typeof data !== "object" || Array.isArray(data)) {
-      return sendError(res, 400, "Missing required object: data");
-    }
-
-    const missingMetaKeys = REQUIRED_META_FIELDS.filter((key) => !meta[key]);
-    if (missingMetaKeys.length) {
-      return sendError(res, 400, "Missing required meta fields", { missingKeys: missingMetaKeys });
-    }
-
-    const docId = `${meta.classId}_${meta.subject}_${meta.topicSlug}`.toLowerCase().replace(/[^a-z0-9_]/g, "_");
+    const docId = `${normalizedMeta.classId}_${normalizedMeta.subject}_${normalizedMeta.topicSlug}`
+      .toLowerCase()
+      .replace(/[^a-z0-9_]/g, "_");
 
     await db.collection("ncert_summaries").doc(docId).set({
       ...data,
-      metadata: meta,
+      metadata: {
+        ...meta,
+        class_name: normalizedMeta.classId,
+        subject: normalizedMeta.subject,
+        chapter: normalizedMeta.chapterTitle,
+        ...(normalizedMeta.book ? { book: normalizedMeta.book } : {}),
+        ...(normalizedMeta.topicSlug ? { topicSlug: normalizedMeta.topicSlug } : {})
+      },
       lastUpdated: new Date().toISOString()
     }, { merge: true });
 
