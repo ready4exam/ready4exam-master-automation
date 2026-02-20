@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { getCorsHeaders } from "./cors.js";
 
 /**
  * Summary API request contract (canonical metadata schema):
@@ -30,6 +31,14 @@ const MODEL_CHAIN = [
   "gemini-1.5-flash"
 ];
 
+const REQUIRED_META_FIELDS = ["classId", "subject", "chapterTitle"];
+
+function sendError(res, status, error, details) {
+  const payload = { ok: false, error };
+  if (details !== undefined) payload.details = details;
+  return res.status(status).json(payload);
+}
+
 // Robust JSON extraction for objects
 function extractJSON(raw) {
   if (!raw) return { ok: false };
@@ -39,7 +48,7 @@ function extractJSON(raw) {
   if (first !== -1 && last !== -1) text = text.slice(first, last + 1);
   try {
     return { ok: true, data: JSON.parse(text) };
-  } catch (err) {
+  } catch {
     return { ok: false };
   }
 }
@@ -71,14 +80,15 @@ async function callGemini(prompt) {
 }
 
 export default async function handler(req, res) {
-  // ⭐ MANUAL HEADERS (Matches gemini.js to avoid cors.js import errors)
-  res.setHeader("Access-Control-Allow-Origin", "https://ready4exam.github.io");
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-  res.setHeader("Access-Control-Allow-Credentials", "true");
+  const origin = req.headers.origin || "";
+  Object.entries(getCorsHeaders(origin)).forEach(([k, v]) => res.setHeader(k, v));
 
   if (req.method === "OPTIONS") return res.status(200).end();
-  
+
+  if (!GEMINI_API_KEY) {
+    return sendError(res, 503, "GEMINI_API_KEY not configured");
+  }
+
   try {
     const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
     const { meta } = body || {};
@@ -104,8 +114,9 @@ export default async function handler(req, res) {
       const parsed = extractJSON(raw);
       if (parsed.ok) return res.status(200).json(parsed.data);
     }
-    throw new Error("Failed to generate valid JSON summary");
+
+    return sendError(res, 500, "Failed to generate valid JSON summary");
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    return sendError(res, 500, "Failed to generate summary", { message: err.message });
   }
 }

@@ -1,5 +1,6 @@
 import { initializeApp, getApps, cert } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
+import { getCorsHeaders } from "./cors.js";
 
 /**
  * Summary API request contract (canonical metadata schema):
@@ -21,12 +22,53 @@ import { getFirestore } from "firebase-admin/firestore";
 
 export const config = { runtime: "nodejs" };
 
-let db;
-if (!getApps().length) {
-  const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-  initializeApp({ credential: cert(serviceAccount) });
+const REQUIRED_META_FIELDS = ["classId", "subject", "topicSlug"];
+
+function sendError(res, status, error, details) {
+  const payload = { ok: false, error };
+  if (details !== undefined) payload.details = details;
+  return res.status(status).json(payload);
 }
-db = getFirestore();
+
+function getDb() {
+  const rawServiceAccount = process.env.FIREBASE_SERVICE_ACCOUNT;
+  if (!rawServiceAccount) {
+    return {
+      error: {
+        status: 503,
+        message: "FIREBASE_SERVICE_ACCOUNT not configured"
+      }
+    };
+  }
+
+  let serviceAccount;
+  try {
+    serviceAccount = JSON.parse(rawServiceAccount);
+  } catch (err) {
+    return {
+      error: {
+        status: 500,
+        message: "FIREBASE_SERVICE_ACCOUNT malformed",
+        details: { message: err.message }
+      }
+    };
+  }
+
+  try {
+    if (!getApps().length) {
+      initializeApp({ credential: cert(serviceAccount) });
+    }
+    return { db: getFirestore() };
+  } catch (err) {
+    return {
+      error: {
+        status: 500,
+        message: "Failed to initialize Firebase Admin",
+        details: { message: err.message }
+      }
+    };
+  }
+}
 
 function slugify(value = "") {
   return String(value)
@@ -47,12 +89,15 @@ function normalizeMeta(meta = {}) {
 }
 
 export default async function handler(req, res) {
-  res.setHeader("Access-Control-Allow-Origin", "https://ready4exam.github.io");
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-  res.setHeader("Access-Control-Allow-Credentials", "true");
+  const origin = req.headers.origin || "";
+  Object.entries(getCorsHeaders(origin)).forEach(([k, v]) => res.setHeader(k, v));
 
   if (req.method === "OPTIONS") return res.status(200).end();
+
+  const { db, error: dbError } = getDb();
+  if (dbError) {
+    return sendError(res, dbError.status, dbError.message, dbError.details);
+  }
 
   try {
     const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
@@ -90,6 +135,6 @@ export default async function handler(req, res) {
 
     return res.status(200).json({ success: true, id: docId });
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    return sendError(res, 500, "Failed to store NCERT summary", { message: err.message });
   }
 }
