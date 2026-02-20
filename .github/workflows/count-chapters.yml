@@ -6,7 +6,6 @@ on:
 jobs:
   count-curriculum:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -20,80 +19,62 @@ jobs:
         run: |
           echo "📘 Curriculum Summary"
           echo "--------------------------------------"
-
-          # Create a temporary counting script
+          
+          # Use a block literal to ensure the JS code doesn't break YAML syntax
           cat << 'EOF' > count.js
-const fs = require("fs");
-const path = require("path");
+          const fs = require("fs");
+          const path = require("path");
+          const workspace = process.cwd();
+          
+          const candidates = ["static_curriculum", "staticcurriculum", "static-curriculum", "data"];
+          let BASE = null;
 
-const workspace = process.cwd();
-const candidates = ["staticcurriculum", "static_curriculum", "static-curriculum"];
+          for (const name of candidates) {
+            const full = path.join(workspace, name);
+            if (fs.existsSync(full) && fs.statSync(full).isDirectory()) {
+              BASE = full;
+              break;
+            }
+          }
 
-let BASE = null;
+          if (!BASE) {
+            console.error("❌ Curriculum folder not found.");
+            process.exit(1);
+          }
 
-// Detect correct curriculum folder
-for (const name of candidates) {
-  const full = path.join(workspace, name);
-  if (fs.existsSync(full) && fs.statSync(full).isDirectory()) {
-    BASE = full;
-    break;
-  }
-}
+          console.log(`Using curriculum folder: ${BASE}`);
+          const dirs = fs.readdirSync(BASE)
+            .filter(d => /^class\d+$/.test(d))
+            .sort((a,b) => Number(a.replace("class","")) - Number(b.replace("class","")));
 
-if (!BASE) {
-  console.error("❌ Curriculum folder not found.");
-  process.exit(1);
-}
+          let totalSubjects = 0;
+          let totalChapters = 0;
 
-console.log(`Using curriculum folder: ${BASE}`);
+          for (const dir of dirs) {
+            const classNum = dir.replace("class","");
+            const curriculumPath = path.join(BASE, dir, "curriculum.js");
+            
+            if (!fs.existsSync(curriculumPath)) continue;
 
-const dirs = fs.readdirSync(BASE)
-  .filter(d => /^class\d+$/.test(d))
-  .sort((a,b) => Number(a.replace("class","")) - Number(b.replace("class","")));
+            let curriculum;
+            try {
+              // Read as text to avoid require() issues with non-module files
+              const content = fs.readFileSync(curriculumPath, "utf-8");
+              // Basic regex to find chapters if exported as a standard object
+              const chapterCount = (content.match(/chapter_title/g) || []).length;
+              const subjectCount = (content.match(/subject/g) || []).length;
 
-let totalSubjects = 0;
-let totalChapters = 0;
+              totalSubjects += subjectCount;
+              totalChapters += chapterCount;
 
-for (const dir of dirs) {
-  const classNum = dir.replace("class","");
-  const curriculumPath = path.join(BASE, dir, "curriculum.js");
+              console.log(`▶ Class ${classNum}: ${subjectCount} Subjects, ${chapterCount} Chapters`);
+            } catch (err) {
+              console.error(`❌ Error reading ${curriculumPath}: ${err.message}`);
+            }
+          }
+          console.log("\n📊 GRAND TOTALS");
+          console.log(`  Total Subjects : ${totalSubjects}`);
+          console.log(`  Total Chapters : ${totalChapters}`);
+          EOF
 
-  if (!fs.existsSync(curriculumPath)) {
-    console.log(`⚠ Missing curriculum.js for class ${classNum}`);
-    continue;
-  }
-
-  let curriculum;
-  try {
-    curriculum = require(curriculumPath);
-  } catch (err) {
-    console.error(`❌ Error reading ${curriculumPath}: ${err.message}`);
-    continue;
-  }
-
-  const subjects = Array.isArray(curriculum) ? curriculum.length : 0;
-  let chapters = 0;
-
-  if (Array.isArray(curriculum)) {
-    for (const s of curriculum) {
-      if (Array.isArray(s.chapters)) chapters += s.chapters.length;
-    }
-  }
-
-  totalSubjects += subjects;
-  totalChapters += chapters;
-
-  console.log(`\n▶ Class ${classNum}`);
-  console.log(`  Subjects      : ${subjects}`);
-  console.log(`  Chapters      : ${chapters}`);
-  console.log("--------------------------------------");
-}
-
-console.log("\n📊 GRAND TOTALS");
-console.log(`  Total Subjects : ${totalSubjects}`);
-console.log(`  Total Chapters : ${totalChapters}`);
-console.log("");
-EOF
-
-          # Run the script
           node count.js
