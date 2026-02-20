@@ -16,26 +16,19 @@ try {
 }
 
 export default async function handler(req, res) {
-  const origin = req.headers.origin || "";
-  const headers = getCorsHeaders(origin);
-
-  // FIX: Force valid origin for credential compatibility
-  if (headers["Access-Control-Allow-Origin"] === "*") {
-    headers["Access-Control-Allow-Origin"] = "https://ready4exam.github.io";
-  }
-
+  const headers = getCorsHeaders(req.headers.origin || "");
   Object.entries(headers).forEach(([k, v]) => res.setHeader(k, v));
 
   if (req.method === "OPTIONS") return res.status(200).end();
   if (req.method !== "POST") return res.status(405).json({ error: "Method Not Allowed" });
 
   try {
-    const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
-    const { meta, data } = body || {};
+    const body = typeof req.body === "string" ? JSON.parse(req.body) : (req.body || {});
+    const { meta, data } = body;
 
     if (!meta || !data) return res.status(400).json({ error: "Missing metadata or summary data." });
 
-    const docId = `${meta.classId}_${meta.subject}_${meta.topicSlug}`.toLowerCase();
+    const docId = `${meta.classId}_${meta.subject}_${meta.topicSlug}`.toLowerCase().replace(/[^a-z0-9_]/g, "_");
 
     await db.collection("ncert_summaries").doc(docId).set(
       { ...data, metadata: meta, lastUpdated: new Date().toISOString(), status: "published" },
