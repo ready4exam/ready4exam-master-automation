@@ -3,7 +3,7 @@
 // ============================================================================
 import { initializeApp, getApps, cert } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
-import { getCorsHeaders } from "./cors";
+import { getCorsHeaders } from "./cors.js";
 
 export const config = { runtime: "nodejs" };
 
