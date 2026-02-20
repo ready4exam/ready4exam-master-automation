@@ -1,58 +1,43 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { initializeApp, getApps, cert } from "firebase-admin/app";
+import { getFirestore } from "firebase-admin/firestore";
 import { getCorsHeaders } from "./cors";
 
 export const config = { runtime: "nodejs" };
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
+let db;
+try {
+  if (!getApps().length) {
+    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+    initializeApp({ credential: cert(serviceAccount) });
+  }
+  db = getFirestore();
+} catch (err) {
+  console.error("Firebase Initialization Error:", err);
+}
 
 export default async function handler(req, res) {
-  // -------- Unified CORS --------
-  const origin = req.headers.origin || "";
-  const headers = getCorsHeaders(origin);
-  
-  // FIX: Force a valid origin if cors.js returns '*' to avoid Credential conflict
-  if (headers["Access-Control-Allow-Origin"] === "*") {
-    headers["Access-Control-Allow-Origin"] = "https://ready4exam.github.io";
-  }
-  
+  const headers = getCorsHeaders(req.headers.origin || "");
   Object.entries(headers).forEach(([k, v]) => res.setHeader(k, v));
 
   if (req.method === "OPTIONS") return res.status(200).end();
   if (req.method !== "POST") return res.status(405).json({ error: "Method Not Allowed" });
 
   try {
-    // Safe body parsing for text/plain
-    const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
-    const meta = body?.meta;
+    const body = typeof req.body === "string" ? JSON.parse(req.body) : (req.body || {});
+    const { meta, data } = body;
 
-    if (!meta) return res.status(400).json({ error: "Missing meta payload" });
+    if (!meta || !data) return res.status(400).json({ error: "Missing metadata or summary data." });
 
-    // FIX: Changed "gemini-2.5-flash" to "gemini-1.5-flash"
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const docId = `${meta.classId}_${meta.subject}_${meta.topicSlug}`.toLowerCase().replace(/[^a-z0-9_]/g, "_");
 
-    const prompt = `Act as an NCERT Educator. For Class ${meta.classId}, Subject ${meta.subject}, Discipline ${meta.discipline}, and Chapter "${meta.chapterTitle}", generate a high-density JSON summary...
-    
-    [... rest of your prompt logic ...]
+    await db.collection("ncert_summaries").doc(docId).set(
+      { ...data, metadata: meta, lastUpdated: new Date().toISOString(), status: "published" },
+      { merge: true }
+    );
 
-    RETURN ONLY RAW JSON matching this structure:
-    { 
-      "majorPoints": [], 
-      "oneLineDefinitions": [{ "term": "", "definition": "" }], 
-      "tipsAndTricks": [],
-      "formulaVault": [],
-      "historyData": { "timeline": [], "whoIsWho": [] },
-      "geographyData": { "mapPoints": [], "classifications": [] },
-      "civicsData": { "articles": [], "provisions": [] },
-      "economicsData": { "indicators": [], "formulas": [] }
-    }`;
-
-    const result = await model.generateContent(prompt);
-    const responseText = result.response.text();
-    const cleanJson = responseText.replace(/```json|```/g, "").trim();
-
-    return res.status(200).json(JSON.parse(cleanJson));
-
+    return res.status(200).json({ success: true, id: docId });
   } catch (error) {
-    console.error("AI Generation Error:", error);
-    return res.status(500).json({ error: "AI generation failed", details: error.message });
+    console.error("Storage Error:", error);
+    return res.status(500).json({ error: "Database error occurred", details: error.message });
   }
 }
