@@ -2,7 +2,7 @@
 // /api/generate_ncert_summary.js — ROBUST FAILOVER VERSION
 // ============================================================================
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { getCorsHeaders } from "./cors";
+import { getCorsHeaders } from "./cors.js";
 
 export const config = { runtime: "nodejs" };
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
