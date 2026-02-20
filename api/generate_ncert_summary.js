@@ -1,3 +1,29 @@
+
+export default async function handler(req, res) {
+  // 1. SET HEADERS FOR ALL REQUESTS
+  res.setHeader('Access-Control-Allow-Origin', 'https://ready4exam.github.io');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+
+  // 2. HANDLE THE PREFLIGHT (OPTIONS) REQUEST
+  // This is the specific fix for the "blocked by CORS policy" error
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end(); 
+  }
+
+  // 3. YOUR EXISTING STORAGE LOGIC
+  if (req.method === 'POST') {
+    try {
+      // ... your Firebase storage code ...
+      return res.status(200).json({ success: true });
+    } catch (error) {
+      return res.status(500).json({ error: error.message });
+    }
+  }
+}
+
+
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY); 
