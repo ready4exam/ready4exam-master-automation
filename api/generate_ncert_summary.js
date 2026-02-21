@@ -106,7 +106,7 @@ export default async function handler(req, res) {
     }
 
     const prompt = `Act as an NCERT Educator. Class ${normalizedMeta.classId}, Subject ${normalizedMeta.subject}, Chapter "${normalizedMeta.chapterTitle}". 
-    Return a high-density JSON summary with keys: majorPoints, oneLineDefinitions, tipsAndTricks, formulaVault, historyData, geographyData, civicsData, economicsData. 
+    Return a high-density JSON summary with these exact keys: formulaVault, oneLineDefinitions, majorPoints, tipsAndTricks, historyData, geographyData, civicsData, economicsData.
     Return ONLY raw JSON.`;
 
     for (let attempt = 1; attempt <= 3; attempt++) {
