@@ -1,22 +1,21 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
-import { getCorsHeaders } from "./cors.js";
-import firebaseConfig from "../js/firebase-master-config.js";
 import { initializeApp, getApps, cert } from "firebase-admin/app";
+import firebaseConfig from "../js/firebase-master-config.js";
 
+// Vercel Serverless Config
 export const config = { runtime: "nodejs" };
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 // ============================================================================
-//  MODEL FAILOVER CHAIN (FREE-TIER SAFE)
+//  MODEL FAILOVER CHAIN
 // ============================================================================
-
 const MODEL_CHAIN = [
-  "gemini-2.5-flash",        // Best free model
-  "gemini-flash-latest",     // Backup
-  "gemini-2.0-flash",        // Backup
-  "gemini-2.5-flash-lite"    // Last fallback
+  "gemini-1.5-flash",
+  "gemini-1.5-flash-latest",
+  "gemini-1.5-pro",
+  "gemini-2.0-flash-exp" 
 ];
 
 // ============================================================================
@@ -49,8 +48,8 @@ function extractJSON(raw) {
 
   try {
     const parsed = JSON.parse(text);
-    if (Array.isArray(parsed)) return { ok: true, questions: parsed };
-    if (Array.isArray(parsed.questions)) return { ok: true, questions: parsed.questions };
+    const questions = Array.isArray(parsed) ? parsed : (parsed.questions || []);
+    if (Array.isArray(questions)) return { ok: true, questions };
     return { ok: false, error: "INVALID_JSON_SHAPE", raw: text };
   } catch (err) {
     return { ok: false, error: "INVALID_JSON_PARSE", raw: text };
@@ -58,57 +57,44 @@ function extractJSON(raw) {
 }
 
 // ============================================================================
-//  GEMINI FAILOVER ENGINE
+//  GEMINI ENGINE
 // ============================================================================
+
 async function callGemini(prompt) {
   const client = new GoogleGenerativeAI(GEMINI_API_KEY);
   let lastErr = null;
 
-  for (const model of MODEL_CHAIN) {
+  for (const modelName of MODEL_CHAIN) {
     try {
-      console.log("⚡ Trying model:", model);
-
-      const g = client.getGenerativeModel({ model });
-      const output = await g.generateContent(prompt);
-      const txt = output.response.text();
+      console.log("⚡ Trying model:", modelName);
+      const model = client.getGenerativeModel({ model: modelName });
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      const txt = response.text();
 
       if (!txt || !txt.trim()) {
-        console.log("⚠ Empty output → switching model");
+        console.warn(`⚠ Empty output from ${modelName}`);
         continue;
       }
 
-      console.log("✅ Success with model:", model);
+      console.log("✅ Success with model:", modelName);
       return txt;
-
     } catch (err) {
       lastErr = err;
-      const status = err?.status;
-
-      console.log(`❌ Model ${model} failed (${status}):`, err.message);
-
-      if (status === 429) {
-        console.log("🔄 Quota exceeded → trying next model");
+      console.error(`❌ Model ${modelName} failed:`, err.message);
+      if (err?.status === 429) continue; 
+      if (err?.status >= 500) {
+        await new Promise(r => setTimeout(r, 1000));
         continue;
       }
-
-      if (status === 500 || status === 503) {
-        console.log("🔁 Server error → retry after delay");
-        await new Promise(r => setTimeout(r, 800));
-        continue;
-      }
-
-      console.log("⏭ Non-recoverable → switching model");
-      continue;
     }
   }
-
-  throw lastErr || new Error("All models failed");
+  throw lastErr || new Error("All models in the chain failed.");
 }
 
 function getDb() {
   try {
     if (!getApps().length) {
-      // Use the Firebase credentials structure found in js/firebase-master-config.js
       initializeApp({ credential: cert(firebaseConfig) });
     }
     return { db: getFirestore() };
@@ -116,28 +102,38 @@ function getDb() {
     return {
       error: {
         status: 500,
-        message: "Failed to initialize Firebase Admin with js/firebase-master-config.js",
-        details: { message: err.message }
+        message: "Firebase Init Failed",
+        details: err.message
       }
     };
   }
 }
 
-export default async function handler(req, res) {
-  // ------------ CORS GUARDRAIL ------------
-  res.setHeader("Access-Control-Allow-Origin", "https://ready4exam.github.io");
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, Accept");
-  res.setHeader("Access-Control-Allow-Credentials", "true");
+// ============================================================================
+//  MAIN API HANDLER (Consolidated CORS + Logic)
+// ============================================================================
 
-  // Handle preflight OPTIONS request
-  if (req.method === "OPTIONS") {
+export default async function handler(req, res) {
+  // 1. STRENGTHENED CORS HEADERS
+  res.setHeader('Access-Control-Allow-Credentials', true);
+  res.setHeader('Access-Control-Allow-Origin', 'https://ready4exam.github.io');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization'
+  );
+
+  // 2. PREFLIGHT HANDLER
+  if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
-  // ----------------------------------------
 
-  if (req.method !== "POST") return res.status(405).json({ ok: false, error: "ONLY_POST_ALLOWED" });
+  // 3. METHOD GUARD
+  if (req.method !== "POST") {
+    return res.status(405).json({ ok: false, error: "Method Not Allowed" });
+  }
 
+  // 4. DATABASE INITIALIZATION
   const { db, error: dbError } = getDb();
   if (dbError) {
     return res.status(dbError.status).json({ ok: false, error: dbError.message, details: dbError.details });
@@ -153,77 +149,39 @@ export default async function handler(req, res) {
 
     const sanitizedChapter = sanitizeChapterName(chapter);
 
+    // 5. PROMPT CONSTRUCTION
     const prompt = `
-You MUST output ONLY a valid JSON array.
-No text before it.
-No text after it.
-No commentary.
-No markdown.
-No headings.
+      Return ONLY a JSON array. No markdown. No conversational text.
+      Target: Class ${grade}, Subject: ${subject}, Chapter: ${chapter} ${book ? `(Book: ${book})` : ""}.
+      Requirements:
+      - Extract English PYQs (2017-2024).
+      - Include "question_en", "answer_en", "marks" (number), "year" (number), "type" (text/table/formula).
+      - Use LaTeX for formulas $$...$$.
+      - If type is 'table', provide structured JSON in 'table_data'.
+    `;
 
-STRICT FORMAT FOR EVERY QUESTION:
-[
-  {
-    "question_en": "String: English question text",
-    "answer_en": "String: High-quality English answer",
-    "marks": Number (e.g., 2, 3, 5),
-    "year": Number (e.g., 2018),
-    "type": "String: Must be 'text', 'table', or 'formula'",
-    "table_data": {} // Optional: Include if type is 'table', structured JSON object representing chart/graph/table data
-  }
-]
-
-==============================
-  GRADE: ${grade}
-  SUBJECT: ${subject}
-  CHAPTER: ${chapter}
-  BOOK (optional): ${book || "N/A"}
-==============================
-
-REQUIREMENTS:
-- Extract ONLY English-language questions from board exams for the years 2017–2024 for the specified chapter.
-- Generate a high-quality English answer for each question.
-- Depth and length of the answer MUST scale with marks (e.g., 2 marks = concise; 5 marks = detailed/point-wise).
-- STRICTLY EXCLUDE ANY bilingual or Hindi text; ONLY English questions and answers must be processed.
-- Graphs & Charts: Since image files cannot be stored, convert all graphs or charts found in PYQs into structured JSON tables inside the 'table_data' field, or use Markdown tables inside the 'question_en' or 'answer_en' fields.
-- Formulas & Equations: All mathematical or scientific formulas MUST be extracted and generated using LaTeX (wrapped in $$...$$).
-- Diagrams: If a question or answer requires a diagram, provide a detailed English description or Mermaid.js code that describes the visual structure.
-- No multiline text in any JSON field (use \\n for line breaks instead).
-- No escape characters that break JSON.
-- No duplicate questions.
-
-FINAL RULE:
-Return ONLY the JSON array. NOTHING else.
-`;
-
-    const start = Date.now();
+    // 6. EXECUTION LOOP (RETRY LOGIC)
     let questionsToInsert = [];
+    const start = Date.now();
 
     for (let attempt = 1; attempt <= 3; attempt++) {
-      console.log("🔁 Extraction Attempt:", attempt);
       try {
         const raw = await callGemini(prompt);
         const parsed = extractJSON(raw);
-
         if (parsed.ok) {
           questionsToInsert = parsed.questions;
-          break; // success
+          break;
         }
-        console.log("⚠ JSON invalid → retrying...");
-      } catch (err) {
-        console.log("Attempt failed:", err);
+      } catch (e) {
+        console.error(`Attempt ${attempt} failed:`, e.message);
       }
     }
 
-    if (questionsToInsert.length === 0) {
-      return res.status(500).json({ ok: false, error: "GEMINI_EXTRACTION_FAILED_OR_INVALID_JSON" });
+    if (!questionsToInsert.length) {
+      return res.status(500).json({ ok: false, error: "Failed to extract valid questions after 3 attempts." });
     }
 
-    console.log(`✅ Extracted ${questionsToInsert.length} questions. Starting Firestore insertion...`);
-
-    // Hierarchical Arrangement:
-    // PYQ_Bank (Collection) > {Grade} (Document) > Subjects (Collection) > {Subject} (Document) > Chapters (Collection) > {Sanitized_Chapter_Name} (Document) > Questions (Collection) > {AutoID}
-
+    // 7. HIERARCHICAL FIRESTORE INSERTION
     const chapterDocRef = db
       .collection("PYQ_Bank")
       .doc(String(grade))
@@ -232,7 +190,6 @@ Return ONLY the JSON array. NOTHING else.
       .collection("Chapters")
       .doc(sanitizedChapter);
 
-    // Deep-Write Critical Fix: Explicitly create the Chapter Document
     await chapterDocRef.set({
       name: chapter,
       sanitizedName: sanitizedChapter,
@@ -242,64 +199,35 @@ Return ONLY the JSON array. NOTHING else.
     }, { merge: true });
 
     const questionsRef = chapterDocRef.collection("Questions");
+    const results = [];
 
-    const batchResults = [];
-    let insertedCount = 0;
-
-    // Async Completion Critical Fix: Wrap all Firestore writes in await Promise.all()
     const insertionPromises = questionsToInsert.map(async (q) => {
-      // Validate structure before insertion
-      // Verify that every question has a valid year and marks
-      if (typeof q.question_en === "string" &&
-          typeof q.answer_en === "string" &&
-          typeof q.marks === "number" &&
-          typeof q.year === "number") {
-         try {
-           const payload = {
-             question_en: q.question_en,
-             answer_en: q.answer_en,
-             marks: q.marks,
-             year: q.year,
-             subject: subject,
-             type: q.type || "text",
-             timestamp: FieldValue.serverTimestamp()
-           };
-
-           if (book) {
-             payload.book = book;
-           }
-
-           if (q.table_data && typeof q.table_data === "object") {
-             payload.table_data = q.table_data;
-           }
-
-           const docRef = await questionsRef.add(payload);
-           console.log(`✅ Inserted question ${docRef.id}`);
-           insertedCount++;
-           batchResults.push({ id: docRef.id, status: "success" });
-         } catch (insertError) {
-           console.error(`❌ Failed to insert question:`, insertError);
-           batchResults.push({ question: q.question_en, status: "error", error: insertError.message });
-         }
-      } else {
-         console.warn(`⚠ Skipped invalid question format:`, q);
-         batchResults.push({ question: q, status: "skipped_invalid_format" });
+      if (q.question_en && q.answer_en && typeof q.marks === "number") {
+        const payload = {
+          ...q,
+          subject,
+          timestamp: FieldValue.serverTimestamp()
+        };
+        if (book) payload.book = book;
+        
+        const doc = await questionsRef.add(payload);
+        return { id: doc.id, status: "success" };
       }
+      return { status: "skipped", reason: "invalid format" };
     });
 
-    await Promise.all(insertionPromises);
+    const batchSummary = await Promise.all(insertionPromises);
 
     return res.status(200).json({
       ok: true,
-      engine: "gemini_failover_v2",
-      extractedCount: questionsToInsert.length,
-      insertedCount: insertedCount,
+      extracted: questionsToInsert.length,
+      inserted: batchSummary.filter(r => r.status === "success").length,
       durationMs: Date.now() - start,
-      results: batchResults
+      batchSummary
     });
 
   } catch (err) {
-    console.error("❌ API ERROR:", err);
+    console.error("Critical API Error:", err);
     return res.status(500).json({ ok: false, error: err.message });
   }
 }
