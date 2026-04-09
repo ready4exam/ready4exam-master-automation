@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
-// import { getCorsHeaders } from "./cors.js"; // Removed based on new instructions
+import { getCorsHeaders } from "./cors.js";
 import firebaseConfig from "../js/firebase-master-config.js";
 import { initializeApp, getApps, cert } from "firebase-admin/app";
 
