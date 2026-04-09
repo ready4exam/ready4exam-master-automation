@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
-import { getCorsHeaders } from "./cors.js";
+// import { getCorsHeaders } from "./cors.js"; // Removed based on new instructions
 import firebaseConfig from "../js/firebase-master-config.js";
 import { initializeApp, getApps, cert } from "firebase-admin/app";
 
@@ -124,10 +124,18 @@ function getDb() {
 }
 
 export default async function handler(req, res) {
-  const origin = req.headers.origin || "";
-  Object.entries(getCorsHeaders(origin)).forEach(([k, v]) => res.setHeader(k, v));
+  // ------------ CORS GUARDRAIL ------------
+  res.setHeader("Access-Control-Allow-Origin", "https://ready4exam.github.io");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, Accept");
+  res.setHeader("Access-Control-Allow-Credentials", "true");
 
-  if (req.method === "OPTIONS") return res.status(200).end();
+  // Handle preflight OPTIONS request
+  if (req.method === "OPTIONS") {
+    return res.status(200).end();
+  }
+  // ----------------------------------------
+
   if (req.method !== "POST") return res.status(405).json({ ok: false, error: "ONLY_POST_ALLOWED" });
 
   const { db, error: dbError } = getDb();
