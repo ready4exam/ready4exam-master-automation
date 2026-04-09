@@ -1,7 +1,8 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { initializeApp, getApps, cert } from "firebase-admin/app";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { getCorsHeaders } from "./cors.js";
+import firebaseConfig from "../js/firebase-master-config.js";
+import { initializeApp, getApps, cert } from "firebase-admin/app";
 
 export const config = { runtime: "nodejs" };
 
@@ -19,8 +20,14 @@ const MODEL_CHAIN = [
 ];
 
 // ============================================================================
-//  JSON CLEANER
+//  UTILITIES
 // ============================================================================
+
+function sanitizeChapterName(name) {
+  if (!name) return "unnamed_chapter";
+  return name.trim().replace(/[^a-zA-Z0-9 ]/g, "_").replace(/\s+/g, "_");
+}
+
 function extractJSON(raw) {
   if (!raw) return { ok: false, error: "EMPTY_OUTPUT" };
 
@@ -99,39 +106,17 @@ async function callGemini(prompt) {
 }
 
 function getDb() {
-  const rawServiceAccount = process.env.FIREBASE_SERVICE_ACCOUNT;
-  if (!rawServiceAccount) {
-    return {
-      error: {
-        status: 503,
-        message: "FIREBASE_SERVICE_ACCOUNT not configured"
-      }
-    };
-  }
-
-  let serviceAccount;
-  try {
-    serviceAccount = JSON.parse(rawServiceAccount);
-  } catch (err) {
-    return {
-      error: {
-        status: 500,
-        message: "FIREBASE_SERVICE_ACCOUNT malformed",
-        details: { message: err.message }
-      }
-    };
-  }
-
   try {
     if (!getApps().length) {
-      initializeApp({ credential: cert(serviceAccount) });
+      // Use the Firebase credentials structure found in js/firebase-master-config.js
+      initializeApp({ credential: cert(firebaseConfig) });
     }
     return { db: getFirestore() };
   } catch (err) {
     return {
       error: {
         status: 500,
-        message: "Failed to initialize Firebase Admin",
+        message: "Failed to initialize Firebase Admin with js/firebase-master-config.js",
         details: { message: err.message }
       }
     };
@@ -158,6 +143,8 @@ export default async function handler(req, res) {
       return res.status(400).json({ ok: false, error: "Missing required fields: grade, subject, chapter." });
     }
 
+    const sanitizedChapter = sanitizeChapterName(chapter);
+
     const prompt = `
 You MUST output ONLY a valid JSON array.
 No text before it.
@@ -173,7 +160,8 @@ STRICT FORMAT FOR EVERY QUESTION:
     "answer_en": "String: High-quality English answer",
     "marks": Number (e.g., 2, 3, 5),
     "year": Number (e.g., 2018),
-    "type": "String: 'text', 'table', 'formula', etc."
+    "type": "String: Must be 'text', 'table', or 'formula'",
+    "table_data": {} // Optional: Include if type is 'table', structured JSON object representing chart/graph/table data
   }
 ]
 
@@ -189,7 +177,10 @@ REQUIREMENTS:
 - Generate a high-quality English answer for each question.
 - Depth and length of the answer MUST scale with marks (e.g., 2 marks = concise; 5 marks = detailed/point-wise).
 - STRICTLY EXCLUDE ANY bilingual or Hindi text; ONLY English questions and answers must be processed.
-- No multiline text in any JSON field.
+- Graphs & Charts: Since image files cannot be stored, convert all graphs or charts found in PYQs into structured JSON tables inside the 'table_data' field, or use Markdown tables inside the 'question_en' or 'answer_en' fields.
+- Formulas & Equations: All mathematical or scientific formulas MUST be extracted and generated using LaTeX (wrapped in $$...$$).
+- Diagrams: If a question or answer requires a diagram, provide a detailed English description or Mermaid.js code that describes the visual structure.
+- No multiline text in any JSON field (use \\n for line breaks instead).
 - No escape characters that break JSON.
 - No duplicate questions.
 
@@ -222,34 +213,59 @@ Return ONLY the JSON array. NOTHING else.
 
     console.log(`✅ Extracted ${questionsToInsert.length} questions. Starting Firestore insertion...`);
 
-    let insertedCount = 0;
-    const batchResults = [];
-
     // Hierarchical Arrangement:
-    // PYQ_Bank (Collection) > {Grade} (Document) > Subjects (Collection) > {Subject} (Document) > Chapters (Collection) > {Chapter} (Document) > Questions (Collection) > {AutoID}
-    const questionsRef = db
+    // PYQ_Bank (Collection) > {Grade} (Document) > Subjects (Collection) > {Subject} (Document) > Chapters (Collection) > {Sanitized_Chapter_Name} (Document) > Questions (Collection) > {AutoID}
+
+    const chapterDocRef = db
       .collection("PYQ_Bank")
       .doc(String(grade))
       .collection("Subjects")
       .doc(subject)
       .collection("Chapters")
-      .doc(chapter)
-      .collection("Questions");
+      .doc(sanitizedChapter);
 
-    for (const q of questionsToInsert) {
+    // Deep-Write Critical Fix: Explicitly create the Chapter Document
+    await chapterDocRef.set({
+      name: chapter,
+      sanitizedName: sanitizedChapter,
+      subject: subject,
+      grade: grade,
+      lastUpdated: FieldValue.serverTimestamp()
+    }, { merge: true });
+
+    const questionsRef = chapterDocRef.collection("Questions");
+
+    const batchResults = [];
+    let insertedCount = 0;
+
+    // Async Completion Critical Fix: Wrap all Firestore writes in await Promise.all()
+    const insertionPromises = questionsToInsert.map(async (q) => {
       // Validate structure before insertion
-      if (typeof q.question_en === "string" && typeof q.answer_en === "string" && typeof q.marks === "number" && typeof q.year === "number") {
+      // Verify that every question has a valid year and marks
+      if (typeof q.question_en === "string" &&
+          typeof q.answer_en === "string" &&
+          typeof q.marks === "number" &&
+          typeof q.year === "number") {
          try {
-           const docRef = await questionsRef.add({
+           const payload = {
              question_en: q.question_en,
              answer_en: q.answer_en,
              marks: q.marks,
              year: q.year,
              subject: subject,
-             book: book || "",
              type: q.type || "text",
              timestamp: FieldValue.serverTimestamp()
-           });
+           };
+
+           if (book) {
+             payload.book = book;
+           }
+
+           if (q.table_data && typeof q.table_data === "object") {
+             payload.table_data = q.table_data;
+           }
+
+           const docRef = await questionsRef.add(payload);
            console.log(`✅ Inserted question ${docRef.id}`);
            insertedCount++;
            batchResults.push({ id: docRef.id, status: "success" });
@@ -261,7 +277,9 @@ Return ONLY the JSON array. NOTHING else.
          console.warn(`⚠ Skipped invalid question format:`, q);
          batchResults.push({ question: q, status: "skipped_invalid_format" });
       }
-    }
+    });
+
+    await Promise.all(insertionPromises);
 
     return res.status(200).json({
       ok: true,
