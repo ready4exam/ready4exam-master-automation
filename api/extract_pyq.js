@@ -172,14 +172,38 @@ export default async function handler(req, res) {
 
     // 5. PROMPT CONSTRUCTION
     const prompt = `
-      Return ONLY a JSON array. No markdown. No conversational text.
-      Target: Class ${grade}, Subject: ${subject}, Chapter: ${chapter} ${book ? `(Book: ${book})` : ""}.
-      Requirements:
-      - Extract English PYQs (2017-2024).
-      - Include "question_en", "answer_en", "marks" (number), "year" (number), "type" (text/table/formula).
-      - Use LaTeX for formulas $$...$$.
-      - If type is 'table', provide structured JSON in 'table_data'.
-    `;
+Role: You are a Senior CBSE Academic Consultant and Paper Auditor with 20 years of experience in Board Exam pattern analysis.
+
+Objective: Perform an exhaustive extraction of Previous Year Questions (PYQs) for:
+- Class: ${grade}
+- Subject: ${subject}
+- Chapter: ${chapter}
+
+Search Scope:
+1. Scan the last 10 years (2015–2025) of official CBSE Board Papers, including Main, Compartment (Supplementary), and all regional Sets (Delhi, Outside Delhi, Foreign).
+
+Categorization Requirements:
+- Extract questions for each of these buckets: 1-Mark (MCQ/VSA), 2-Marks (SA-I), 3-Marks (SA-II), 4-Marks (Case-Based), and 5-Marks (LA).
+- For 4-mark Case Studies, preserve the internal structure if multiple sub-questions were present.
+
+Technical Constraints:
+- Format: Return ONLY a raw JSON array. No markdown, no intro/outro text.
+- LaTeX: Every mathematical formula, chemical equation, or complex unit MUST be wrapped in double-dollar LaTeX syntax: $$...$$.
+- Data Cleaning: Remove exact duplicates across sets but keep variations with different numerical values.
+
+JSON Schema (STRICT):
+[
+  {
+    "question_en": "string",
+    "answer_en": "string",
+    "marks": number,
+    "year": number,
+    "set_code": "string",
+    "type": "text | table | formula",
+    "paper_context": "string (e.g., Outside Delhi - Main Exam)",
+    "table_data": object | null
+  }
+]`;
 
     // 6. EXECUTION LOOP (RETRY LOGIC)
     let questionsToInsert = [];
