@@ -129,6 +129,8 @@ export default async function handler(req, res) {
     res.setHeader(key, value);
   });
 
+  console.log('[MS1] Headers set for origin:', origin);
+
   // 2. PREFLIGHT HANDLER
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
@@ -153,10 +155,11 @@ export default async function handler(req, res) {
       return res.status(400).json({ ok: false, error: "Missing required fields: grade, subject, chapter." });
     }
 
+    console.log('[MS2] Inputs -> Grade:', grade, 'Subject:', subject, 'Chapter:', chapter);
     const sanitizedChapter = sanitizeChapterName(chapter);
 
     // 5. PROMPT CONSTRUCTION
-    const prompt = `Give 10 important Previous Year Questions (2015-2025) from CBSE Board papers for Class ${grade} ${subject}, chapter "${chapter}". Return ONLY a JSON array where each item has "question_en" (string), "marks" (number 1-5), and "year" (number or 0). Do NOT return empty.`;
+    const prompt = `Extract 10 distinct English previous year questions from CBSE board papers (2015-2025) for Class ${grade} ${subject}, chapter "${chapter}". Return ONLY a JSON array. Each item must have: "question_en" (string), "marks" (number 1-5), and "year" (number). Do NOT include answers or explanations.`;
 
     // 6. EXECUTION LOOP (RETRY LOGIC)
     let questionsToInsert = [];
@@ -170,12 +173,14 @@ export default async function handler(req, res) {
           console.log(`Attempt ${attempt}: Using Relaxed Fallback Prompt`);
           currentPrompt = `Give 5 important CBSE questions for Class ${grade} ${subject}, chapter "${chapter}" in a JSON array with: question_en, marks, and year.`;
         }
+        console.log('[MS3] Prompt constructed. Calling Gemini...');
         const { txt: raw, modelUsed } = await callGemini(currentPrompt);
         lastModelUsed = modelUsed;
-        console.log('--- RAW AI OUTPUT Chapter: ' + chapter + ' ---', raw);
+        console.log('[MS4] RAW AI RESPONSE:', raw);
         const parsed = extractJSON(raw);
         if (parsed.ok && parsed.questions && parsed.questions.length > 0) {
           questionsToInsert = parsed.questions;
+          console.log('[MS5] Parsed questions count:', questionsToInsert.length);
           break;
         }
       } catch (e) {
@@ -187,8 +192,9 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true, extracted: 0, message: "No results found", modelUsed: lastModelUsed });
     }
 
-    console.log('✅ Parsed Questions Count:', questionsToInsert.length);
+
     // 7. HIERARCHICAL FIRESTORE INSERTION
+    console.log('[MS6] Starting Firestore insertion for chapter:', sanitizedChapter);
     const chapterDocRef = db
       .collection("PYQ_Bank")
       .doc(String(grade))
@@ -212,6 +218,7 @@ export default async function handler(req, res) {
       if (q.question_en) {
         const payload = {
           ...q,
+          question_en: String(q.question_en).trim(),
           marks: Number(q.marks) || 0,
           year: Number(q.year) || 0,
           subject,
@@ -226,6 +233,8 @@ export default async function handler(req, res) {
     });
 
     const batchSummary = await Promise.all(insertionPromises);
+    const successCount = batchSummary.filter(r => r.status === "success").length;
+    console.log('[MS7] Extraction complete. Successfully inserted:', successCount);
 
     return res.status(200).json({
       ok: true,
