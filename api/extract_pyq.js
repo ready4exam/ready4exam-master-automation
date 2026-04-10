@@ -29,30 +29,15 @@ function sanitizeChapterName(name) {
 
 function extractJSON(raw) {
   if (!raw) return { ok: false, error: "EMPTY_OUTPUT" };
-
-  let text = raw.trim()
-    .replace(/```json/gi, "")
-    .replace(/```/g, "")
-    .replace(/[\u0000-\u001F]+/g, " ")
-    .replace(/\n+/g, " ")
-    .replace(/“|”/g, '"')
-    .replace(/‘|’/g, "'")
-    .replace(/,\s*]/g, "]")
-    .replace(/,\s*}/g, "}");
-
-  const first = text.indexOf("[");
-  const last = text.lastIndexOf("]");
-
-  if (first !== -1 && last !== -1)
-    text = text.slice(first, last + 1);
-
   try {
-    const parsed = JSON.parse(text);
+    const parsed = JSON.parse(raw);
     const questions = Array.isArray(parsed) ? parsed : (parsed.questions || []);
     if (Array.isArray(questions)) return { ok: true, questions };
-    return { ok: false, error: "INVALID_JSON_SHAPE", raw: text };
+    return { ok: false, error: "INVALID_JSON_SHAPE", raw };
   } catch (err) {
-    return { ok: false, error: "INVALID_JSON_PARSE", raw: text };
+    console.log("JSON Parse Error:", err.message);
+    console.log("Raw output:", raw);
+    return { ok: false, error: err.message, raw };
   }
 }
 
@@ -67,7 +52,7 @@ async function callGemini(prompt) {
   for (const modelName of MODEL_CHAIN) {
     try {
       console.log("⚡ Trying model:", modelName);
-      const model = client.getGenerativeModel({ model: modelName });
+      const model = client.getGenerativeModel({ model: modelName, generationConfig: { responseMimeType: "application/json", maxOutputTokens: 2048 } });
       const result = await model.generateContent(prompt);
       const response = await result.response;
       const txt = response.text();
@@ -174,11 +159,11 @@ export default async function handler(req, res) {
     const prompt = `
 Role: You are a Senior CBSE Academic Specialist and Paper Auditor.
 Task: Perform an exhaustive scan of your internal database for Class ${grade} ${subject} PYQs for the chapter "${chapter}".
-Scope: Cover 2015-2025. Include Main, Compartment, and all Sets (Delhi, Foreign, Outside Delhi).
+Scope: Cover 2015-2025. Include all available CBSE Standard and Basic papers, Compartment papers, and Term-wise papers from 2021-2022. Include all Sets (Delhi, Foreign, Outside Delhi).
 
 Requirements:
 - Categorize questions strictly into: 1m, 2m, 3m, 4m (Case Study), and 5m buckets.
-- Extract exactly 3 distinct questions for each mark category to prevent response truncation.
+- Extract all available questions for each mark category.
 - Format: Return ONLY a raw JSON array.
 - LaTeX: Wrap all math in double-dollar symbols: $$...$$.
 
@@ -191,13 +176,19 @@ Use only "question_en", "answer_en", "marks" (number), and "year" (number).
     let lastModelUsed = "UNKNOWN";
     const start = Date.now();
 
+    let currentPrompt = prompt;
     for (let attempt = 1; attempt <= 3; attempt++) {
       try {
-        const { txt: raw, modelUsed } = await callGemini(prompt);
+        if (attempt > 1 && questionsToInsert.length === 0) {
+          console.log(`Attempt ${attempt}: Using Relaxed Fallback Prompt`);
+          currentPrompt = `Return ONLY a raw JSON array of 5 important Previous Year Questions (PYQs) for CBSE Class ${grade} ${subject}, Chapter: ${chapter}.
+Use ONLY these JSON keys: "question_en", "answer_en", "marks", "year". Do not use markdown.`;
+        }
+        const { txt: raw, modelUsed } = await callGemini(currentPrompt);
         lastModelUsed = modelUsed;
         console.log('--- RAW AI OUTPUT Chapter: ' + chapter + ' ---', raw);
         const parsed = extractJSON(raw);
-        if (parsed.ok) {
+        if (parsed.ok && parsed.questions && parsed.questions.length > 0) {
           questionsToInsert = parsed.questions;
           break;
         }
