@@ -1,7 +1,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { initializeApp, getApps, cert } from "firebase-admin/app";
-import firebaseConfig from "../js/firebase-master-config.js";
+import { getCorsHeaders } from "./cors.js";
 
 // Vercel Serverless Config
 export const config = { runtime: "nodejs" };
@@ -92,9 +92,11 @@ async function callGemini(prompt) {
   throw lastErr || new Error("All models in the chain failed.");
 }
 
-function getDb() {
+async function getDb() {
   try {
     if (!getApps().length) {
+      const configModule = await import("../template/js/firebase-master-config.js");
+      const firebaseConfig = configModule.default;
       initializeApp({ credential: cert(firebaseConfig) });
     }
     return { db: getFirestore() };
@@ -114,14 +116,12 @@ function getDb() {
 // ============================================================================
 
 export default async function handler(req, res) {
-  // 1. STRENGTHENED CORS HEADERS
-  res.setHeader('Access-Control-Allow-Credentials', true);
-  res.setHeader('Access-Control-Allow-Origin', 'https://ready4exam.github.io');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
-  res.setHeader(
-    'Access-Control-Allow-Headers',
-    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization'
-  );
+  // 1. SHARED CORS HEADERS
+  const origin = req.headers.origin || "";
+  const headers = getCorsHeaders(origin);
+  Object.entries(headers).forEach(([key, value]) => {
+    res.setHeader(key, value);
+  });
 
   // 2. PREFLIGHT HANDLER
   if (req.method === 'OPTIONS') {
@@ -134,7 +134,7 @@ export default async function handler(req, res) {
   }
 
   // 4. DATABASE INITIALIZATION
-  const { db, error: dbError } = getDb();
+  const { db, error: dbError } = await getDb();
   if (dbError) {
     return res.status(dbError.status).json({ ok: false, error: dbError.message, details: dbError.details });
   }
