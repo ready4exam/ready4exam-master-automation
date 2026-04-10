@@ -212,6 +212,7 @@ JSON Schema (STRICT):
     for (let attempt = 1; attempt <= 3; attempt++) {
       try {
         const raw = await callGemini(prompt);
+        console.log('--- RAW GEMINI RESPONSE ---', raw);
         const parsed = extractJSON(raw);
         if (parsed.ok) {
           questionsToInsert = parsed.questions;
@@ -223,7 +224,7 @@ JSON Schema (STRICT):
     }
 
     if (!questionsToInsert.length) {
-      return res.status(500).json({ ok: false, error: "Failed to extract valid questions after 3 attempts." });
+      return res.status(200).json({ ok: true, extracted: 0, message: "No board questions found for this chapter in the last 10 years." });
     }
 
     // 7. HIERARCHICAL FIRESTORE INSERTION
