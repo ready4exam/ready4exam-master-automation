@@ -78,7 +78,7 @@ async function callGemini(prompt) {
       }
 
       console.log("✅ Success with model:", modelName);
-      return txt;
+      return { txt, modelUsed: modelName };
     } catch (err) {
       lastErr = err;
       console.error(`❌ Model ${modelName} failed:`, err.message);
@@ -172,47 +172,30 @@ export default async function handler(req, res) {
 
     // 5. PROMPT CONSTRUCTION
     const prompt = `
-Role: You are a Senior CBSE Academic Consultant and Paper Auditor with 20 years of experience in Board Exam pattern analysis.
+Role: You are a Senior CBSE Academic Specialist and Paper Auditor.
+Task: Perform an exhaustive scan of your internal database for Class ${grade} ${subject} PYQs for the chapter "${chapter}".
+Scope: Cover 2015-2025. Include Main, Compartment, and all Sets (Delhi, Foreign, Outside Delhi).
 
-Objective: Perform an exhaustive extraction of Previous Year Questions (PYQs) for:
-- Class: ${grade}
-- Subject: ${subject}
-- Chapter: ${chapter}
+Requirements:
+- Categorize questions strictly into: 1m, 2m, 3m, 4m (Case Study), and 5m buckets.
+- Extract exactly 3 distinct questions for each mark category to prevent response truncation.
+- Format: Return ONLY a raw JSON array.
+- LaTeX: Wrap all math in double-dollar symbols: $$...$$.
 
-Search Scope:
-1. Scan the last 10 years (2015–2025) of official CBSE Board Papers, including Main, Compartment (Supplementary), and all regional Sets (Delhi, Outside Delhi, Foreign).
-
-Categorization Requirements:
-- Extract questions for each of these buckets: 1-Mark (MCQ/VSA), 2-Marks (SA-I), 3-Marks (SA-II), 4-Marks (Case-Based), and 5-Marks (LA).
-- For 4-mark Case Studies, preserve the internal structure if multiple sub-questions were present.
-
-Technical Constraints:
-- Format: Return ONLY a raw JSON array. No markdown, no intro/outro text.
-- LaTeX: Every mathematical formula, chemical equation, or complex unit MUST be wrapped in double-dollar LaTeX syntax: $$...$$.
-- Data Cleaning: Remove exact duplicates across sets but keep variations with different numerical values.
-
-JSON Schema (STRICT):
-[
-  {
-    "question_en": "string",
-    "answer_en": "string",
-    "marks": number,
-    "year": number,
-    "set_code": "string",
-    "type": "text | table | formula",
-    "paper_context": "string (e.g., Outside Delhi - Main Exam)",
-    "table_data": object | null
-  }
-]`;
+JSON Keys (STRICT):
+Use only "question_en", "answer_en", "marks" (number), and "year" (number).
+`;
 
     // 6. EXECUTION LOOP (RETRY LOGIC)
     let questionsToInsert = [];
+    let lastModelUsed = "UNKNOWN";
     const start = Date.now();
 
     for (let attempt = 1; attempt <= 3; attempt++) {
       try {
-        const raw = await callGemini(prompt);
-        console.log('--- RAW GEMINI RESPONSE ---', raw);
+        const { txt: raw, modelUsed } = await callGemini(prompt);
+        lastModelUsed = modelUsed;
+        console.log('--- RAW AI OUTPUT Chapter: ' + chapter + ' ---', raw);
         const parsed = extractJSON(raw);
         if (parsed.ok) {
           questionsToInsert = parsed.questions;
@@ -224,7 +207,7 @@ JSON Schema (STRICT):
     }
 
     if (!questionsToInsert.length) {
-      return res.status(200).json({ ok: true, extracted: 0, message: "No board questions found for this chapter in the last 10 years." });
+      return res.status(200).json({ ok: true, extracted: 0, message: "No board questions found for this chapter in the last 10 years.", modelUsed: lastModelUsed });
     }
 
     // 7. HIERARCHICAL FIRESTORE INSERTION
@@ -248,7 +231,7 @@ JSON Schema (STRICT):
     const results = [];
 
     const insertionPromises = questionsToInsert.map(async (q) => {
-      if (q.question_en && q.answer_en && typeof q.marks === "number") {
+      if (q.question_en && q.answer_en && typeof q.marks === "number" && typeof q.year === "number") {
         const payload = {
           ...q,
           subject,
