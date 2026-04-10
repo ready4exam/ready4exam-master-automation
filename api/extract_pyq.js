@@ -92,12 +92,33 @@ async function callGemini(prompt) {
   throw lastErr || new Error("All models in the chain failed.");
 }
 
-async function getDb() {
+function getDb() {
+  const rawServiceAccount = process.env.FIREBASE_SERVICE_ACCOUNT;
+  if (!rawServiceAccount) {
+    return {
+      error: {
+        status: 503,
+        message: "FIREBASE_SERVICE_ACCOUNT not configured"
+      }
+    };
+  }
+
+  let serviceAccount;
+  try {
+    serviceAccount = JSON.parse(rawServiceAccount);
+  } catch (err) {
+    return {
+      error: {
+        status: 500,
+        message: "FIREBASE_SERVICE_ACCOUNT malformed",
+        details: err.message
+      }
+    };
+  }
+
   try {
     if (!getApps().length) {
-      const configModule = await import("../template/js/firebase-master-config.js");
-      const firebaseConfig = configModule.default;
-      initializeApp({ credential: cert(firebaseConfig) });
+      initializeApp({ credential: cert(serviceAccount) });
     }
     return { db: getFirestore() };
   } catch (err) {
@@ -134,7 +155,7 @@ export default async function handler(req, res) {
   }
 
   // 4. DATABASE INITIALIZATION
-  const { db, error: dbError } = await getDb();
+  const { db, error: dbError } = getDb();
   if (dbError) {
     return res.status(dbError.status).json({ ok: false, error: dbError.message, details: dbError.details });
   }
