@@ -156,7 +156,7 @@ export default async function handler(req, res) {
     const sanitizedChapter = sanitizeChapterName(chapter);
 
     // 5. PROMPT CONSTRUCTION
-    const prompt = `Extract English previous year questions from CBSE board papers (2015-2025) for Class ${grade} ${subject}, chapter "${chapter}". Return ONLY a JSON array. Each item must have: "question_en" (string), "marks" (number 1-5), and "year" (number or 0). No answers, no markdown.`;
+    const prompt = `Give 10 important Previous Year Questions (2015-2025) from CBSE Board papers for Class ${grade} ${subject}, chapter "${chapter}". Return ONLY a JSON array where each item has "question_en" (string), "marks" (number 1-5), and "year" (number or 0). Do NOT return empty.`;
 
     // 6. EXECUTION LOOP (RETRY LOGIC)
     let questionsToInsert = [];
@@ -184,7 +184,7 @@ export default async function handler(req, res) {
     }
 
     if (!questionsToInsert.length) {
-      return res.status(200).json({ ok: true, extracted: 0, message: "No board questions found for this chapter in the last 10 years.", modelUsed: lastModelUsed });
+      return res.status(200).json({ ok: true, extracted: 0, message: "No results found", modelUsed: lastModelUsed });
     }
 
     console.log('✅ Parsed Questions Count:', questionsToInsert.length);
