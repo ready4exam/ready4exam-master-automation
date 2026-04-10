@@ -156,7 +156,7 @@ export default async function handler(req, res) {
     const sanitizedChapter = sanitizeChapterName(chapter);
 
     // 5. PROMPT CONSTRUCTION
-    const prompt = `Extract previous year questions for CBSE Class ${grade} ${subject}, chapter "${chapter}". Return ONLY a JSON array. Each item must have: "question_en" (string), "marks" (number or estimate 1-5), and "year" (number or 0). No markdown, no answers, no explanations.`;
+    const prompt = `Extract English previous year questions from CBSE board papers (2015-2025) for Class ${grade} ${subject}, chapter "${chapter}". Return ONLY a JSON array. Each item must have: "question_en" (string), "marks" (number 1-5), and "year" (number or 0). No answers, no markdown.`;
 
     // 6. EXECUTION LOOP (RETRY LOGIC)
     let questionsToInsert = [];
@@ -168,7 +168,7 @@ export default async function handler(req, res) {
       try {
         if (attempt > 1 && questionsToInsert.length === 0) {
           console.log(`Attempt ${attempt}: Using Relaxed Fallback Prompt`);
-          currentPrompt = `Give 5 important questions from CBSE Class ${grade} ${subject}, chapter "${chapter}" in JSON array format with question_en, marks, and year.`;
+          currentPrompt = `Give 5 important CBSE questions for Class ${grade} ${subject}, chapter "${chapter}" in a JSON array with: question_en, marks, and year.`;
         }
         const { txt: raw, modelUsed } = await callGemini(currentPrompt);
         lastModelUsed = modelUsed;
