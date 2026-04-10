@@ -129,8 +129,6 @@ export default async function handler(req, res) {
     res.setHeader(key, value);
   });
 
-  console.log('[MS1] Headers set for origin:', origin);
-
   // 2. PREFLIGHT HANDLER
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
@@ -155,7 +153,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ ok: false, error: "Missing required fields: grade, subject, chapter." });
     }
 
-    console.log('[MS2] Inputs -> Grade:', grade, 'Subject:', subject, 'Chapter:', chapter);
+    console.log('[MS1] Input:', grade, subject, chapter);
     const sanitizedChapter = sanitizeChapterName(chapter);
 
     // 5. PROMPT CONSTRUCTION
@@ -173,14 +171,14 @@ export default async function handler(req, res) {
           console.log(`Attempt ${attempt}: Using Relaxed Fallback Prompt`);
           currentPrompt = `Give 5 important CBSE questions for Class ${grade} ${subject}, chapter "${chapter}" in a JSON array with: question_en, marks, and year.`;
         }
-        console.log('[MS3] Prompt constructed. Calling Gemini...');
+        console.log('[MS2] Calling AI for chapter:', chapter);
         const { txt: raw, modelUsed } = await callGemini(currentPrompt);
         lastModelUsed = modelUsed;
-        console.log('[MS4] RAW AI RESPONSE:', raw);
+        console.log('[MS3] RAW AI RESPONSE:', raw);
         const parsed = extractJSON(raw);
         if (parsed.ok && parsed.questions && parsed.questions.length > 0) {
           questionsToInsert = parsed.questions;
-          console.log('[MS5] Parsed questions count:', questionsToInsert.length);
+          console.log('[MS4] Parsed questions count:', questionsToInsert.length);
           break;
         }
       } catch (e) {
@@ -194,7 +192,7 @@ export default async function handler(req, res) {
 
 
     // 7. HIERARCHICAL FIRESTORE INSERTION
-    console.log('[MS6] Starting Firestore insertion for chapter:', sanitizedChapter);
+    console.log('[MS5] Starting Firestore write for:', sanitizedChapter);
     const chapterDocRef = db
       .collection("PYQ_Bank")
       .doc(String(grade))
@@ -233,8 +231,6 @@ export default async function handler(req, res) {
     });
 
     const batchSummary = await Promise.all(insertionPromises);
-    const successCount = batchSummary.filter(r => r.status === "success").length;
-    console.log('[MS7] Extraction complete. Successfully inserted:', successCount);
 
     return res.status(200).json({
       ok: true,
