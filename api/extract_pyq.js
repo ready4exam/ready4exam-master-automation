@@ -156,20 +156,7 @@ export default async function handler(req, res) {
     const sanitizedChapter = sanitizeChapterName(chapter);
 
     // 5. PROMPT CONSTRUCTION
-    const prompt = `
-Role: You are a Senior CBSE Academic Specialist and Paper Auditor.
-Task: Perform an exhaustive scan of your internal database for Class ${grade} ${subject} PYQs for the chapter "${chapter}".
-Scope: Cover 2015-2025. Include all available CBSE Standard and Basic papers, Compartment papers, and Term-wise papers from 2021-2022. Include all Sets (Delhi, Foreign, Outside Delhi).
-
-Requirements:
-- Categorize questions strictly into: 1m, 2m, 3m, 4m (Case Study), and 5m buckets.
-- Extract all available questions for each mark category.
-- Format: Return ONLY a raw JSON array.
-- LaTeX: Wrap all math in double-dollar symbols: $$...$$.
-
-JSON Keys (STRICT):
-Use only "question_en", "answer_en", "marks" (number), and "year" (number).
-`;
+    const prompt = `Extract English previous year questions from CBSE board papers (2015-2025) for Class ${grade} ${subject}, chapter "${chapter}". Return ONLY a JSON array. Each item must have: "question_en" (string), "marks" (number 1-5), and "year" (number or 0). No answers, no markdown.`;
 
     // 6. EXECUTION LOOP (RETRY LOGIC)
     let questionsToInsert = [];
@@ -181,8 +168,7 @@ Use only "question_en", "answer_en", "marks" (number), and "year" (number).
       try {
         if (attempt > 1 && questionsToInsert.length === 0) {
           console.log(`Attempt ${attempt}: Using Relaxed Fallback Prompt`);
-          currentPrompt = `Return ONLY a raw JSON array of 5 important Previous Year Questions (PYQs) for CBSE Class ${grade} ${subject}, Chapter: ${chapter}.
-Use ONLY these JSON keys: "question_en", "answer_en", "marks", "year". Do not use markdown.`;
+          currentPrompt = `Give 5 important CBSE questions for Class ${grade} ${subject}, chapter "${chapter}" in a JSON array with: question_en, marks, and year.`;
         }
         const { txt: raw, modelUsed } = await callGemini(currentPrompt);
         lastModelUsed = modelUsed;
@@ -201,6 +187,7 @@ Use ONLY these JSON keys: "question_en", "answer_en", "marks", "year". Do not us
       return res.status(200).json({ ok: true, extracted: 0, message: "No board questions found for this chapter in the last 10 years.", modelUsed: lastModelUsed });
     }
 
+    console.log('✅ Parsed Questions Count:', questionsToInsert.length);
     // 7. HIERARCHICAL FIRESTORE INSERTION
     const chapterDocRef = db
       .collection("PYQ_Bank")
@@ -222,9 +209,11 @@ Use ONLY these JSON keys: "question_en", "answer_en", "marks", "year". Do not us
     const results = [];
 
     const insertionPromises = questionsToInsert.map(async (q) => {
-      if (q.question_en && q.answer_en && typeof q.marks === "number" && typeof q.year === "number") {
+      if (q.question_en) {
         const payload = {
           ...q,
+          marks: Number(q.marks) || 0,
+          year: Number(q.year) || 0,
           subject,
           timestamp: FieldValue.serverTimestamp()
         };
