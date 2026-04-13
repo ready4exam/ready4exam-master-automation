@@ -1,81 +1,9 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { initializeApp, getApps, cert } from "firebase-admin/app";
 import { getCorsHeaders } from "./cors.js";
 
 // Vercel Serverless Config
 export const config = { runtime: "nodejs" };
-
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-
-// ============================================================================
-//  MODEL FAILOVER CHAIN
-// ============================================================================
-const MODEL_CHAIN = [
-  "gemini-1.5-flash",
-  "gemini-1.5-flash-latest",
-  "gemini-1.5-pro",
-  "gemini-2.0-flash-exp" 
-];
-
-// ============================================================================
-//  UTILITIES
-// ============================================================================
-
-function sanitizeChapterName(name) {
-  if (!name) return "unnamed_chapter";
-  return name.trim().replace(/[^a-zA-Z0-9 ]/g, "_").replace(/\s+/g, "_");
-}
-
-function extractJSON(raw) {
-  if (!raw) return { ok: false, error: "EMPTY_OUTPUT" };
-  try {
-    const parsed = JSON.parse(raw);
-    const questions = Array.isArray(parsed) ? parsed : (parsed.questions || []);
-    if (Array.isArray(questions)) return { ok: true, questions };
-    return { ok: false, error: "INVALID_JSON_SHAPE", raw };
-  } catch (err) {
-    console.log("JSON Parse Error:", err.message);
-    console.log("Raw output:", raw);
-    return { ok: false, error: err.message, raw };
-  }
-}
-
-// ============================================================================
-//  GEMINI ENGINE
-// ============================================================================
-
-async function callGemini(prompt) {
-  const client = new GoogleGenerativeAI(GEMINI_API_KEY);
-  let lastErr = null;
-
-  for (const modelName of MODEL_CHAIN) {
-    try {
-      console.log("⚡ Trying model:", modelName);
-      const model = client.getGenerativeModel({ model: modelName, generationConfig: { responseMimeType: "application/json", maxOutputTokens: 2048 } });
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      const txt = response.text();
-
-      if (!txt || !txt.trim()) {
-        console.warn(`⚠ Empty output from ${modelName}`);
-        continue;
-      }
-
-      console.log("✅ Success with model:", modelName);
-      return { txt, modelUsed: modelName };
-    } catch (err) {
-      lastErr = err;
-      console.error(`❌ Model ${modelName} failed:`, err.message);
-      if (err?.status === 429) continue; 
-      if (err?.status >= 500) {
-        await new Promise(r => setTimeout(r, 1000));
-        continue;
-      }
-    }
-  }
-  throw lastErr || new Error("All models in the chain failed.");
-}
 
 function getDb() {
   const rawServiceAccount = process.env.FIREBASE_SERVICE_ACCOUNT;
@@ -154,91 +82,47 @@ export default async function handler(req, res) {
     }
 
     console.log('[MS1] Input:', grade, subject, chapter);
-    const sanitizedChapter = sanitizeChapterName(chapter);
 
-    // 5. PROMPT CONSTRUCTION
-    const prompt = `Extract 10 distinct English previous year questions from CBSE board papers (2015-2025) for Class ${grade} ${subject}, chapter "${chapter}". Return ONLY a JSON array. Each item must have: "question_en" (string), "marks" (number 1-5), and "year" (number). Do NOT include answers or explanations.`;
+    const snapshot = await db.collection("Ready4Exam_Vault")
+      .where("grade", "==", String(grade))
+      .where("subject", "==", subject)
+      .get();
 
-    // 6. EXECUTION LOOP (RETRY LOGIC)
-    let questionsToInsert = [];
-    let lastModelUsed = "UNKNOWN";
-    const start = Date.now();
-
-    let currentPrompt = prompt;
-    for (let attempt = 1; attempt <= 3; attempt++) {
-      try {
-        if (attempt > 1 && questionsToInsert.length === 0) {
-          console.log(`Attempt ${attempt}: Using Relaxed Fallback Prompt`);
-          currentPrompt = `Give 5 important CBSE questions for Class ${grade} ${subject}, chapter "${chapter}" in a JSON array with: question_en, marks, and year.`;
-        }
-        console.log('[MS2] Calling AI for chapter:', chapter);
-        const { txt: raw, modelUsed } = await callGemini(currentPrompt);
-        lastModelUsed = modelUsed;
-        console.log('[MS3] RAW AI RESPONSE:', raw);
-        const parsed = extractJSON(raw);
-        if (parsed.ok && parsed.questions && parsed.questions.length > 0) {
-          questionsToInsert = parsed.questions;
-          console.log('[MS4] Parsed questions count:', questionsToInsert.length);
-          break;
-        }
-      } catch (e) {
-        console.error(`Attempt ${attempt} failed:`, e.message);
-      }
-    }
-
-    if (!questionsToInsert.length) {
-      return res.status(200).json({ ok: true, extracted: 0, message: "No results found", modelUsed: lastModelUsed });
-    }
-
-
-    // 7. HIERARCHICAL FIRESTORE INSERTION
-    console.log('[MS5] Starting Firestore write for:', sanitizedChapter);
-    const chapterDocRef = db
-      .collection("PYQ_Bank")
-      .doc(String(grade))
-      .collection("Subjects")
-      .doc(subject)
-      .collection("Chapters")
-      .doc(sanitizedChapter);
-
-    await chapterDocRef.set({
-      name: chapter,
-      sanitizedName: sanitizedChapter,
-      subject: subject,
-      grade: grade,
-      lastUpdated: FieldValue.serverTimestamp()
-    }, { merge: true });
-
-    const questionsRef = chapterDocRef.collection("Questions");
-    const results = [];
-
-    const insertionPromises = questionsToInsert.map(async (q) => {
-      if (q.question_en) {
-        const payload = {
-          ...q,
-          question_en: String(q.question_en).trim(),
-          marks: Number(q.marks) || 0,
-          year: Number(q.year) || 0,
-          subject,
-          timestamp: FieldValue.serverTimestamp()
-        };
-        if (book) payload.book = book;
-        
-        const doc = await questionsRef.add(payload);
-        return { id: doc.id, status: "success" };
-      }
-      return { status: "skipped", reason: "invalid format" };
+    const pdf_urls = [];
+    snapshot.docs.forEach(doc => {
+      const data = doc.data();
+      if (data.qp_url) pdf_urls.push(data.qp_url);
+      if (data.ms_url) pdf_urls.push(data.ms_url);
     });
 
-    const batchSummary = await Promise.all(insertionPromises);
+    const validUrls = pdf_urls.filter(url => url && typeof url === 'string' && url.trim() !== '');
 
-    return res.status(200).json({
+    if (validUrls.length === 0) {
+      return res.status(200).json({ ok: true, message: "No PDF files found in vault for the given grade and subject." });
+    }
+
+    const PYTHON_AGENT_URL = process.env.PYTHON_AGENT_URL || "http://localhost:8000/extract";
+    const payload = {
+      metadata: { grade, subject, book, chapter },
+      pdf_urls: validUrls
+    };
+
+    fetch(PYTHON_AGENT_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    }).catch(e => console.error("Agent dispatch error:", e));
+
+    return res.status(202).json({
       ok: true,
-      extracted: questionsToInsert.length,
-      inserted: batchSummary.filter(r => r.status === "success").length,
-      durationMs: Date.now() - start,
-      batchSummary
+      message: "Accepted. Orchestrator dispatched request to Python Agent.",
+      pdfs_found: validUrls.length
     });
+
+
+
 
   } catch (err) {
     console.error("Critical API Error:", err);
