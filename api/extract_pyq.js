@@ -5,28 +5,20 @@ import { getCorsHeaders } from "./cors.js";
 // Vercel Serverless Config
 export const config = { runtime: "nodejs" };
 
+// ============================================================================
+//  DATABASE INITIALIZATION
+// ============================================================================
 function getDb() {
   const rawServiceAccount = process.env.FIREBASE_SERVICE_ACCOUNT;
   if (!rawServiceAccount) {
-    return {
-      error: {
-        status: 503,
-        message: "FIREBASE_SERVICE_ACCOUNT not configured"
-      }
-    };
+    return { error: { status: 503, message: "FIREBASE_SERVICE_ACCOUNT not configured" } };
   }
 
   let serviceAccount;
   try {
     serviceAccount = JSON.parse(rawServiceAccount);
   } catch (err) {
-    return {
-      error: {
-        status: 500,
-        message: "FIREBASE_SERVICE_ACCOUNT malformed",
-        details: err.message
-      }
-    };
+    return { error: { status: 500, message: "FIREBASE_SERVICE_ACCOUNT malformed", details: err.message } };
   }
 
   try {
@@ -35,20 +27,13 @@ function getDb() {
     }
     return { db: getFirestore() };
   } catch (err) {
-    return {
-      error: {
-        status: 500,
-        message: "Firebase Init Failed",
-        details: err.message
-      }
-    };
+    return { error: { status: 500, message: "Firebase Init Failed", details: err.message } };
   }
 }
 
 // ============================================================================
-//  MAIN API HANDLER (Consolidated CORS + Logic)
+//  MAIN API HANDLER
 // ============================================================================
-
 export default async function handler(req, res) {
   // 1. SHARED CORS HEADERS
   const origin = req.headers.origin || "";
@@ -70,7 +55,7 @@ export default async function handler(req, res) {
   // 4. DATABASE INITIALIZATION
   const { db, error: dbError } = getDb();
   if (dbError) {
-    return res.status(dbError.status).json({ ok: false, error: dbError.message, details: dbError.details });
+    return res.status(dbError.status).json({ ok: false, error: dbError.message });
   }
 
   try {
@@ -84,10 +69,11 @@ export default async function handler(req, res) {
     const sanitizedChapter = chapter.trim().replace(/[^a-zA-Z0-9 ]/g, "_").replace(/\s+/g, "_");
 
     // ========================================================================
-    //  WEBHOOK MODE: Save data to Hierarchical Storage
+    //  WEBHOOK MODE: Save data from Agent to Hierarchical Storage
     // ========================================================================
     if (questions && Array.isArray(questions)) {
-      console.log('[MS-WH] Webhook mode triggered for:', chapter);
+      console.log('[WH] Webhook triggered for chapter:', chapter);
+      
       const chapterDocRef = db
         .collection("Chapter_Analysis")
         .doc(String(grade))
@@ -106,10 +92,9 @@ export default async function handler(req, res) {
 
       const historicalRef = chapterDocRef.collection("Historical_Questions");
       const insertionPromises = questions.map(async (q) => {
-        if (q.question_en) {
+        if (q.question_text || q.question_en) {
           const payload = {
-            ...q,
-            question_en: String(q.question_en).trim(),
+            question_text: q.question_text || q.question_en,
             marking_logic: q.marking_logic || "",
             image_url: q.image_url || "",
             marks: Number(q.marks) || 0,
@@ -118,56 +103,79 @@ export default async function handler(req, res) {
             timestamp: FieldValue.serverTimestamp()
           };
           if (book) payload.book = book;
-
+          
           const doc = await historicalRef.add(payload);
           return { id: doc.id, status: "success" };
         }
         return { status: "skipped", reason: "invalid format" };
       });
 
-      const batchSummary = await Promise.all(insertionPromises);
+      const results = await Promise.all(insertionPromises);
       return res.status(200).json({
         ok: true,
-        inserted: batchSummary.filter(r => r.status === "success").length,
-        batchSummary
+        inserted: results.filter(r => r.status === "success").length
       });
     }
 
     // ========================================================================
     //  ORCHESTRATOR MODE: Vault Lookup & Agent Dispatch
     // ========================================================================
-    console.log('[MS1] Orchestrator Input:', grade, subject, chapter);
+    const cleanGrade = String(grade).trim();
+    const cleanSubject = String(subject).trim();
+    
+    // Alias Logic: Check both 'Mathematics' and 'Maths'
+    const subjectAliases = [cleanSubject];
+    if (cleanSubject === "Mathematics") subjectAliases.push("Maths");
+    if (cleanSubject === "Maths") subjectAliases.push("Mathematics");
 
-    const snapshot = await db.collection("Ready4Exam_Vault")
-      .where("grade", "==", String(grade))
-      .where("subject", "==", subject)
-      .get();
+    console.log(`[ORCH] Lookup: Grade ${cleanGrade}, Subject: ${cleanSubject}`);
+
+    const vaultRef = db.collection("Ready4Exam_Vault");
+    let vaultDocs = [];
+
+    // Query across aliases
+    for (const alias of subjectAliases) {
+      const snap = await vaultRef
+        .where("grade", "==", cleanGrade)
+        .where("subject", "==", alias)
+        .get();
+      if (!snap.empty) vaultDocs.push(...snap.docs);
+    }
 
     const pdf_urls = [];
-    snapshot.docs.forEach(doc => {
+    vaultDocs.forEach(doc => {
       const data = doc.data();
       if (data.qp_url) pdf_urls.push(data.qp_url);
       if (data.ms_url) pdf_urls.push(data.ms_url);
     });
 
-    const validUrls = pdf_urls.filter(url => url && typeof url === 'string' && url.trim() !== '');
+    const validUrls = [...new Set(pdf_urls.filter(url => url && url.trim() !== ''))];
 
     if (validUrls.length === 0) {
-      return res.status(200).json({ ok: true, message: "No PDF files found in vault for the given grade and subject." });
+      return res.status(200).json({ 
+        ok: true, 
+        extracted: 0,
+        message: `No PDF files found in vault for Grade ${cleanGrade} ${cleanSubject}.` 
+      });
     }
 
-    const PYTHON_AGENT_URL = process.env.PYTHON_AGENT_URL || "http://localhost:8000/extract";
-    const payload = {
-      metadata: { grade, subject, book, chapter },
+    // DISPATCH TO PYTHON AGENT
+    const PYTHON_AGENT_URL = process.env.PYTHON_AGENT_URL;
+    if (!PYTHON_AGENT_URL) {
+       console.error("Missing PYTHON_AGENT_URL env var");
+       return res.status(500).json({ ok: false, error: "Agent URL not configured" });
+    }
+
+    const agentPayload = {
+      metadata: { grade: cleanGrade, subject: cleanSubject, book, chapter },
       pdf_urls: validUrls
     };
 
+    // Fire and forget dispatch
     fetch(PYTHON_AGENT_URL, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(payload)
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(agentPayload)
     }).catch(e => console.error("Agent dispatch error:", e));
 
     return res.status(202).json({
