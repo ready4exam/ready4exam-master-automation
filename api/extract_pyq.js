@@ -115,6 +115,24 @@ export default async function handler(req, res) {
       body: JSON.stringify(payload)
     }).catch(e => console.error("Agent dispatch error:", e));
 
+    const sanitizedChapter = chapter.trim().replace(/[^a-zA-Z0-9 ]/g, "_").replace(/\s+/g, "_");
+    console.log('[MS5] Starting Firestore write for:', sanitizedChapter);
+    const chapterDocRef = db
+      .collection("Chapter_Analysis")
+      .doc(String(grade))
+      .collection("Subjects")
+      .doc(subject)
+      .collection("Chapters")
+      .doc(sanitizedChapter);
+
+    await chapterDocRef.set({
+      name: chapter,
+      sanitizedName: sanitizedChapter,
+      subject: subject,
+      grade: grade,
+      lastUpdated: FieldValue.serverTimestamp()
+    }, { merge: true });
+
     return res.status(202).json({
       ok: true,
       message: "Accepted. Orchestrator dispatched request to Python Agent.",
