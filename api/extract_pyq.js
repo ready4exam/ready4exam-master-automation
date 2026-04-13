@@ -75,13 +75,68 @@ export default async function handler(req, res) {
 
   try {
     const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
-    const { grade, subject, book, chapter } = body || {};
+    const { grade, subject, book, chapter, questions } = body || {};
 
     if (!grade || !subject || !chapter) {
       return res.status(400).json({ ok: false, error: "Missing required fields: grade, subject, chapter." });
     }
 
-    console.log('[MS1] Input:', grade, subject, chapter);
+    const sanitizedChapter = chapter.trim().replace(/[^a-zA-Z0-9 ]/g, "_").replace(/\s+/g, "_");
+
+    // ========================================================================
+    //  WEBHOOK MODE: Save data to Hierarchical Storage
+    // ========================================================================
+    if (questions && Array.isArray(questions)) {
+      console.log('[MS-WH] Webhook mode triggered for:', chapter);
+      const chapterDocRef = db
+        .collection("Chapter_Analysis")
+        .doc(String(grade))
+        .collection("Subjects")
+        .doc(subject)
+        .collection("Chapters")
+        .doc(sanitizedChapter);
+
+      await chapterDocRef.set({
+        name: chapter,
+        sanitizedName: sanitizedChapter,
+        subject: subject,
+        grade: grade,
+        lastUpdated: FieldValue.serverTimestamp()
+      }, { merge: true });
+
+      const historicalRef = chapterDocRef.collection("Historical_Questions");
+      const insertionPromises = questions.map(async (q) => {
+        if (q.question_en) {
+          const payload = {
+            ...q,
+            question_en: String(q.question_en).trim(),
+            marking_logic: q.marking_logic || "",
+            image_url: q.image_url || "",
+            marks: Number(q.marks) || 0,
+            year: Number(q.year) || 0,
+            subject,
+            timestamp: FieldValue.serverTimestamp()
+          };
+          if (book) payload.book = book;
+
+          const doc = await historicalRef.add(payload);
+          return { id: doc.id, status: "success" };
+        }
+        return { status: "skipped", reason: "invalid format" };
+      });
+
+      const batchSummary = await Promise.all(insertionPromises);
+      return res.status(200).json({
+        ok: true,
+        inserted: batchSummary.filter(r => r.status === "success").length,
+        batchSummary
+      });
+    }
+
+    // ========================================================================
+    //  ORCHESTRATOR MODE: Vault Lookup & Agent Dispatch
+    // ========================================================================
+    console.log('[MS1] Orchestrator Input:', grade, subject, chapter);
 
     const snapshot = await db.collection("Ready4Exam_Vault")
       .where("grade", "==", String(grade))
@@ -115,32 +170,11 @@ export default async function handler(req, res) {
       body: JSON.stringify(payload)
     }).catch(e => console.error("Agent dispatch error:", e));
 
-    const sanitizedChapter = chapter.trim().replace(/[^a-zA-Z0-9 ]/g, "_").replace(/\s+/g, "_");
-    console.log('[MS5] Starting Firestore write for:', sanitizedChapter);
-    const chapterDocRef = db
-      .collection("Chapter_Analysis")
-      .doc(String(grade))
-      .collection("Subjects")
-      .doc(subject)
-      .collection("Chapters")
-      .doc(sanitizedChapter);
-
-    await chapterDocRef.set({
-      name: chapter,
-      sanitizedName: sanitizedChapter,
-      subject: subject,
-      grade: grade,
-      lastUpdated: FieldValue.serverTimestamp()
-    }, { merge: true });
-
     return res.status(202).json({
       ok: true,
       message: "Accepted. Orchestrator dispatched request to Python Agent.",
       pdfs_found: validUrls.length
     });
-
-
-
 
   } catch (err) {
     console.error("Critical API Error:", err);
