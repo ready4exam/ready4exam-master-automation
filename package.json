@@ -4,7 +4,8 @@
   "description": "Ready4Exam Automation Backend (Vercel serverless API for Supabase, Gemini, and curriculum sync)",
   "type": "module",
   "scripts": {
-    "vercel-build": "echo '✅ Serverless API deployment – no build output required'"
+    "vercel-build": "echo '✅ Serverless API deployment – no build output required'",
+    "test": "node .github/init.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.44.0",
@@ -13,7 +14,7 @@
     "date-fns": "^3.6.0",
     "@octokit/rest": "^21.0.1",
     "firebase-admin": "^12.0.0",
-    "@google/generative-ai": "^0.21.0", 
+    "@google/generative-ai": "^0.21.0",
     "transliteration": "^2.3.5"
   },
   "license": "MIT",
