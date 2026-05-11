@@ -3,7 +3,7 @@
 // Free-tier Failover + Improved NCERT Prompt + Strong JSON Mode + CORS
 // ============================================================================
 
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenerativeAI } from "@google/genai";
 
 export const config = { runtime: "nodejs" };
 
