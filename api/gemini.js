@@ -3,7 +3,7 @@
 // Free-tier Failover + Improved NCERT Prompt + Strong JSON Mode + CORS
 // ============================================================================
 
-import { GoogleGenerativeAI } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 export const config = { runtime: "nodejs" };
 
@@ -18,8 +18,6 @@ const MODEL_CHAIN = [
   "gemini-flash-latest",     // Backup
   "gemini-2.0-flash",        // Backup
   "gemini-2.5-flash-lite"    // Last fallback
-  "gemini-3-flash-preview",
-  "gemini-3.1-flash-lite-preview"
 ];
 
 // ============================================================================
